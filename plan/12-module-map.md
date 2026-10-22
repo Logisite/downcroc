@@ -287,9 +287,9 @@ build.
 | Phase | Modules |
 |---|---|
 | P0 | `runtime`, `store/db`, `api/app`, `api/routes/health`, `cli`, a TUI shell |
-| P1 | `vault`, `store/repositories/accounts`, `providers/registry`, `providers/declarations`, `mail/imap/connection` |
+| P1 | `vault`, `store/repositories/accounts`, `core/events`, `core/accounts_service`, `api/routes/accounts`, `api/routes/events`, `providers/registry`, `providers/declarations`, `mail/imap/connection` |
 | P2 | `core/inbound`, `store/repositories/messages`, `store/content`, `mail/imap`, `tui/screens/mailbox` |
-| P3 | `providers/oauth`, `providers/token`, `mail/mime`, `mail/smtp`, `core/accounts_service` |
+| P3 | `providers/oauth`, `providers/token`, `mail/mime`, `mail/smtp` |
 | P4 | `core/inputs`, `core/rendering`, `core/batches_service`, `core/dispatch`, `core/retry`, `core/failures_service` |
 | P5 | `core/inbound/threader`, `classifier`, `attribution`, `suppression`, `core/followups`, `core/stats_service` |
 | P6 | `core/retention`, `backup`, `runtime/config/store`, `runtime/service`, reconciliation in `core/bootstrap` |

@@ -210,6 +210,7 @@ challenged individually.
 | Sanitize HTML at render, not at store | the stored copy is evidence | `07` |
 | Read-only posture on the remote mailbox | makes it safe to point at a primary account | `07` |
 | `app_version` and `schema_revision` both in the manifest | version refusal needs both to be meaningful | `09` |
+| Per-account send policy stored on the account row | each account differs, the account API edits one at a time, and dispatch reads policy in the same query; `[sending]` supplies the defaults | `01`, `03` |
 
 ## Code and workflow
 
@@ -230,8 +231,9 @@ A self-check script is acceptable only where observing the behaviour live is gen
 never written into the dependency table by hand and versions are never pinned by hand; uv resolves
 them and the lock is committed.
 
-**Q65 - Formatting.** `ruff format` with its defaults, 88 columns, no custom line length. No
-excessively long lines, and no argument about it in review.
+**Q65 - Formatting.** `ruff check --fix` and `ruff format`, both on the tool's own shipped
+defaults. No `[tool.ruff]` block and no custom line length: the tool decides, and the remaining
+findings are fixed by hand.
 
 **Q66 - ORM and migrations.** SQLAlchemy 2.0 declarative models, Alembic for migrations, both only
 inside `store`. Migrations are generated with `alembic revision --autogenerate`, reviewed, and

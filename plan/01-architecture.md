@@ -99,9 +99,12 @@ A single rule resolves where a thing lives:
   human-editable, and is the only source of truth.
 - **State** is what is currently true. It lives in SQLite and is never hand-edited.
 
-So a daily allowance, an active window, or a jitter range is config. A watcher toggle, a
-quota counter, a job, or a UID cursor is state. The TUI edits config by calling the API, and
-the daemon rewrites `config.toml` atomically and reloads. Two stores never disagree.
+So the `[sending]` defaults for a daily allowance, an active window, or a jitter range are
+config. A newly added account copies those defaults into its own policy, which is state because
+it is different for each account and edited per account. A watcher toggle, a quota counter, a
+job, or a UID cursor is state too. Global behaviour is edited through `config.toml` and reloaded;
+per-account policy is edited through the account API. Each value has exactly one home, so two
+stores never disagree.
 
 ## Daemon lifecycle
 

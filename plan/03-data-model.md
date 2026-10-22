@@ -33,10 +33,20 @@ counters; there is no surrogate integer key anywhere except the event sequence.
 | provider_id | text | matches a declared provider |
 | address | text | unique per provider |
 | label | text | user-facing |
-| status | text | `connected`, `needs_reauth`, `disabled`, `unverified` |
+| status | text | `pending` before a credential exists, `unverified` after one exists but is unproven, then `connected`, `needs_reauth`, `disabled` |
 | credential_key | text | key inside the vault, never a credential |
 | created_at | text | |
 | last_verified_at | text | null until first verify |
+| daily_allowance | int | successful sends per local day |
+| window_start | int | local hour sending opens |
+| window_end | int | local hour sending closes |
+| jitter_min | int | minimum seconds between sends on this account |
+| jitter_max | int | maximum seconds between sends on this account |
+| max_in_flight | int | concurrent sends allowed on this account |
+| enabled | int | participates in dispatch |
+
+The policy columns are copied from the `[sending]` config section when the account is created.
+They live on the row because accounts differ and the account API edits one account at a time.
 
 ### `account_state`
 

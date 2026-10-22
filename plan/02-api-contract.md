@@ -160,9 +160,9 @@ account object itself. Nothing in this section can throttle a send.
 | provider | string | `gmail`, `microsoft`, or a declared generic id |
 | address | string | the mailbox address |
 | label | string | user-facing name |
-| status | enum | `connected`, `needs_reauth`, `disabled`, `unverified` |
+| status | enum | `pending`, `connected`, `needs_reauth`, `disabled`, `unverified` |
 | credential_present | bool | never the credential itself |
-| quota | object | daily allowance, window hours, jitter range, enabled |
+| quota | object | daily allowance, window hours, jitter range, enabled; the account's stored policy snapshot |
 
 **Job**
 

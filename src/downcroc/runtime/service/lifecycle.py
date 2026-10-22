@@ -14,6 +14,7 @@ from types import FrameType
 
 import httpx
 import uvicorn
+from fastapi import FastAPI
 
 from downcroc.api.app import create_app
 from downcroc.runtime.config.schema import Settings
@@ -29,12 +30,16 @@ class PortInUse(RuntimeError):
 
 
 class DaemonServer(uvicorn.Server):
-    def __init__(self, config: uvicorn.Config) -> None:
+    def __init__(self, config: uvicorn.Config, app: FastAPI) -> None:
         super().__init__(config)
+        self._app = app
         self.received: list[int] = []
 
     def handle_exit(self, sig: int, frame: FrameType | None) -> None:
         self.received.append(sig)
+        services = getattr(self._app.state, "services", None)
+        if services is not None:
+            services.bus.close_all("shutdown")
         super().handle_exit(sig, frame)
 
     @contextlib.contextmanager
@@ -134,7 +139,8 @@ def run_foreground(paths: Paths, settings: Settings) -> None:
             port=info.port,
             log_config=None,
             access_log=False,
-        )
+        ),
+        app,
     )
     boot = time.monotonic()
     try:

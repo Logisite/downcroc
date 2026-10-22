@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from downcroc.api.routes import health
+from downcroc.api import errors
+from downcroc.api.routes import accounts, events, health
+from downcroc.core.bootstrap import build
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
@@ -18,13 +21,20 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     started_at = time.time()
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI):
+    async def lifespan(app: FastAPI):
+        services = build(settings, paths, log)
+        app.state.services = services
+        services.bus.start(asyncio.get_running_loop())
         log.info(
             "daemon.ready",
             port=settings.daemon.port,
             boot_ms=round((time.monotonic() - boot) * 1000),
         )
-        yield
+        try:
+            yield
+        finally:
+            services.bus.close_all("shutdown")
+            services.close()
 
     app = FastAPI(
         title="downcroc",
@@ -38,5 +48,8 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     app.state.started = boot
     app.state.started_at = started_at
     app.state.api_version = API_VERSION
+    errors.install(app)
     app.include_router(health.router)
+    app.include_router(accounts.router)
+    app.include_router(events.router)
     return app
