@@ -44,9 +44,10 @@ mismatch refuses cleanly.
 Vault format, Argon2id tuning, unlock and lock, atomic writes, account CRUD, generic IMAP with an
 app password, verify action, credential presence in the UI, redaction at the logging boundary.
 
-**Gate:** wrong password fails cleanly; a truncated vault is detected and does not crash the
-daemon; credentials never appear in any HTTP response, log line, or event, confirmed by sending
-one message and reading the live log. Restart leaves the daemon locked and the accounts listed.
+**Gate:** wrong password fails cleanly and is throttled; a damaged vault (truncated, or one byte
+changed) is detected and does not crash the daemon; credentials never appear in any HTTP response,
+log line, or event, confirmed by sending one message and reading the live log. Restart leaves the
+daemon locked and the accounts listed.
 
 ### P2 - Inbound
 

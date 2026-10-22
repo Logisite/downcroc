@@ -14,6 +14,16 @@ def _uptime(request: Request) -> float:
     return round(time.monotonic() - request.app.state.started, 3)
 
 
+def _vault(request: Request) -> dict[str, object]:
+    status = request.app.state.services.vault.status()
+    return {
+        "state": status.state,
+        "unlocked_at": status.unlocked_at,
+        "attempts_left": status.attempts_left,
+        "retry_after_s": status.retry_after_s,
+    }
+
+
 @router.get("/health")
 def health(request: Request) -> dict[str, object]:
     return {
@@ -36,4 +46,5 @@ def status(request: Request) -> dict[str, object]:
             request.app.state.started_at, tz=UTC
         ).isoformat(timespec="seconds"),
         "uptime_s": _uptime(request),
+        "vault": _vault(request),
     }

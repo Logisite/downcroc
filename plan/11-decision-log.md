@@ -251,6 +251,16 @@ scope, and a subject that lists what changed: `feat(vault): add key derivation, 
 Short, plain, no footers, no co-author line, no emoji. The subject says what changed, and a body
 would say why rather than how. No long narrative.
 
+**Q69 - Vault details settled while building.** `vault.enc` is magic, version, KDF parameters,
+salt and nonce, an unkeyed SHA-256 digest, then AES-256-GCM ciphertext with the header as AAD.
+The digest only separates accidental damage from a wrong password; it is not a security
+boundary. The lifecycle lives in `core/vault_service.py`, the format and crypto in `vault/`.
+Throttling is configurable in `[vault]`: five free attempts, then a delay from one second that
+doubles to a five minute cap. A successful unlock resets the count; a corrupt file does not
+count. First unlock creates the vault, a second unlock returns `vault_already_unlocked`, and a
+second lock is a no-op. Chosen KDF parameters live in the header, so a vault opened on a slower
+machine keeps its original cost.
+
 ## Deliberately deferred
 
 | Deferred | Trigger to revisit |

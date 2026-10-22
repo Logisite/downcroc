@@ -69,27 +69,32 @@ attacker who already has the disk and the password prompt.
 
 | Part | Content |
 |---|---|
-| Magic and version | `DNCROC1`, format version, KDF parameters, salt, nonce base |
+| Magic and version | `DNCROC1`, format version, KDF parameters, salt, nonce |
+| Digest | SHA-256 over the header and ciphertext, checked before decryption |
 | Ciphertext | AES-256-GCM over a CBOR map of `credential_key -> secret` |
 | Tag | authenticated by GCM, covers header fields as additional data |
 
 The header is authenticated as AAD, so editing KDF parameters, algorithm ids, or the format
-version makes decryption fail rather than silently weakening the file.
+version makes decryption fail rather than silently weakening the file. The digest is unkeyed and
+is not a security boundary: it exists so an accidental byte flip is reported as corruption
+instead of a wrong password. A tampered file that recomputes the digest still fails GCM.
 
 ### Key derivation
 
-Argon2id with parameters recorded in the header, tuned at first run to roughly 250-500 ms on
-the current machine, with a floor of 64 MiB memory, 3 iterations, 1 lane. The chosen parameters
-are read from the header on unlock, so a vault created on a slower machine still opens.
+Argon2id with parameters recorded in the header. At creation the daemon starts at the configured
+floor (64 MiB memory, 3 iterations, 1 lane) and doubles memory, up to a configured ceiling
+(256 MiB), until a derivation reaches the configured target (250 ms). The chosen parameters are
+read from the header on unlock, so a vault created on a slower machine still opens.
 
 The derived key is used directly for AES-256-GCM. No key wrapping, no second layer.
 
 ### Writes
 
 Atomic replace only: write to `vault.enc.tmp` in the same directory, `fsync` the file,
-`os.replace`, `fsync` the directory. A crash leaves either the old vault or the new one, never
-a truncated one. A truncated file is detected by the magic and version check and reported as
-corruption, not as a wrong password.
+`os.replace`, `fsync` the directory. A failed write unlinks the temporary file and leaves the
+old vault intact. A crash leaves either the old vault or the new one, never a truncated one.
+The digest, then the magic and version checks, report damage as corruption rather than as a
+wrong password.
 
 ### What lives inside
 
@@ -118,10 +123,15 @@ Rules:
 - The password is received once, held only long enough to derive, then dropped. It is never
   written, logged, or returned.
 - The derived key lives in the process only. No key file, no keyring integration.
-- Failed unlock attempts are counted and rate limited in memory: after 5 failures, an
-  exponentially increasing delay. This is not a defence against an attacker with the file
+- Failed unlock attempts are counted and rate limited in memory: five free attempts, then an
+  exponentially increasing delay from one second, capped at five minutes. The free count, base
+  delay, and ceiling are in `[vault]`. This is not a defence against an attacker with the file
   (they can brute force offline) but it does stop a runaway script from spinning the CPU.
+- A successful unlock resets the failure count. A corrupt file is refused without counting as a
+  password attempt, stays locked, and logs the offset and expected value.
 - Unlocking with a vault file that does not exist creates it. This is the first-run path.
+- Unlocking an already unlocked vault returns `vault_already_unlocked`; locking a locked vault is
+  a no-op.
 - Unlocking with a wrong password fails cleanly with `vault_bad_password`, with no hint about
   which part failed.
 - Locking while sends are in flight: the sender finishes the current message if it can within
@@ -145,9 +155,9 @@ Concretely, all of the following are forbidden and are checked at the boundary:
 | Crash dumps | a deliberate risk: a dump of the process may contain the key. Not defended |
 
 No test is required for this. It is enforced structurally instead: secrets live in a single
-object owned by the vault module, and nothing outside the mail transport layer can obtain one.
-The rule is that secret values have exactly one accessor, and that accessor returns a
-short-lived bearer token to the sender, not a stored one.
+object owned by `core/vault_service.py`, and nothing outside the provider and mail layers can
+obtain one. `VaultService.get_secret` is the only accessor; it requires an unlocked vault,
+raises `vault_locked` otherwise, and no HTTP route imports it.
 
 ## Filesystem permissions
 

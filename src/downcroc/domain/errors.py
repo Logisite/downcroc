@@ -36,3 +36,43 @@ class AccountInUse(DomainError):
 class InvalidAccount(DomainError):
     code = "invalid_account"
     status = 422
+
+
+class VaultLocked(DomainError):
+    code = "vault_locked"
+    status = 423
+
+
+class VaultBadPassword(DomainError):
+    code = "vault_bad_password"
+    status = 401
+
+
+class VaultThrottled(DomainError):
+    code = "vault_throttled"
+    status = 429
+
+
+class VaultCorrupt(DomainError):
+    code = "vault_corrupt"
+    status = 409
+
+
+class VaultAlreadyUnlocked(DomainError):
+    code = "vault_already_unlocked"
+    status = 409
+
+
+class VaultWriteFailed(DomainError):
+    code = "vault_write_failed"
+    status = 500
+
+
+class VaultUnavailable(DomainError):
+    code = "vault_unavailable"
+    status = 500
+
+
+class VaultSecretMissing(DomainError):
+    code = "vault_secret_missing"
+    status = 404

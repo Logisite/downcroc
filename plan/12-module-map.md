@@ -87,12 +87,11 @@ downcroc/
     failed_log.py       failed.jsonl append and read
 
   vault/
-    kdf.py              Argon2id parameters, tuning, derive
-    format.py           header encode and decode, magic, version
+    kdf.py              Argon2id parameters, bounded tuning, derive
+    format.py           header encode and decode, digest, magic, version
     cipher.py           AES-256-GCM, authenticated header
-    store.py            atomic read and write, corruption detection
-    service.py          unlock, lock, failed attempt rate limiting
-    secrets.py          key naming, secret record types
+    store.py            atomic replace, fsync, temporary file cleanup
+    secrets.py          key naming, secret records, cbor map
 
   providers/
     base.py             Provider protocol, Capability, Spec
@@ -127,7 +126,7 @@ downcroc/
   core/
     bootstrap.py        composition root, wires adapters into services
     events.py           event bus, sequence, ring buffer writer
-    vault_service.py    unlock and lock, secret access, token cache
+    vault_service.py    unlock, lock, throttle, secret access, token cache
     accounts_service.py connect, verify, disable, reauth handling
     batches_service.py  submit, snapshot, create jobs, approve, cancel
     jobs_service.py     lease, requeue, reassign, cancel, retry
@@ -231,7 +230,7 @@ models they generate from live in `store/db/models/`, so the schema has exactly 
 |---|---|---|
 | `Sender` | `mail/smtp/sender.py` | records messages, returns scripted codes |
 | `Receiver` | `mail/imap/client.py` | scripted mailbox with UIDVALIDITY changes |
-| `SecretStore` | `vault/store.py` | in memory dict |
+| `SecretStore` | `core/vault_service.py` | in-memory dict |
 | `ContentStore` | `store/content/files.py` | temp directory |
 | `ProviderResolver` | `providers/registry.py` | fixed specs |
 | `EventSink` | `store/repositories/events.py` | list collector |
@@ -249,7 +248,7 @@ They are not a test harness.
 | `textual` | `tui` |
 | `aiosmtplib` | `mail/smtp` |
 | `imap-tools` | `mail/imap` |
-| `argon2-cffi`, `cryptography` | `vault` |
+| `argon2-cffi`, `cryptography`, `cbor2` | `vault` |
 | `sqlalchemy`, `alembic`, `sqlite3` | `store` |
 | `httpx` | `providers/oauth`, `tui/client` |
 | `nh3`, `css-inline` | `html` |

@@ -51,6 +51,15 @@ a pairing flow; until then, adding auth would be defending a boundary nobody cro
 | POST | `/api/vault/unlock` | body: master password. Derives key, discards password |
 | POST | `/api/vault/lock` | drops the key. Running sends finish or are abandoned per `03` |
 
+`GET /api/vault` returns `state`, `path`, `unlocked_at`, `attempts_left`, `retry_after_s`, and
+`accounts` (each with `id` and `credential_present`). Unlock takes `{"password": "..."}` and
+returns the same shape; lock takes no body and returns it. Neither echoes the password.
+`GET /api/status` carries a `vault` object with the state and attempt fields.
+
+Vault errors: `vault_bad_password` (401), `vault_locked` (423), `vault_throttled` (429),
+`vault_corrupt` and `vault_already_unlocked` (409), `vault_unavailable` and
+`vault_write_failed` (500).
+
 ### Accounts
 
 | Method | Path | Purpose |

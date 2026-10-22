@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from downcroc.api import errors
-from downcroc.api.routes import accounts, events, health
+from downcroc.api.routes import accounts, events, health, vault
 from downcroc.core.bootstrap import build
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
@@ -33,6 +33,7 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
         try:
             yield
         finally:
+            services.vault.lock("shutdown")
             services.bus.close_all("shutdown")
             services.close()
 
@@ -50,6 +51,7 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     app.state.api_version = API_VERSION
     errors.install(app)
     app.include_router(health.router)
+    app.include_router(vault.router)
     app.include_router(accounts.router)
     app.include_router(events.router)
     return app

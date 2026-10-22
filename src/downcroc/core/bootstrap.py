@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.events import EventBus
+from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import SendPolicy
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
@@ -24,6 +25,7 @@ class Services:
     events: EventRepo
     bus: EventBus
     accounts: AccountsService
+    vault: VaultService
 
     def close(self) -> None:
         self.engine.dispose()
@@ -45,10 +47,12 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         enabled=settings.sending.enabled,
     )
     accounts = AccountsService(AccountRepo(sessions), bus, log, policy)
+    vault = VaultService(paths.data / "vault.enc", settings.vault, bus, log)
     return Services(
         engine=engine,
         sessions=sessions,
         events=events,
         bus=bus,
         accounts=accounts,
+        vault=vault,
     )
