@@ -1,0 +1,15 @@
+id = "generic"
+label = "Generic IMAP"
+imap_host = ""
+imap_port = 993
+imap_tls = "ssl"
+smtp_host = ""
+smtp_port = 587
+smtp_tls = "starttls"
+auth_kind = "app_password"
+smtp_auth_mechanism = "PLAIN"
+sent_folder = "Sent"
+supports_idle = true
+requires_user_agent = false
+attachment_max_bytes = 26214400
+notes = "Template only. Declare a provider with real hosts in providers.toml or providers.d."

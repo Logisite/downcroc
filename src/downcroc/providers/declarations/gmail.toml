@@ -1,0 +1,21 @@
+id = "gmail"
+label = "Gmail"
+imap_host = "imap.gmail.com"
+imap_port = 993
+imap_tls = "ssl"
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+smtp_tls = "starttls"
+auth_kind = "oauth2"
+smtp_auth_mechanism = "XOAUTH2"
+sent_folder = "[Gmail]/Sent Mail"
+supports_idle = true
+requires_user_agent = false
+attachment_max_bytes = 26214400
+oauth_authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
+oauth_token_url = "https://oauth2.googleapis.com/token"
+oauth_scopes = ["https://mail.google.com/"]
+oauth_client_id = ""
+oauth_client_secret = ""
+oauth_extra_params = { access_type = "offline", prompt = "consent" }
+notes = "Gmail and Google Workspace. Set oauth_client_id in providers.toml."

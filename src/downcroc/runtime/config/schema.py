@@ -84,6 +84,16 @@ class VaultSettings(BaseModel):
         return self
 
 
+class ConnectSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    oauth_attempt_ttl_s: int = Field(default=600, ge=5, le=3600)
+    oauth_timeout_s: float = Field(default=15.0, gt=0, le=120)
+    imap_timeout_s: float = Field(default=15.0, gt=0, le=120)
+    token_refresh_margin_s: int = Field(default=120, ge=0, le=3600)
+    shutdown_join_s: float = Field(default=2.0, gt=0, le=30)
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -92,3 +102,4 @@ class Settings(BaseModel):
     sending: SendingSettings = Field(default_factory=SendingSettings)
     events: EventsSettings = Field(default_factory=EventsSettings)
     vault: VaultSettings = Field(default_factory=VaultSettings)
+    connect: ConnectSettings = Field(default_factory=ConnectSettings)

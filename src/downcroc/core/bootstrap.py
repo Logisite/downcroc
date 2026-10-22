@@ -9,12 +9,15 @@ from downcroc.core.accounts_service import AccountsService
 from downcroc.core.events import EventBus
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import SendPolicy
+from downcroc.providers.registry import ProviderRegistry
+from downcroc.providers.token import TokenManager
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
 from downcroc.store.db.engine import open_database, sessions_for
 from downcroc.store.db.migrate import run_migrations
 from downcroc.store.repositories.accounts import AccountRepo
+from downcroc.store.repositories.attempts import AttemptRepo
 from downcroc.store.repositories.events import EventRepo
 
 
@@ -26,6 +29,7 @@ class Services:
     bus: EventBus
     accounts: AccountsService
     vault: VaultService
+    providers: ProviderRegistry
 
     def close(self) -> None:
         self.engine.dispose()
@@ -46,8 +50,22 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         max_in_flight=settings.sending.max_in_flight,
         enabled=settings.sending.enabled,
     )
-    accounts = AccountsService(AccountRepo(sessions), bus, log, policy)
     vault = VaultService(paths.data / "vault.enc", settings.vault, bus, log)
+    providers = ProviderRegistry.load(paths.config, log)
+    attempts = AttemptRepo(sessions)
+    attempts.expire_pending("daemon_restart")
+    tokens = TokenManager(vault, providers, settings.connect, log)
+    accounts = AccountsService(
+        AccountRepo(sessions),
+        bus,
+        log,
+        policy,
+        providers,
+        vault,
+        tokens,
+        attempts,
+        settings.connect,
+    )
     return Services(
         engine=engine,
         sessions=sessions,
@@ -55,4 +73,5 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         bus=bus,
         accounts=accounts,
         vault=vault,
+        providers=providers,
     )

@@ -9,7 +9,7 @@ from downcroc.domain.errors import AccountExists, AccountInUse, AccountNotFound
 from downcroc.store.db.models import AccountRow, AccountStateRow, JobRow
 
 
-def _to_account(row: AccountRow) -> Account:
+def _to_account(row: AccountRow, state: AccountStateRow | None) -> Account:
     return Account(
         id=row.id,
         provider=row.provider_id,
@@ -28,6 +28,8 @@ def _to_account(row: AccountRow) -> Account:
             max_in_flight=row.max_in_flight,
             enabled=row.enabled,
         ),
+        last_error=state.last_error if state is not None else None,
+        credential_key=row.credential_key,
     )
 
 
@@ -37,17 +39,20 @@ class AccountRepo:
 
     def list(self) -> list[Account]:
         with self._sessions() as session:
-            rows = session.scalars(
-                select(AccountRow).order_by(AccountRow.created_at, AccountRow.id)
+            rows = session.execute(
+                select(AccountRow, AccountStateRow)
+                .outerjoin(AccountStateRow, AccountStateRow.account_id == AccountRow.id)
+                .order_by(AccountRow.created_at, AccountRow.id)
             ).all()
-            return [_to_account(row) for row in rows]
+            return [_to_account(row, state) for row, state in rows]
 
     def get(self, account_id: str) -> Account:
         with self._sessions() as session:
             row = session.get(AccountRow, account_id)
             if row is None:
                 raise AccountNotFound(f"no account {account_id}")
-            return _to_account(row)
+            state = session.get(AccountStateRow, account_id)
+            return _to_account(row, state)
 
     def create(self, account: Account) -> Account:
         row = AccountRow(
@@ -77,6 +82,47 @@ class AccountRepo:
             ) from error
         return account
 
+    def mark_connected(
+        self,
+        account_id: str,
+        credential_key: str,
+        verified_at: str,
+    ) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            state = self._state(session, account_id)
+            row.status = AccountStatus.CONNECTED.value
+            row.credential_key = credential_key
+            row.last_verified_at = verified_at
+            state.last_error = None
+        return self.get(account_id)
+
+    def mark_verified(self, account_id: str, verified_at: str) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            state = self._state(session, account_id)
+            if row.status != AccountStatus.DISABLED.value:
+                row.status = AccountStatus.CONNECTED.value
+            row.last_verified_at = verified_at
+            state.last_error = None
+        return self.get(account_id)
+
+    def mark_needs_reauth(self, account_id: str, reason: str) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            state = self._state(session, account_id)
+            row.status = AccountStatus.NEEDS_REAUTH.value
+            state.last_error = reason
+        return self.get(account_id)
+
+    def mark_unverified(self, account_id: str, reason: str) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            state = self._state(session, account_id)
+            row.status = AccountStatus.UNVERIFIED.value
+            state.last_error = reason
+        return self.get(account_id)
+
     def delete(self, account_id: str) -> None:
         with self._sessions.begin() as session:
             row = session.get(AccountRow, account_id)
@@ -93,3 +139,16 @@ class AccountRepo:
                     hint="delete the jobs before removing the account",
                 )
             session.delete(row)
+
+    def _row(self, session: Session, account_id: str) -> AccountRow:
+        row = session.get(AccountRow, account_id)
+        if row is None:
+            raise AccountNotFound(f"no account {account_id}")
+        return row
+
+    def _state(self, session: Session, account_id: str) -> AccountStateRow:
+        state = session.get(AccountStateRow, account_id)
+        if state is None:
+            state = AccountStateRow(account_id=account_id)
+            session.add(state)
+        return state

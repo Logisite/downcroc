@@ -65,6 +65,8 @@ downcroc/
     stats.py            counter definitions, the exact meaning of each number
     events.py           EventType Event
     attempts.py         ConnectAttempt AttemptState
+    providers.py        ProviderSpec AuthKind TlsMode
+    secrets.py          secret kinds and key naming
     errors.py           stable machine codes
     suppression.py      the suppression rule
     validators.py       address syntax, dedupe, variable coverage
@@ -94,16 +96,14 @@ downcroc/
     secrets.py          key naming, secret records, cbor map
 
   providers/
-    base.py             Provider protocol, Capability, Spec
-    registry.py         built ins plus user overrides
+    registry.py         built ins plus user overrides, declaration validation
     declarations/       gmail.toml microsoft.toml generic.toml
     oauth/
       flow.py           attempt lifecycle, loopback listener, state nonce
       client.py         authorize and token calls
       pkce.py
     token.py            refresh, cached access token, per account lock
-    xoauth2.py          builds the SASL string
-    gmail.py microsoft.py generic.py    thin adapters filling a declaration
+    xoauth2.py          builds the SASL string, kept for the SMTP path
 
   mail/
     mime/
@@ -167,8 +167,8 @@ downcroc/
     sse.py              stream, Last-Event-ID replay, gap detection
     schemas/            request and response models per resource
     routes/
-      health.py vault.py accounts.py attempts.py batches.py jobs.py
-      messages.py threads.py stats.py failed.py config.py backups.py
+      health.py vault.py accounts.py attempts.py providers.py batches.py
+      jobs.py messages.py threads.py stats.py failed.py config.py backups.py
       events.py
 
   tui/
@@ -286,9 +286,9 @@ build.
 | Phase | Modules |
 |---|---|
 | P0 | `runtime`, `store/db`, `api/app`, `api/routes/health`, `cli`, a TUI shell |
-| P1 | `vault`, `store/repositories/accounts`, `core/events`, `core/accounts_service`, `api/routes/accounts`, `api/routes/events`, `providers/registry`, `providers/declarations`, `mail/imap/connection` |
+| P1 | `vault`, `store/repositories/accounts`, `core/events`, `core/accounts_service`, `api/routes/accounts`, `api/routes/events`, `providers/registry`, `providers/declarations`, `providers/oauth`, `providers/token`, `mail/imap/connection`, `api/routes/providers`, `api/routes/attempts` |
 | P2 | `core/inbound`, `store/repositories/messages`, `store/content`, `mail/imap`, `tui/screens/mailbox` |
-| P3 | `providers/oauth`, `providers/token`, `mail/mime`, `mail/smtp` |
+| P3 | `mail/mime`, `mail/smtp` |
 | P4 | `core/inputs`, `core/rendering`, `core/batches_service`, `core/dispatch`, `core/retry`, `core/failures_service` |
 | P5 | `core/inbound/threader`, `classifier`, `attribution`, `suppression`, `core/followups`, `core/stats_service` |
 | P6 | `core/retention`, `backup`, `runtime/config/store`, `runtime/service`, reconciliation in `core/bootstrap` |

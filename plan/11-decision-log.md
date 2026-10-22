@@ -261,6 +261,24 @@ count. First unlock creates the vault, a second unlock returns `vault_already_un
 second lock is a no-op. Chosen KDF parameters live in the header, so a vault opened on a slower
 machine keeps its original cost.
 
+**Q70 - Connect details settled while building ticket 04.** Providers are declarations, not
+branches. Built-ins ship in `providers/declarations/`; `providers.toml` holds `[providers.<id>]`
+overrides; `providers.d/*.toml` holds complete declarations. They merge in that order, so the
+dropped files win. Unknown fields are refused at startup rather than ignored, and a provider file
+with group or other permissions is chmodded to `0600` with a `provider.permissions` warning. The
+OAuth client id is provider configuration; the optional client secret sits beside it at `0600`
+and is never in the vault or an API response. OAuth URLs must be `https` unless the host is
+loopback, which exists for a local test server. The loopback callback binds `127.0.0.1` on an
+ephemeral port, checks the state nonce with `hmac.compare_digest`, and uses PKCE S256 with the
+verifier in memory only. Attempts are persisted rows with one pending attempt per account, a TTL
+from `[connect]`, a clean shutdown reason of `daemon_stopped`, and a startup reason of
+`daemon_restart`. The token manager caches the access token and its expiry in the vault, refreshes
+under a per-account lock with a configurable margin, and treats `invalid_grant` as
+`needs_reauth` while network and other provider errors leave the status alone. IMAP XOAUTH2 is
+built by `imap-tools`; there is no second SASL implementation. Plaintext IMAP is allowed only on
+loopback. A password account connects through `POST /api/accounts/{id}/connect`, stores its
+password under `<account>:app_password`, and never echoes it.
+
 ## Deliberately deferred
 
 | Deferred | Trigger to revisit |

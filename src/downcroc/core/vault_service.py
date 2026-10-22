@@ -20,6 +20,7 @@ from downcroc.domain.errors import (
     VaultUnavailable,
     VaultWriteFailed,
 )
+from downcroc.domain.secrets import KINDS
 from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import VaultSettings
 from downcroc.runtime.logging.setup import EventLogger
@@ -118,6 +119,10 @@ class VaultService:
                 raise VaultSecretMissing(f"no secret named {key}")
             return secrets.unpack(record)
 
+    def ensure_unlocked(self) -> None:
+        with self._lock:
+            self._require_payload()
+
     def has_secret(self, key: str) -> bool:
         with self._lock:
             return key in self._require_payload()
@@ -134,11 +139,52 @@ class VaultService:
         expires_at: str | None = None,
         scopes: tuple[str, ...] = (),
     ) -> None:
+        self.set_secrets({key: (value, expires_at, scopes)})
+
+    def set_secrets(
+        self,
+        records: dict[str, tuple[str, str | None, tuple[str, ...]]],
+    ) -> None:
         with self._lock:
             payload = dict(self._require_payload())
-            record = secrets.Secret(value=value, expires_at=expires_at, scopes=scopes)
-            payload[key] = secrets.pack(record)
+            for key, (value, expires_at, scopes) in records.items():
+                secret = secrets.Secret(
+                    value=value, expires_at=expires_at, scopes=scopes
+                )
+                payload[key] = secrets.pack(secret)
             self._write(payload)
+
+    def delete_account_secrets(self, account_id: str) -> int:
+        with self._lock:
+            payload = self._require_payload()
+            stale = []
+            for key in payload:
+                owner, separator, kind = key.partition(":")
+                if separator and owner == account_id and kind in KINDS:
+                    stale.append(key)
+            if not stale:
+                return 0
+            remaining = {
+                key: value for key, value in payload.items() if key not in stale
+            }
+            self._write(remaining)
+            return len(stale)
+
+    def prune_account_secrets(self, known_ids: set[str]) -> int:
+        with self._lock:
+            payload = self._require_payload()
+            stale = []
+            for key in payload:
+                account_id, separator, kind = key.partition(":")
+                if separator and kind in KINDS and account_id not in known_ids:
+                    stale.append(key)
+            if not stale:
+                return 0
+            remaining = {
+                key: value for key, value in payload.items() if key not in stale
+            }
+            self._write(remaining)
+            return len(stale)
 
     def delete_secret(self, key: str) -> bool:
         with self._lock:

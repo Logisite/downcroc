@@ -34,3 +34,5 @@ class Account:
     created_at: str
     last_verified_at: str | None
     policy: SendPolicy
+    last_error: str | None = None
+    credential_key: str | None = None

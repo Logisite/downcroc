@@ -5,8 +5,6 @@ from typing import Any
 
 import cbor2
 
-KINDS = frozenset({"refresh_token", "access_token", "app_password", "client_secret"})
-
 
 class SecretFormatError(Exception):
     pass
@@ -40,12 +38,6 @@ def decode_map(data: bytes) -> dict[str, dict[str, Any]]:
     ):
         raise PayloadError("the payload has a non-map entry")
     return payload
-
-
-def secret_key(account_id: str, kind: str) -> str:
-    if kind not in KINDS:
-        raise ValueError(f"unknown secret kind {kind}")
-    return f"{account_id}:{kind}"
 
 
 def pack(secret: Secret) -> dict[str, Any]:

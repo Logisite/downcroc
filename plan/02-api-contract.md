@@ -60,15 +60,38 @@ Vault errors: `vault_bad_password` (401), `vault_locked` (423), `vault_throttled
 `vault_corrupt` and `vault_already_unlocked` (409), `vault_unavailable` and
 `vault_write_failed` (500).
 
+### Providers
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/providers` | declared providers, with auth kind and network settings |
+
+The provider response never includes `oauth_client_secret`. It reports `oauth_configured` so a
+client can tell whether a provider can start an OAuth attempt.
+
 ### Accounts
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/accounts` | list, with status and send policy |
 | POST | `/api/accounts` | body: provider id, address, label |
+| GET | `/api/accounts/{id}` | one account |
 | PATCH | `/api/accounts/{id}` | update label, enabled, watcher toggle |
 | DELETE | `/api/accounts/{id}` | remove account and its credentials |
+| POST | `/api/accounts/{id}/connect` | body: app password. Connect a password account |
 | POST | `/api/accounts/{id}/verify` | test the credential against the provider |
+
+An account carries `id`, `provider`, `address`, `label`, `status`, `credential_present`,
+`created_at`, `last_verified_at`, `last_error`, and the stored send policy as `quota`. Status is
+one of `pending`, `connected`, `needs_reauth`, `disabled`, `unverified`. `last_error` carries the
+last stable reason code, such as `invalid_grant` or `imap_auth_failed`, and never carries
+credential material.
+
+`POST /api/accounts/{id}/verify` uses the cached access token when it is still valid. Add
+`?refresh=true` to force a refresh first, which is how a revoked grant is detected immediately.
+An IMAP authentication failure moves the account to `needs_reauth` and returns
+`account_needs_reauth` (409). A network failure leaves the status alone and returns
+`imap_unreachable` (502).
 
 ### Connect attempts
 
@@ -80,6 +103,16 @@ what lets a connect flow survive a TUI restart, and later lets either client fin
 | POST | `/api/accounts/{id}/attempts` | start. Returns id, authorization URL, expiry |
 | GET | `/api/attempts/{id}` | pending, succeeded, failed, cancelled, expired |
 | POST | `/api/attempts/{id}/cancel` | abort |
+
+An attempt response carries `id`, `account_id`, `kind`, `state`, `authorization_url`,
+`created_at`, `expires_at`, and `error`. The state nonce and PKCE verifier are never returned.
+Only one attempt per account may be pending; a second start returns `attempt_pending` (409).
+Cancellation returns `attempt_not_pending` (409) once the attempt is terminal.
+
+Connect errors: `oauth_not_configured` and `provider_not_configured` (409),
+`provider_auth_mismatch` (422), `attempt_pending` and `attempt_not_pending` (409),
+`imap_auth_failed` (401), `imap_unreachable` and `imap_tls_failed` (502),
+`account_needs_reauth` (409), `credential_missing` (409), and `vault_locked` (423).
 
 ### Batches
 

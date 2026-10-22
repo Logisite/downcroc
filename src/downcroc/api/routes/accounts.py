@@ -3,7 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from starlette.responses import Response
 
-from downcroc.api.schemas.accounts import AccountCreate, AccountOut
+from downcroc.api.schemas.accounts import (
+    AccountCreate,
+    AccountOut,
+    AppPasswordConnect,
+    AttemptOut,
+)
 from downcroc.core.accounts_service import AccountsService
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
@@ -33,3 +38,23 @@ def get_account(account_id: str, request: Request) -> AccountOut:
 def delete_account(account_id: str, request: Request) -> Response:
     _service(request).delete(account_id)
     return Response(status_code=204)
+
+
+@router.post("/{account_id}/attempts", response_model=AttemptOut, status_code=201)
+def start_attempt(account_id: str, request: Request) -> AttemptOut:
+    return AttemptOut.of(_service(request).start_attempt(account_id))
+
+
+@router.post("/{account_id}/connect", response_model=AccountOut)
+def connect_password(
+    account_id: str, body: AppPasswordConnect, request: Request
+) -> AccountOut:
+    account = _service(request).connect_password(account_id, body.password)
+    return AccountOut.of(account)
+
+
+@router.post("/{account_id}/verify", response_model=AccountOut)
+def verify_account(
+    account_id: str, request: Request, refresh: bool = False
+) -> AccountOut:
+    return AccountOut.of(_service(request).verify(account_id, refresh=refresh))

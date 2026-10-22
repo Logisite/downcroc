@@ -1,0 +1,26 @@
+id = "microsoft"
+label = "Microsoft 365"
+imap_host = "outlook.office365.com"
+imap_port = 993
+imap_tls = "ssl"
+smtp_host = "smtp.office365.com"
+smtp_port = 587
+smtp_tls = "starttls"
+auth_kind = "oauth2"
+smtp_auth_mechanism = "XOAUTH2"
+sent_folder = "Sent Items"
+supports_idle = true
+requires_user_agent = false
+attachment_max_bytes = 26214400
+oauth_authorize_url = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
+oauth_token_url = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
+oauth_scopes = [
+  "offline_access",
+  "https://outlook.office.com/SMTP.Send",
+  "https://outlook.office.com/IMAP.AccessAsUser.All",
+]
+oauth_client_id = ""
+oauth_client_secret = ""
+oauth_tenant = "common"
+oauth_extra_params = { prompt = "consent" }
+notes = "Microsoft 365 and Outlook. Set oauth_client_id and oauth_tenant in providers.toml."

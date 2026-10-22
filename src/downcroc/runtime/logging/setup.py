@@ -91,7 +91,14 @@ def setup_logging(
         pretty.addFilter(Redaction())
         root.addHandler(pretty)
 
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "alembic"):
+    for name in (
+        "uvicorn",
+        "uvicorn.error",
+        "uvicorn.access",
+        "alembic",
+        "httpx",
+        "httpcore",
+    ):
         logging.getLogger(name).setLevel(logging.WARNING)
     return EventLogger(root)
 

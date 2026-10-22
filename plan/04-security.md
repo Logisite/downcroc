@@ -103,10 +103,37 @@ wrong password.
 | `acct_<id>:refresh_token` | OAuth refresh token |
 | `acct_<id>:access_token` | cached access token, with its expiry, so a restart does not re-refresh |
 | `acct_<id>:app_password` | generic IMAP password, when that is the auth kind |
-| `acct_<id>:client_secret` | only when a provider needs a per-account secret |
+
+The OAuth client id lives in provider configuration. An optional client secret lives beside it in
+`providers.toml` or a `providers.d` declaration, mode `0600`, never in the vault and never in an
+API response. It is a desktop public client, so PKCE is the proof; the secret is sent only when a
+provider requires one.
 
 Access tokens are cached inside the vault so restarting the daemon does not burn a refresh, and
 so an expiry can be honoured precisely.
+
+## The OAuth connect boundary
+
+The connect flow is the one place where a credential arrives from outside the daemon, so its
+rules are explicit.
+
+| Rule | Detail |
+|---|---|
+| Bind address | the callback listener binds `127.0.0.1` only, on an ephemeral port |
+| State | 32 random bytes, stored on the attempt, compared with `hmac.compare_digest` |
+| PKCE | S256, 64 random bytes, verifier in memory for the attempt only, never persisted |
+| Attempt lifetime | `[connect].oauth_attempt_ttl_s`, default 600 seconds; a late callback is rejected |
+| One pending attempt | a second start for the same account returns `attempt_pending` |
+| Restart | pending attempts become `expired` with `daemon_restart`; no flow resumes across a restart |
+| Token transport | authorization and token URLs must be `https`, except loopback for a local test server |
+| Callback response | `no-store`, `no-referrer`, `nosniff`, and no provider response body |
+| Error surface | provider error codes are matched against a small pattern; anything else becomes `oauth_failed` |
+| Token write | access and refresh tokens are written in one vault transaction |
+| Access token cache | cleared only by a lock; refresh happens under a per-account lock |
+
+The authorization code is short-lived and single-use at the provider. The daemon does not log it,
+store it, or include it in an event. The refresh token is the durable credential and lives in the
+vault.
 
 ## Unlock lifecycle
 
@@ -165,6 +192,7 @@ raises `vault_locked` otherwise, and no HTTP route imports it.
 |---|---|
 | `~/.config/downcroc/` | `0700` |
 | `config.toml`, `providers.toml` | `0600` |
+| `providers.d/*.toml` | `0600` |
 | `vault.enc` | `0600` |
 | `~/.local/share/downcroc/` | `0700` |
 | `downcroc.db` | `0600` |
@@ -182,6 +210,9 @@ than refusing to start. Refusing to start would lock a user out of their own too
 | Disk full during vault write | old vault intact, operation fails, error surfaced |
 | Provider revokes the refresh token | account to `needs_reauth`, jobs on that account pause, no failures recorded |
 | Provider returns a scope error | same, with the missing scope named in the account view |
+| OAuth callback state mismatch | 400 page, attempt stays pending, and the operator can cancel or let it expire |
+| OAuth URL is not https | provider declaration refused at startup unless the host is loopback |
+| Provider file is group readable | chmod to `0600`, `provider.permissions` warning, startup continues |
 | Clock jumps backwards | backoff timers clamp; quota buckets are keyed by local date so a jump cannot double-spend a day |
 | Two daemons started | the lock file wins, the second exits with a clear message |
 

@@ -33,7 +33,7 @@ counters; there is no surrogate integer key anywhere except the event sequence.
 | provider_id | text | matches a declared provider |
 | address | text | unique per provider |
 | label | text | user-facing |
-| status | text | `pending` before a credential exists, `unverified` after one exists but is unproven, then `connected`, `needs_reauth`, `disabled` |
+| status | text | `pending` before a credential exists, `connected` after a successful login, `needs_reauth` when a credential is rejected or a grant is revoked, `disabled` when turned off, `unverified` reserved for a stored credential that has not been proven |
 | credential_key | text | key inside the vault, never a credential |
 | created_at | text | |
 | last_verified_at | text | null until first verify |
@@ -185,6 +185,11 @@ traversal on every screen.
 | created_at | text | |
 | expires_at | text | |
 | error | text | null |
+
+One pending attempt per account is enforced in the service rather than by a partial unique index,
+because SQLite partial indexes are awkward through Alembic. The row survives completion. An
+attempt is deleted with its account by the foreign key cascade. `state_token` is the callback
+nonce and is never returned by the API; `authorization_url` is.
 
 ### `quota_buckets`
 

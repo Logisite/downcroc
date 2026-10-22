@@ -39,6 +39,7 @@ class DaemonServer(uvicorn.Server):
         self.received.append(sig)
         services = getattr(self._app.state, "services", None)
         if services is not None:
+            services.accounts.close_flows("daemon_stopped")
             services.vault.lock("shutdown")
             services.bus.close_all("shutdown")
         super().handle_exit(sig, frame)
