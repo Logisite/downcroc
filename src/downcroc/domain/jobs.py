@@ -22,6 +22,12 @@ class Job:
     account_id: str
     recipient: str
     recipient_name: str | None
+    source_kind: str
+    source_key: str | None
+    source_index: int
+    step_key: str | None
+    parent_job_id: str | None
+    thread_root_job_id: str | None
     vars_json: str
     subject: str
     body_ref: str
@@ -51,3 +57,10 @@ class NewJob:
     body_ref: str
     message_id: str
     created_at: str
+    source_kind: str = "manual"
+    source_key: str | None = None
+    source_index: int = 0
+    step_key: str | None = None
+    parent_job_id: str | None = None
+    thread_root_job_id: str | None = None
+    state: JobState = JobState.QUEUED

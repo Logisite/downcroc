@@ -59,7 +59,11 @@ def entry_from(record: logging.LogRecord) -> dict[str, Any]:
     for key, value in record.__dict__.items():
         if key in RESERVED or key in entry or key == "color_message":
             continue
-        entry[key] = value
+        field = key.removeprefix("meta_")
+        if field != key and field in entry:
+            entry[key] = value
+            continue
+        entry[field] = value
     if record.exc_info:
         entry["error"] = "".join(traceback.format_exception(*record.exc_info)).strip()
     return entry

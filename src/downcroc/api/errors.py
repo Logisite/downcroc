@@ -19,6 +19,8 @@ def install(app: FastAPI) -> None:
             body["hint"] = error.hint
         if error.fields:
             body["fields"] = error.fields
+        if error.details:
+            body["details"] = error.details
         return JSONResponse(body, status_code=error.status)
 
     @app.exception_handler(RequestValidationError)

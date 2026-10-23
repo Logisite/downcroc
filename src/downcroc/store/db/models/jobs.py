@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from downcroc.store.db.models.base import Base
@@ -12,6 +12,21 @@ class JobRow(Base):
         Index("ix_jobs_batch_state", "batch_id", "state"),
         Index("ix_jobs_state_next", "state", "next_attempt_at"),
         Index("ix_jobs_account_created", "account_id", "created_at"),
+        Index("ix_jobs_thread_root", "thread_root_job_id"),
+        Index(
+            "ux_jobs_batch_source_key",
+            "batch_id",
+            "source_key",
+            unique=True,
+            sqlite_where=text("source_key IS NOT NULL"),
+        ),
+        Index(
+            "ux_jobs_parent_step",
+            "parent_job_id",
+            "step_key",
+            unique=True,
+            sqlite_where=text("step_key IS NOT NULL"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -21,6 +36,12 @@ class JobRow(Base):
     )
     recipient: Mapped[str] = mapped_column(Text, nullable=False)
     recipient_name: Mapped[str | None] = mapped_column(Text)
+    source_kind: Mapped[str] = mapped_column(Text, nullable=False, default="manual")
+    source_key: Mapped[str | None] = mapped_column(Text)
+    source_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    step_key: Mapped[str | None] = mapped_column(Text)
+    parent_job_id: Mapped[str | None] = mapped_column(Text)
+    thread_root_job_id: Mapped[str | None] = mapped_column(Text)
     vars_json: Mapped[str] = mapped_column(Text, nullable=False)
     subject: Mapped[str] = mapped_column(Text, nullable=False)
     body_ref: Mapped[str] = mapped_column(Text, nullable=False)

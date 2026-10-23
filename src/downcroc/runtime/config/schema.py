@@ -130,6 +130,16 @@ class OutboundSettings(BaseModel):
     reconcile_delay_s: float = Field(default=1.0, ge=0, le=60)
 
 
+class IntakeSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_messages: int = Field(default=10_000, ge=1, le=1_000_000)
+    max_body_bytes: int = Field(default=1_000_000, ge=1024, le=26_214_400)
+    max_attachment_bytes: int = Field(default=26_214_400, ge=1024, le=104_857_600)
+    max_file_bytes: int = Field(default=67_108_864, ge=1024, le=536_870_912)
+    sample_count: int = Field(default=5, ge=1, le=20)
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -141,3 +151,4 @@ class Settings(BaseModel):
     connect: ConnectSettings = Field(default_factory=ConnectSettings)
     inbound: InboundSettings = Field(default_factory=InboundSettings)
     outbound: OutboundSettings = Field(default_factory=OutboundSettings)
+    intake: IntakeSettings = Field(default_factory=IntakeSettings)

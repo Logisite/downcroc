@@ -1,6 +1,7 @@
 from downcroc.store.db.models.accounts import AccountRow, AccountStateRow
 from downcroc.store.db.models.attempts import AttemptRow
 from downcroc.store.db.models.base import Base
+from downcroc.store.db.models.batches import BatchRow
 from downcroc.store.db.models.events import EventRow
 from downcroc.store.db.models.jobs import JobRow
 from downcroc.store.db.models.messages import (
@@ -16,6 +17,7 @@ __all__ = [
     "AttachmentRow",
     "AttemptRow",
     "Base",
+    "BatchRow",
     "EventRow",
     "JobRow",
     "MessageRow",

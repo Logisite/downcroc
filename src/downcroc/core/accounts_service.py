@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 from downcroc.core.events import EventBus
-from downcroc.core.inbound_service import InboundService
+from downcroc.core.inbound import InboundService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus, SendPolicy
 from downcroc.domain.attempts import ConnectAttempt

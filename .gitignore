@@ -12,6 +12,7 @@ dist/
 # local notes and work items
 .scratch/
 plan-scraps.txt
+AGENTS.md
 
 # secrets and runtime data
 .env

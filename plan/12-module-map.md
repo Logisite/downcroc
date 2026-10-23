@@ -123,20 +123,35 @@ downcroc/
     bootstrap.py        composition root, wires adapters into services
     events.py           event bus, sequence, ring buffer writer
     vault_service.py    unlock, lock, throttle, secret access, token cache
+    vault_file.py       sealed envelope, atomic writes, permissions
     accounts_service.py connect, verify, disable, reauth handling
-    outbound_service.py build a job, send it, reconcile a crashed send
-    batches_service.py  submit, snapshot, create jobs, approve, cancel
+    outbound/
+      service.py        build a job and send it
+      credentials.py    resolve oauth or app password send credentials
+      reconcile.py      reconcile a crashed send against the sent folder
+    batches/
+      service.py        submit, approve, cancel, list
+      source.py         detect, parse, and template a source
+      builder.py        materialise jobs and MIME payloads
+      snapshot.py       canonical campaign snapshot
+      samples.py        sample selection and stored sample previews
     jobs_service.py     lease, requeue, reassign, cancel, retry
     templates_service.py list, read, preview, edit through $EDITOR
     failures_service.py failed.jsonl and the failure table
     stats_service.py    counter increments, rollups, rebuild
     retention.py        every pruning policy
     retry.py            backoff math, error classification
-    followups.py        follow up recipient set and thread headers
+    followups.py        sequence planning, due steps, eligibility, thread headers
+    routing.py          fixed and weighted account assignment, recorded once
     inputs/
       detector.py       which format a file is
-      json_input.py csv_input.py
-      normalizer.py     the Recipient record both produce
+      campaign_input.py JSON campaign entry and reference checks
+      campaign_message.py message fields, overrides, attachments
+      campaign_policy.py routing and campaign options
+      campaign_followup.py follow-up step fields
+      field_input.py    shared field validation
+      csv_input.py      rows and headers
+      normalizer.py     the Campaign and Message records both produce
     rendering/
       loader.py         read a template directory
       renderer.py       variable substitution
@@ -149,9 +164,10 @@ downcroc/
       jitter.py         inter send delay
       lease.py          acquire, renew, release
     inbound/
-      watcher.py        per account thread lifecycle
-      imap_runner.py    the blocking loop inside the thread
-      ingest.py         store, dedupe, advance the uid cursor
+      service.py        supervision, reconcile, watcher lifecycle
+      watcher.py        per account thread, IMAP sync, idle and poll
+      worker.py         queue worker: ingest, cursor, watcher state
+      signals.py        queue items, handles, watcher errors
       classifier.py     DSN detection and parsing
       threader.py       header based linking
       attribution.py    confirmed, probable, job attribution
@@ -286,7 +302,7 @@ build.
 | P1 | `vault`, `store/repositories/accounts`, `core/events`, `core/accounts_service`, `api/routes/accounts`, `api/routes/events`, `providers/registry`, `providers/declarations`, `providers/oauth`, `providers/token`, `mail/imap/connection`, `api/routes/providers`, `api/routes/attempts` |
 | P2 | `core/inbound`, `store/repositories/messages`, `store/content`, `mail/imap`, `tui/screens/mailbox` |
 | P3 | `mail/mime`, `mail/smtp` |
-| P4 | `core/inputs`, `core/rendering`, `core/batches_service`, `core/dispatch`, `core/retry`, `core/failures_service` |
+| P4 | `core/inputs`, `core/rendering`, `core/batches`, `core/dispatch`, `core/retry`, `core/failures_service` |
 | P5 | `core/inbound/threader`, `classifier`, `attribution`, `suppression`, `core/followups`, `core/stats_service` |
 | P6 | `core/retention`, `backup`, `runtime/config/store`, `runtime/service`, reconciliation in `core/bootstrap` |
 | P7 | `tui` in full, `api/schemas`, `api/sse`, `runtime/logging` |

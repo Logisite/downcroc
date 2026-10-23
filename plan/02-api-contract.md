@@ -123,12 +123,23 @@ Connect errors: `oauth_not_configured` and `provider_not_configured` (409),
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/batches` | submit a file path or JSON body. Validates, snapshots, creates jobs |
+| POST | `/api/batches` | submit a file path. Validates, snapshots, routes, creates jobs |
+| POST | `/api/batches/preview` | validate and render one row or message without creating a batch |
+| POST | `/api/batches/{id}/test-send` | send the rendered message for one key or row to an arbitrary address |
 | GET | `/api/batches` | list with counts: sent, failed, inbound, replies |
-| GET | `/api/batches/{id}` | detail, including samples and per-recipient rows |
+| GET | `/api/batches/{id}` | detail, including samples, routing, and per-recipient rows |
 | POST | `/api/batches/{id}/approve` | `one` or `all`, per the dry-run flow in `06` |
-| POST | `/api/batches/{id}/cancel` | stop queued jobs, keep sent ones |
+| POST | `/api/batches/{id}/cancel` | stop queued jobs, keep sent ones, cancel future steps |
+| POST | `/api/batches/{id}/followups` | derive a follow-up from this batch using ready messages or CSV plus template |
 | GET | `/api/batches/{id}/suppression-preview` | who would be skipped and why |
+
+Batch detail carries `kind`, `parent_batch_id`, `source_kind`, `schema_version`, `campaign_key`,
+`routing`, `approval`, `options`, `counts`, `samples`, and `recipients`. Each recipient row carries
+the address, name, account, job id, message id, state, last error, and follow-up step state.
+
+Validation errors use the shared envelope with `fields` keyed by `messages[0].subject`, `row 12`,
+or `followups.bump-1`. Every error names the source it belongs to. Unknown schema versions return
+`unsupported_schema` and are never partially imported.
 
 ### Jobs
 
@@ -225,6 +236,12 @@ account object itself. Nothing in this section can throttle a send.
 | batch_id | string | `manual` for a one-off job |
 | account_id | string | bound at creation |
 | recipient | string | |
+| source_kind | enum | `json`, `csv` |
+| source_key | string | JSON message key, null for CSV |
+| source_index | int | message index or CSV row |
+| step_key | string | follow-up step, null for an initial message |
+| parent_job_id | string | null for an initial message |
+| thread_root_job_id | string | the anchor job for the thread |
 | state | enum | `queued`, `awaiting_approval`, `sending`, `sent`, `sent_unconfirmed`, `retry_wait`, `failed`, `cancelled`; `sent_unconfirmed` is reserved |
 | attempts | int | |
 | next_attempt_at | timestamp | null when not waiting |
@@ -238,12 +255,19 @@ account object itself. Nothing in this section can throttle a send.
 | Field | Type | Notes |
 |---|---|---|
 | id | string | |
+| kind | enum | `campaign`, `follow_up` |
+| parent_batch_id | string | null unless `follow_up` |
 | name | string | from file or user |
 | source_ref | string | snapshot path in the content store |
 | source_hash | string | sha256 of the snapshot |
-| template_ref | string | null when self-contained |
-| account_id | string | null when auto-selected per recipient |
-| options | object | suppress_replies, reply_window_days, not_before |
+| source_kind | enum | `json`, `csv` |
+| schema_version | string | null for CSV |
+| campaign_key | string | producer key, null for CSV |
+| template_ref | string | null for JSON |
+| account_id | string | null unless routing is fixed |
+| routing | object | mode, include, exclude, resolved assignment count |
+| approval | enum | `review`, `auto` |
+| options | object | suppress_replies, reply_window_days, not_before, stop_on, allow_duplicates |
 | state | enum | `awaiting_approval`, `sending`, `done`, `cancelled` |
 | counts | object | queued, sent, failed, suppressed, invalid, inbound, replies, late_replies, bounces |
 

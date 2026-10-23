@@ -65,12 +65,20 @@ They live on the row because accounts differ and the account API edits one accou
 | Field | Type | Notes |
 |---|---|---|
 | id | text pk | |
+| kind | text | `campaign` or `follow_up` |
+| parent_batch_id | text | null unless `kind` is `follow_up` |
 | name | text | |
 | source_ref | text | content store path of the snapshot |
 | source_hash | text | sha256 of the snapshot |
-| template_ref | text | null when the batch is self-contained |
-| account_id | text | null when auto-selected per recipient |
-| options_json | text | suppress_replies, reply_window_days, not_before |
+| source_kind | text | `json` or `csv` |
+| schema_version | text | null for CSV, `downcroc.campaign/v1` for JSON |
+| campaign_key | text | producer key, null for CSV |
+| producer_json | text | producer metadata, stored and never used for sending |
+| template_ref | text | null for JSON, required for CSV |
+| account_id | text | null unless routing is fixed |
+| routing_json | text | mode, include, exclude, and the resolved assignment count |
+| approval | text | `review` or `auto` |
+| options_json | text | suppress_replies, reply_window_days, not_before, stop_on, allow_duplicates |
 | state | text | `awaiting_approval`, `sending`, `done`, `cancelled` |
 | created_at | text | |
 | approved_at | text | null until approval |
@@ -84,7 +92,13 @@ They live on the row because accounts differ and the account API edits one accou
 | account_id | text | bound at creation |
 | recipient | text | |
 | recipient_name | text | null |
-| vars_json | text | template variables |
+| source_kind | text | `json` or `csv` |
+| source_key | text | JSON message key, null for CSV |
+| source_index | int | message index or CSV row number |
+| step_key | text | follow-up step key, null for an initial message |
+| parent_job_id | text | null for an initial message |
+| thread_root_job_id | text | the job whose Message-ID anchors the thread |
+| vars_json | text | template variables or the source recipient object |
 | subject | text | rendered at creation |
 | body_ref | text | content store path of the rendered message |
 | state | text | see state machine |
@@ -101,7 +115,8 @@ They live on the row because accounts differ and the account API edits one accou
 | sent_at | text | null |
 
 Indexes: `(batch_id, state)`, `(state, next_attempt_at)`, `(account_id, created_at)`,
-unique `message_id`.
+`(thread_root_job_id)`, unique `message_id`, unique `(batch_id, source_key)` where
+`source_key` is not null, unique `(parent_job_id, step_key)` where `step_key` is not null.
 
 ### `messages`
 

@@ -13,11 +13,13 @@ class DomainError(Exception):
         *,
         hint: str | None = None,
         fields: dict[str, str] | None = None,
+        details: list[dict[str, object]] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.hint = hint
         self.fields = fields
+        self.details = details
 
 
 class ProviderConfigError(Exception):
@@ -46,6 +48,11 @@ class AccountExists(DomainError):
 
 class AccountInUse(DomainError):
     code = "account_in_use"
+    status = 409
+
+
+class AccountUnavailable(DomainError):
+    code = "account_unavailable"
     status = 409
 
 
@@ -212,3 +219,33 @@ class ContentMissing(DomainError):
 class ContentCorrupt(DomainError):
     code = "content_corrupt"
     status = 500
+
+
+class BatchNotFound(DomainError):
+    code = "batch_not_found"
+    status = 404
+
+
+class BatchInvalid(DomainError):
+    code = "batch_invalid"
+    status = 422
+
+
+class BatchNotAwaitingApproval(DomainError):
+    code = "batch_not_awaiting_approval"
+    status = 409
+
+
+class SampleAlreadySent(DomainError):
+    code = "sample_already_sent"
+    status = 409
+
+
+class UnsupportedSchema(DomainError):
+    code = "unsupported_schema"
+    status = 422
+
+
+class InputUnreadable(DomainError):
+    code = "input_unreadable"
+    status = 422

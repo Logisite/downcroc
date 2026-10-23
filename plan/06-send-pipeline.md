@@ -29,37 +29,115 @@ not a second scheduler; normal batches will use the dispatcher.
 
 You draft elsewhere. downcroc takes a file path, reads it once, and never reads it again.
 
-### JSON
+Two formats with two different jobs:
 
-Two accepted shapes. A bare array is the simple case:
+| Format | Carries | Rendering |
+|---|---|---|
+| JSON | ready messages | none, the content is sent as written |
+| CSV | recipient rows | one template renders a message per row |
 
-```
+Detection is by content, not extension. A JSON document with `schema`, `campaign`, or `messages`,
+or a bare array of message objects, is a campaign. A first line that parses as a delimited header
+is CSV.
+
+### JSON campaign
+
+A bare array is the minimal file, one message per recipient:
+
+```json
 [
-  { "email": "ana@example.com", "name": "Ana", "company": "Northwind" },
-  { "email": "bo@example.com",  "name": "Bo",  "company": "Contoso"  }
+  {
+    "to": { "email": "ana@example.com", "name": "Ana" },
+    "subject": "One question about Northwind",
+    "text": "Hi Ana, ...",
+    "html": "<p>Hi Ana, ...</p>"
+  }
 ]
 ```
 
-A wrapped object carries batch metadata:
+The wrapped form adds campaign policy and a follow-up sequence:
 
-```
+```json
 {
-  "name": "october-outreach",
-  "template": "intro",
-  "account": "acct_7f2a",            // or null for auto-selection
-  "options": { "suppress_replies": true, "reply_window_days": 60 },
-  "recipients": [ { "email": "...", "name": "..." } ]
+  "schema": "downcroc.campaign/v1",
+  "producer": { "tool": "my-writer", "version": "2.1", "generated_at": "2026-10-23T08:00:00Z" },
+  "campaign": {
+    "key": "october-outreach",
+    "name": "October outreach",
+    "routing": { "mode": "auto", "exclude": ["acct_9"] },
+    "options": {
+      "suppress_replies": true,
+      "reply_window_days": 60,
+      "not_before": "2026-10-24T09:00:00Z",
+      "stop_on": ["reply", "bounce"],
+      "allow_duplicates": false
+    }
+  },
+  "messages": [
+    {
+      "key": "ana-step1",
+      "to": { "email": "ana@example.com", "name": "Ana" },
+      "subject": "One question about Northwind",
+      "text": "Hi Ana, ...",
+      "html": "<p>Hi Ana, ...</p>",
+      "reply_to": null,
+      "attachments": ["deck.pdf"],
+      "followups": {
+        "bump-1": { "subject": "Re: One question about Northwind", "text": "Hi Ana, one more thought ..." },
+        "bump-2": { "skip": true }
+      }
+    }
+  ],
+  "followups": [
+    {
+      "key": "bump-1",
+      "after_days": 4,
+      "when": "no_reply",
+      "subject": "Re: One question about Northwind",
+      "text": "Hi again, ...",
+      "require_approval": false
+    }
+  ]
 }
 ```
 
-`email` is the only required key. Everything else is available to the template. Nested values
-are supported and flattened for template use (`company.name` -> `{{ company.name }}`).
+`to.email`, `subject`, and one of `text` or `html` are required per message. `email` is the only
+required key inside `to`. Unknown keys inside a message are rejected, because there is no template
+namespace to absorb a typo. Keys prefixed `x-` are stored and ignored, so a producer can carry its
+own metadata.
+
+The producer never writes `From`, `Date`, `Message-ID`, `In-Reply-To`, `References`, MIME
+boundaries, `Content-ID`, `Bcc`, arbitrary headers, or an account per message. If an export
+contains them, the daemon strips them, reports the ignored fields, and sends the derived version.
+
+`producer` is stored for audit and never used for sending. `campaign.key` is the producer's stable
+identifier, stored for reconciliation. `messages[].key` is unique within the file and is the
+matching key for follow-ups, overrides, and export reports.
+
+Attachments are relative to the JSON file's directory. Absolute paths and `..` are refused. The
+daemon reads each file once at submit, checks its size against the provider cap, and snapshots it.
+`reply_to` is the only header a producer may set.
+
+A duplicate address inside one campaign is an error, with both message keys named, unless
+`allow_duplicates` is true. A second message to the same person then starts its own thread.
+
+### Follow-up steps in JSON
+
+Follow-up content lives at campaign level, so one file describes the whole sequence. A message may
+override any step by key, or opt out of it with `skip: true`. An override key that does not match a
+declared step is an error, and a step declared twice is an error. Resolution order is per-message
+override, then campaign step.
+
+`after_days` counts from the previous step that actually sent for that recipient, in the account's
+local timezone. `when` is `no_reply` or `always`, both still subject to suppression. `subject`
+defaults to `Re: <previous subject>`. `require_approval` defaults to false and makes the derived
+batch wait for a human.
 
 ### CSV
 
 Header row required. `email` is the required column; a `name` column is recognised and mapped
-automatically. Every other column becomes a variable. A template must be supplied, because a CSV
-carries no message.
+automatically. Every other column becomes a template variable. A template must be supplied,
+because a CSV carries no message.
 
 | Concern | Handling |
 |---|---|
@@ -68,8 +146,20 @@ carries no message.
 | Quoting | standard RFC 4180, multi-line values allowed |
 | Duplicate headers | rejected, because the resulting ambiguity is silent |
 | Row count sanity | a file that changes size between hash and parse is rejected |
+| Duplicate address | collapsed, reported as a count |
+| Empty rows | skipped |
+
+Merge tags are written `{{ Column Name }}`, matched case-insensitively and tolerant of spaces
+around the name. The daemon exposes what a client needs to make this usable without reading
+documentation: detected columns, per-row validation with a stable row reference, render preview
+for any row, test send to an arbitrary address, row-level exclusion before submit, and per-row
+status after sending. Missing variables block the submit with row and column named. No blank
+substitution, ever.
 
 ### Templates
+
+Templates apply to CSV batches and to follow-up steps that name one. A JSON message carries its
+own content and never renders a template.
 
 A template is a directory in `~/.config/downcroc/templates/<name>/`:
 
@@ -98,34 +188,39 @@ are explicit.
 ## Validation
 
 Runs before anything is written to the content store. A batch either passes completely or is
-rejected with a per-row report.
+rejected with a report pointing at the row or message that failed.
 
 | Check | Failure |
 |---|---|
-| Address syntax | `invalid_address` on that row |
-| Duplicate address, case-insensitive | collapsed, reported as a count |
-| Suppressed recipient, when enabled | skipped with `suppressed`, listed in the preview |
+| Address syntax | `invalid_address` with message key or row |
+| Duplicate address, case-insensitive | CSV collapses and reports, JSON rejects unless allowed |
+| Required message content | `missing_subject`, `empty_subject`, `missing_content` |
 | Template renders for every row | `missing_variable`, naming the key and the row |
-| Attachments exist and fit the provider cap | `attachment_too_large` |
-| Account exists and is connected | `account_unavailable` |
+| Follow-up override matches a declared step | `unknown_step`, naming the message and the step |
+| Attachments exist, stay inside the source directory, fit the provider cap | `attachment_missing`, `attachment_path`, `attachment_too_large` |
+| Suppressed recipient, when enabled | skipped with `suppressed`, listed in the preview |
+| Account exists and is connected, or one is eligible for auto routing | `account_unavailable` |
 | Every job has a unique Message-ID | internally guaranteed, checked as an invariant |
-| Subject non-empty after render | `empty_subject` |
+| Schema version known | `unsupported_schema` |
+| Unknown key inside a message or step | `unknown_field`, unless prefixed `x-` |
 
-Rows that fail are not silently dropped. The response lists them, and the TUI shows them as a
-table before you approve. Submitting a batch with zero valid rows is an error, not an empty batch.
+Failed rows and messages are not silently dropped. The response lists them with a code, the
+message key or row, and the field. Submitting a batch with zero valid messages is an error, not an
+empty batch.
 
 ## Snapshot
 
 At submit:
 
-1. copy the source file to `content/batches/<bat_id>/source.json`, normalized to the internal
-   representation
-2. record `sha256` of that snapshot on the batch row
-3. render every message once and store `content/jobs/<job_id>/message.eml`
-4. mint each job's `Message-ID`
+1. normalize the source to the internal campaign representation, including schema version,
+   producer metadata, and follow-up steps
+2. copy that to `content/batches/<bat_id>/source.json` and record its `sha256` on the batch row
+3. resolve routing once and record the account on each job
+4. render or copy every message and store `content/jobs/<job_id>/message.eml`
+5. mint each job's `Message-ID`
 
 The original file is now irrelevant. Editing it changes nothing. The hash is the proof of what
-was submitted.
+was submitted. The snapshot is the input; the jobs table is the routing and send record.
 
 ## Dry run
 
@@ -147,6 +242,8 @@ submit -> batch.awaiting_approval, all jobs queued but locked
 
 Rules:
 
+- `campaign.options.approval` is `review` by default and `auto` to skip the gate. Auto batches go
+  straight to `queued`; the review response is still returned for the client to show.
 - The sample is byte-identical to the real message except for the `Date` header. If a send-time
   header changed meaningfully, the dry run would be theatre.
 - `approve(one)` cannot be repeated. The sample job is recorded, and a second call is rejected
@@ -155,21 +252,24 @@ Rules:
   deliberate "I do not need a test send" path.
 - Jobs in `awaiting_approval` are not visible to the dispatcher and do not consume allowance.
 - The samples are chosen at random from the valid jobs, and the chosen ids are recorded so the
-  TUI can show which were sent.
+  TUI can show which were sent. A JSON message can also be previewed by key.
 
 ## Account binding
 
 Every job is bound to one account **at creation**. That account owns the From address, the
 conversation, and the quota.
 
-- Explicit binding: the batch names an account.
-- Auto binding: each recipient is assigned at creation, by the same weighted-random rule the
-  dispatcher uses, computed once so the result is stable.
+- Explicit binding: `routing.mode` is `fixed` and the campaign names the account.
+- Auto binding: each message is assigned at creation by remaining daily allowance among connected,
+  enabled, non-excluded accounts, computed once with a seed from `campaign.key` so a resubmission
+  produces the same spread.
 - Moving: a job may be reassigned while it is `queued`. Reassignment re-renders the From header
   and message body reference. It is refused once a lease is held, because the message may already
   be on the wire.
 - Follow-ups inherit the parent job's account. Always. A thread must stay in one mailbox or the
   reply attribution falls apart.
+- The batch detail exposes recipient, account, job id, message id, state, and last error, so the
+  "which message went from which mailbox" record is always answerable.
 
 ## Dispatch
 
@@ -319,28 +419,51 @@ For follow-ups, suppression defaults to on and is the entire point: the default 
 
 ## Follow-ups
 
-A follow-up is a first-class batch, not a special job type.
+A follow-up is a first-class batch, not a special job type, and it is derived from the parent
+batch. Recipient eligibility, account, and thread always come from the parent, never from the
+follow-up file.
 
-| Field | Value |
-|---|---|
-| `kind` | `follow_up` |
-| `parent_batch_id` | the batch being followed up |
-| Template | new message, usually shorter |
-| Recipients | original recipients minus confirmed repliers |
-| Account | inherited per job from the parent job |
-| Thread | linked to the parent thread |
+### Sequence model
 
-Threading headers for a follow-up:
+Steps are declared with the campaign, so one JSON file describes the whole sequence. A derived
+batch is created when a step becomes due, for each parent recipient who is still eligible:
+
+- no confirmed reply, no bounce, no suppression
+- campaign not cancelled, and the parent step actually sent
+- account inherited from the parent job
+- thread anchored to the previous outbound step for that recipient
+
+`after_days` counts from the previous step that sent, in the account's local timezone. If the
+daemon was off when a step came due, it sends at the next opportunity, not never.
+
+Before deriving due steps for an account, the daemon forces an inbound sync for that account with
+a bounded timeout. If the sync fails, the step is deferred rather than mailed. Sending to someone
+who replied during the downtime is the failure that matters.
+
+Derivation is idempotent: one job per `(parent_job_id, step_key)`, enforced by a unique index, so
+a restart cannot duplicate a step. A step whose parent never sent is skipped with a reason.
+
+`campaign.options.stop_on` defaults to `["reply", "bounce"]` and cancels every remaining step for
+that recipient, not only the next one. `require_approval` on a step produces an
+`awaiting_approval` derived batch and uses the sample flow; otherwise the step runs when due.
+
+### Content sources
+
+A follow-up payload can be ready messages or CSV plus template, matched to parent recipients by
+`messages[].key` first and address second. The parent batch decides who is eligible. Extras are
+reported, gaps for eligible recipients are errors. This is what allows a JSON campaign followed by
+a CSV follow-up, or the reverse.
+
+### Threading headers
 
 | Header | Value |
 |---|---|
 | `Message-ID` | newly minted, unique to this job |
-| `References` | parent job's `Message-ID` |
-| `In-Reply-To` | omitted |
+| `In-Reply-To` | the previous outbound step's `Message-ID` |
+| `References` | the chain of previous outbound ids in this thread |
 
-This puts the message in the same conversation in the recipient's client while remaining a
-distinct message that generates its own reply chain. Reusing the parent's `Message-ID` would
-break attribution and confuse every mail client involved.
+If the previous step failed, the anchor is the most recent step that actually sent. Reusing the
+parent's `Message-ID` would break attribution and confuse every mail client involved.
 
 Attribution still works because each message's own `Message-ID` is the anchor: a reply to the
 follow-up carries `In-Reply-To: <follow-up id>`, which maps to the follow-up job, whose thread maps

@@ -29,6 +29,12 @@ class JobOut(BaseModel):
     account_id: str
     recipient: str
     recipient_name: str | None
+    source_kind: str
+    source_key: str | None
+    source_index: int
+    step_key: str | None
+    parent_job_id: str | None
+    thread_root_job_id: str | None
     subject: str
     body_ref: str
     state: str
@@ -55,6 +61,12 @@ class JobOut(BaseModel):
             account_id=job.account_id,
             recipient=job.recipient,
             recipient_name=job.recipient_name,
+            source_kind=job.source_kind,
+            source_key=job.source_key,
+            source_index=job.source_index,
+            step_key=job.step_key,
+            parent_job_id=job.parent_job_id,
+            thread_root_job_id=job.thread_root_job_id,
             subject=job.subject,
             body_ref=job.body_ref,
             state=job.state.value,

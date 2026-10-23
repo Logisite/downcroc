@@ -11,6 +11,7 @@ from downcroc.api import errors
 from downcroc.api.routes import (
     accounts,
     attempts,
+    batches,
     events,
     health,
     jobs,
@@ -68,5 +69,6 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     app.include_router(providers.router)
     app.include_router(messages.router)
     app.include_router(jobs.router)
+    app.include_router(batches.router)
     app.include_router(events.router)
     return app

@@ -70,9 +70,9 @@ the daemon between SMTP acceptance and the database commit, restart, and confirm
 
 ### P4 - Batch pipeline
 
-JSON and CSV parsing, templates, rendering, validation, snapshots, job creation, account binding,
-dry-run approval, dispatcher, quota buckets, windows, jitter, concurrency limits, retries,
-failures file.
+JSON ready-message campaigns, CSV plus templates, rendering, validation, snapshots, routing and
+account binding, dry-run approval, dispatcher, quota buckets, windows, jitter, concurrency limits,
+retries, failures file.
 
 **Gate:** 1,000 jobs across 10 accounts at a configured 200/day each, with a 2 second jitter
 range, complete in the expected window and never exceed any counter. `kill -9` mid-drain, restart,
@@ -120,7 +120,7 @@ proves the thing is worth using.
 | Step | Expected |
 |---|---|
 | 1 | fresh install, start, unlock, add 10 accounts across all three provider types |
-| 2 | import a 1,000-row JSON, see validation, approve 5 samples |
+| 2 | import a 1,000-message JSON campaign, see validation and routing, approve 5 samples |
 | 3 | send one sample, verify it in Gmail by hand |
 | 4 | approve the rest, watch the account rail burn down |
 | 5 | reply to 100 of them from a separate mailbox, over a day |
@@ -133,10 +133,36 @@ proves the thing is worth using.
 Step 5 is the one nobody can automate, and it is the one that decides whether the reply counting
 is honest.
 
-## Live testing
+## Acceptance tests
 
-There is no test suite. The software is tested by people using a running daemon, with real
-accounts, on a real machine.
+The acceptance suite is black-box and lives in `tests/`. It starts the real daemon with an
+isolated HOME and XDG directories, drives real HTTP, real SQLite, and the real content store, and
+fakes only the external network boundary: SMTP, IMAP, and OAuth. No daemon module, service,
+repository, or route is mocked.
+
+```
+tests/
+  conftest.py            fixtures only
+  harness/
+    daemon.py            start, wait, stop the real daemon
+    api.py               typed loopback client
+    fakes.py             SMTP, IMAP, OAuth stand-ins
+    seed.py              config, providers, templates, input files
+    wait.py              poll observable state
+  test_batches.py        intake, routing, validation, approval
+  test_dispatch.py       window, allowance, jitter, leases, retries
+  test_replies.py        threading, DSN, attribution, suppression
+  test_followups.py      derivation, threading, mixed content sources
+  test_stats_retention.py
+  test_backup_restore.py
+  test_config.py
+```
+
+One shared harness, reused by every ticket. A ticket adds scenarios, never a second harness.
+`uv run pytest` is the gate. Real-account checks below remain the final proof that the transport
+and attribution are honest.
+
+The software is still used by people against real accounts, on a real machine.
 
 | Check | How |
 |---|---|
@@ -148,13 +174,13 @@ accounts, on a real machine.
 | Restore | back up, wipe the data directory, restore, compare the numbers |
 | Auth | revoke the grant at the provider, confirm `needs_reauth` and the reconnect |
 
-Setup is scripted, not tested. A throwaway script that writes a 1,000-row CSV or seeds a mailbox
-is a build tool, and it lives in `scripts/` where a person can read and run it. It does not assert;
-it prints and lets the operator judge.
+Setup lives in `tests/harness/`, not in ad hoc scripts. Fixtures write the input files, seed the
+fake mailbox, start the daemon, and wait on observable state instead of sleeping. Every assertion
+runs against the daemon's real HTTP responses, database, content store, or log file.
 
-For logic that is genuinely hard to observe live (thread normalization, backoff arithmetic, DSN
-parsing), a self-check script that prints a table is acceptable. It prints, it does not gate a
-build, and it is never wired into CI.
+Unit tests are not part of the gate. A pure algorithm that cannot be reached from outside (thread
+normalization, backoff arithmetic, DSN parsing) is exercised through the interface that uses it,
+not through a private import.
 
 The things worth checking by hand after any change to the pipeline, because they cause real harm:
 
