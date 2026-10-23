@@ -13,6 +13,7 @@ from downcroc.api.routes import (
     attempts,
     events,
     health,
+    jobs,
     messages,
     providers,
     vault,
@@ -66,5 +67,6 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     app.include_router(attempts.router)
     app.include_router(providers.router)
     app.include_router(messages.router)
+    app.include_router(jobs.router)
     app.include_router(events.router)
     return app

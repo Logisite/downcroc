@@ -67,6 +67,24 @@ def search_all(box: MailBox) -> list[int]:
     return _search(box, "ALL")
 
 
+def select_sent(box: MailBox, folder: str) -> None:
+    try:
+        box.folder.set(folder or "Sent", readonly=True)
+    except ssl.SSLError as error:
+        raise ImapTlsError from error
+    except (OSError, TimeoutError) as error:
+        raise ImapNetworkError from error
+    except imaplib.IMAP4.abort as error:
+        raise ImapNetworkError from error
+    except (imaplib.IMAP4.error, ImapToolsError) as error:
+        raise ImapProtocolError from error
+
+
+def has_message_id(box: MailBox, message_id: str) -> bool:
+    criteria = f'HEADER "Message-ID" "<{message_id.strip("<>")}>"'
+    return bool(_search(box, criteria))
+
+
 def fetch_messages(
     box: MailBox,
     uids: list[int],

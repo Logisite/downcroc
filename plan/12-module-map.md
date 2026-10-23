@@ -107,13 +107,9 @@ downcroc/
 
   mail/
     mime/
-      builder.py        multipart alternative, related, mixed
-      headers.py        encoding, address formatting
-      message_id.py     minting
+      builder.py        multipart alternative, mixed, headers, message-id minting
     smtp/
-      sender.py         aiosmtplib session, mechanism choice
-      envelope.py       MAIL FROM and RCPT TO
-      errors.py         exception to error code mapping
+      sender.py         aiosmtplib session, mechanism choice, error mapping
     imap/
       connection.py     imap-tools session, XOAUTH2 or app password
       client.py         search, fetch, idle primitives
@@ -128,6 +124,7 @@ downcroc/
     events.py           event bus, sequence, ring buffer writer
     vault_service.py    unlock, lock, throttle, secret access, token cache
     accounts_service.py connect, verify, disable, reauth handling
+    outbound_service.py build a job, send it, reconcile a crashed send
     batches_service.py  submit, snapshot, create jobs, approve, cancel
     jobs_service.py     lease, requeue, reassign, cancel, retry
     templates_service.py list, read, preview, edit through $EDITOR

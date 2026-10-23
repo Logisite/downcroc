@@ -169,6 +169,26 @@ class AccountNeedsReauth(DomainError):
     status = 409
 
 
+class JobNotFound(DomainError):
+    code = "job_not_found"
+    status = 404
+
+
+class JobNotSendable(DomainError):
+    code = "job_not_sendable"
+    status = 409
+
+
+class InvalidJob(DomainError):
+    code = "invalid_job"
+    status = 422
+
+
+class SmtpUnavailable(DomainError):
+    code = "smtp_unavailable"
+    status = 502
+
+
 class MessageNotFound(DomainError):
     code = "message_not_found"
     status = 404

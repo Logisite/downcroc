@@ -198,7 +198,7 @@ challenged individually.
 
 | Decision | Why | Where |
 |---|---|---|
-| `sent_unconfirmed` job state | SMTP has no idempotency; the alternative is silent duplication | `03`, `06` |
+| Sent-folder reconciliation for `sending` rows | SMTP has no idempotency; the alternative is silent duplication | `03`, `06` |
 | Leases with expiry on `sending` jobs | a killed daemon must not strand work | `03` |
 | One event ring buffer in SQLite | resumable SSE without a separate broker | `02`, `03` |
 | Events carry ids, not objects | prevents two representations of one record drifting | `02` |

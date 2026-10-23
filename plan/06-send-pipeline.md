@@ -18,6 +18,13 @@ file  ->  parse  ->  validate  ->  snapshot  ->  render every message  ->  jobs
 Every step before `queued` is synchronous and atomic from the caller's point of view. Once jobs
 exist, the client may disconnect and the work continues.
 
+## Current build
+
+Until intake and dispatch exist, a one-off job is created through `POST /api/jobs` and sent
+through `POST /api/jobs/{id}/send`. That path builds the MIME message, mints the Message-ID, and
+runs the same SMTP send and Sent-folder reconciliation described here. It is a pre-dispatch seam,
+not a second scheduler; normal batches will use the dispatcher.
+
 ## Inputs
 
 You draft elsewhere. downcroc takes a file path, reads it once, and never reads it again.
@@ -223,6 +230,31 @@ exceed the number a provider sees. Counters live in `quota_buckets` and survive 
 There is no provider-side cross-check. These are your numbers, chosen by you. The daemon does not
 try to guess Gmail's limits, and it does not silently lower your setting.
 
+## Crash reconciliation
+
+The job row is the only send-state store. `sending` is committed before SMTP is contacted. On
+unlock, every `sending` row is checked against the Sent folder by its minted Message-ID.
+
+| Result | Action |
+|---|---|
+| Found | mark `sent`, publish `job.sent`, log `job.reconciled` with `found=true` |
+| Not found after the configured searches | return to `queued`, then send once more |
+| Search unavailable | leave `sending`, log `outbound.reconcile_failed`, retry on the next unlock |
+
+This closes both crash windows. A crash after the server accepted but before the commit finds the
+message in Sent and sends nothing new. A crash before acceptance finds nothing, releases the row,
+and sends exactly once. The number of Sent-folder searches and the delay between them are
+configured by `reconcile_attempts` and `reconcile_delay_s`.
+
+## Outbound settings
+
+| Setting | Meaning |
+|---|---|
+| `smtp_timeout_s` | connect, authentication, and DATA timeout for one send |
+| `lease_seconds` | how long a worker owns a `sending` row |
+| `reconcile_attempts` | Sent-folder searches before deciding a message never left |
+| `reconcile_delay_s` | delay between those searches |
+
 ## Retries
 
 | Property | Value |
@@ -231,7 +263,7 @@ try to guess Gmail's limits, and it does not silently lower your setting.
 | Backoff | exponential, base 30s, factor 2, cap 1 hour |
 | Jitter | plus or minus 20 percent, so retries do not synchronise |
 | Scope | transient failures only |
-| Attempt counter | incremented when the attempt reached the wire |
+| Attempt counter | incremented when the job is claimed; an interrupted attempt is still counted |
 
 Classification:
 
@@ -240,12 +272,13 @@ Classification:
 | DNS failure, connection refused, TCP reset | transient | retry |
 | Timeout during connect or after DATA | transient | retry |
 | 421, 450, 451, 452 | transient | retry |
-| 5xx from the server | transient | retry, unless it repeats identically five times |
-| 535, 534 | auth | account to `needs_reauth`, job back to `queued` |
-| 550, 551, 553, invalid recipient | permanent | `failed` |
-| 552, message too large | permanent | `failed` |
-| 554, policy rejection | permanent | `failed` |
+| 550, 551, 552, 553, 554 | permanent | `failed` |
+| other 5xx | transient | retry |
+| 530, 534, 535 | auth | account to `needs_reauth`, job back to `queued` |
 | Render error, missing attachment | permanent | `failed` |
+
+The five-attempt ceiling, exponential backoff, and jitter are dispatcher work. The current send
+path records `retry_wait` with an immediate next attempt and leaves the ceiling to the dispatcher.
 
 A failed job never blocks its batch. The batch completes with a failure count.
 
@@ -329,12 +362,12 @@ Rules:
 
 | Field | Source |
 |---|---|
-| `From` | account address with the configured display name |
+| `From` | account address with the account label as display name |
 | `To` | the single recipient, with name when known |
 | `Subject` | rendered, header-encoded when needed |
 | `Date` | send time, UTC, RFC 5322 |
 | `Message-ID` | minted at creation |
-| `Reply-To` | config, per account, optional |
+| `Reply-To` | reserved; not set by the current send path |
 | `MIME-Version` | `1.0` |
 | Body | `multipart/alternative` when HTML is present, `text/plain` alone otherwise |
 | Attachments | files referenced by the template, `multipart/mixed`, base64, size checked before send |

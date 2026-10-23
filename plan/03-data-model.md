@@ -364,38 +364,34 @@ Definition of each number, so the UI cannot drift from the schema:
                     |   sent    |          | attempts exhausted or permanent
                     +-----------+          v
                                      +-----------+
-              connection died  ----> |  failed   |
-              after acceptance       +-----------+
-                    |
-                    v
-              +-------------------+
-              | sent_unconfirmed  |
-              +-------------------+
+                                     |  failed   |
+                                     +-----------+
 ```
 
 | State | Meaning | Exits |
 |---|---|---|
 | `awaiting_approval` | batch submitted, dry run not yet approved | `queued` on approval, `cancelled` on reject |
 | `queued` | ready, waiting for an account window and allowance | `sending` when leased |
-| `sending` | a worker holds a lease and is talking to SMTP | `sent`, `retry_wait`, `failed`, `sent_unconfirmed` |
+| `sending` | a worker holds a lease and is talking to SMTP | `sent`, `retry_wait`, `failed`; a crash leaves the row here for reconciliation |
 | `retry_wait` | transient failure, waiting for `next_attempt_at` | `sending`, or `failed` when attempts reach 5 |
 | `sent` | SMTP accepted and the result was recorded | terminal |
-| `sent_unconfirmed` | SMTP accepted, then the connection died before recording | reconciled by searching Sent by `Message-ID` |
+| `sent_unconfirmed` | reserved in the enum | not used by the current send path |
 | `failed` | permanent, or attempts exhausted | `queued` on manual retry only |
 | `cancelled` | batch cancelled | terminal |
 
-**`sent_unconfirmed` is not optional.** SMTP has no idempotency key. If the connection dies
-between `250 OK` and our commit, the only correct behaviour is to admit uncertainty and go
-look: search the Sent folder for our minted `Message-ID` within the last hour. Found means
-`sent`. Not found means `retry_wait` with the attempt already counted. Sending again blindly
-would duplicate mail to a real person, which is the worst failure this system can produce.
+**Crash reconciliation is not optional.** SMTP has no idempotency key. The job moves to
+`sending` before the wire and is only marked `sent` after the server accepts. If the process
+dies in between, the row stays `sending`. On the next unlock, the daemon searches the Sent
+folder for the minted `Message-ID`: found means `sent`; not found means the message never left,
+so the row returns to `queued` and is sent again. Sending blindly without that search would
+duplicate mail to a real person, which is the worst failure this system can produce.
 
 ## Content store
 
 ```
 content/
   batches/<bat_id>/source.json      # immutable snapshot taken at submit
-  jobs/<job_id>/message.eml         # rendered message, exactly as sent
+  jobs/<job_id>/message.eml         # rendered message; identity and Date headers rewritten at send
   attachments/<acct>/<msg_id>/<n>-<name>
   recovery/<job_id>.json            # payload able to reconstruct a failed job
 ```
@@ -474,7 +470,7 @@ Everything behaviour-affecting is persisted. Specifically:
 | Account status and `needs_reauth` | no silent auth death |
 | Batch snapshots and hashes | provable content of what was sent |
 
-Startup order is fixed: open the database, run migrations, reconcile leases and
-`sent_unconfirmed`, reconcile `failed.jsonl` against `failed_queue`, rebuild quota counters
+Startup order is fixed: open the database, run migrations, reconcile leases and `sending` rows
+against the Sent folder, reconcile `failed.jsonl` against `failed_queue`, rebuild quota counters
 from `quota_buckets` if the cache is cold, then start watchers, then start the dispatcher,
 then bind the API. Anything that can lie about state is settled before anything reads it.

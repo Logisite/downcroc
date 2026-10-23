@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.events import EventBus
 from downcroc.core.inbound_service import InboundService
+from downcroc.core.outbound_service import OutboundService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import SendPolicy
 from downcroc.providers.registry import ProviderRegistry
@@ -21,6 +22,7 @@ from downcroc.store.db.migrate import run_migrations
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.attempts import AttemptRepo
 from downcroc.store.repositories.events import EventRepo
+from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
 
 
@@ -36,6 +38,7 @@ class Services:
     messages: MessageRepo
     content: ContentStore
     inbound: InboundService
+    outbound: OutboundService
 
     def close(self) -> None:
         self.inbound.close()
@@ -64,6 +67,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     tokens = TokenManager(vault, providers, settings.connect, log)
     account_repo = AccountRepo(sessions)
     message_repo = MessageRepo(sessions)
+    job_repo = JobRepo(sessions)
     content = ContentStore(paths.data / "content")
     inbound = InboundService(
         account_repo,
@@ -89,6 +93,18 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings.connect,
         inbound,
     )
+    outbound = OutboundService(
+        job_repo,
+        account_repo,
+        providers,
+        vault,
+        tokens,
+        content,
+        bus,
+        log,
+        settings.outbound,
+        settings.connect,
+    )
     inbound.open()
     return Services(
         engine=engine,
@@ -101,4 +117,5 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         messages=message_repo,
         content=content,
         inbound=inbound,
+        outbound=outbound,
     )

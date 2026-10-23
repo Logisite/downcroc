@@ -26,10 +26,11 @@ def read_vault(request: Request) -> VaultOut:
 
 
 @router.post("/unlock", response_model=VaultOut)
-def unlock(body: VaultUnlock, request: Request) -> VaultOut:
+async def unlock(body: VaultUnlock, request: Request) -> VaultOut:
     _service(request).unlock(body.password)
     request.app.state.services.accounts.prune_orphans()
     request.app.state.services.inbound.start_all()
+    await request.app.state.services.outbound.reconcile()
     return _out(request)
 
 

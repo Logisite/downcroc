@@ -4,9 +4,11 @@
 
 The daemon does everything. The API only accepts intent and streams truth.
 
-There is no endpoint that performs business logic inline. `POST /api/batches` does not send
-mail; it validates, snapshots, creates jobs, and returns. Sending happens in the dispatcher,
-whether or not a client is connected to watch it.
+There is no endpoint that performs business logic inline on the normal path. `POST /api/batches`
+does not send mail; it validates, snapshots, creates jobs, and returns. Sending happens in the
+dispatcher, whether or not a client is connected to watch it. The one deliberate exception in the
+current build is `POST /api/jobs/{id}/send`, a manual one-off used before the dispatcher exists.
+Normal batches always send through the dispatcher.
 
 ## Versioning
 
@@ -132,10 +134,16 @@ Connect errors: `oauth_not_configured` and `provider_not_configured` (409),
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/jobs` | filter by batch, account, state, date |
+| GET | `/api/jobs` | filter by batch, account, state; bounded by `limit` |
+| POST | `/api/jobs` | create a one-off job before the batch path exists |
 | GET | `/api/jobs/{id}` | full record, including the rendered body reference |
+| POST | `/api/jobs/{id}/send` | send a queued or retry-wait job now, the pre-dispatch manual path |
 | POST | `/api/jobs/{id}/retry` | requeue a failed job |
 | POST | `/api/jobs/{id}/reassign` | move a queued job to another account |
+
+`POST /api/jobs` and `POST /api/jobs/{id}/send` exist to prove the outbound pipeline before
+batches and the dispatcher arrive. They are thin calls into the outbound service, not a second
+scheduler. A one-off job uses `batch_id = "manual"` until it is attached to a real batch.
 
 ### Mail, threads, replies
 
@@ -214,10 +222,10 @@ account object itself. Nothing in this section can throttle a send.
 | Field | Type | Notes |
 |---|---|---|
 | id | string | |
-| batch_id | string | |
+| batch_id | string | `manual` for a one-off job |
 | account_id | string | bound at creation |
 | recipient | string | |
-| state | enum | `queued`, `awaiting_approval`, `sending`, `sent`, `sent_unconfirmed`, `retry_wait`, `failed`, `cancelled` |
+| state | enum | `queued`, `awaiting_approval`, `sending`, `sent`, `sent_unconfirmed`, `retry_wait`, `failed`, `cancelled`; `sent_unconfirmed` is reserved |
 | attempts | int | |
 | next_attempt_at | timestamp | null when not waiting |
 | message_id | string | minted by downcroc, the attribution anchor |

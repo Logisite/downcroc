@@ -121,6 +121,15 @@ class InboundSettings(BaseModel):
         return value
 
 
+class OutboundSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    smtp_timeout_s: float = Field(default=30.0, gt=0, le=300)
+    lease_seconds: int = Field(default=120, ge=10, le=3600)
+    reconcile_attempts: int = Field(default=3, ge=1, le=10)
+    reconcile_delay_s: float = Field(default=1.0, ge=0, le=60)
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -131,3 +140,4 @@ class Settings(BaseModel):
     vault: VaultSettings = Field(default_factory=VaultSettings)
     connect: ConnectSettings = Field(default_factory=ConnectSettings)
     inbound: InboundSettings = Field(default_factory=InboundSettings)
+    outbound: OutboundSettings = Field(default_factory=OutboundSettings)
