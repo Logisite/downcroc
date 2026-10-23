@@ -30,6 +30,11 @@ def _to_account(row: AccountRow, state: AccountStateRow | None) -> Account:
         ),
         last_error=state.last_error if state is not None else None,
         credential_key=row.credential_key,
+        watcher_enabled=state.watcher_enabled if state is not None else True,
+        last_uid=state.last_uid if state is not None else 0,
+        uidvalidity=state.uidvalidity if state is not None else 0,
+        last_sync_at=state.last_sync_at if state is not None else None,
+        consecutive_failures=state.consecutive_failures if state is not None else 0,
     )
 
 
@@ -122,6 +127,56 @@ class AccountRepo:
             row.status = AccountStatus.UNVERIFIED.value
             state.last_error = reason
         return self.get(account_id)
+
+    def set_watcher_enabled(self, account_id: str, enabled: bool) -> Account:
+        with self._sessions.begin() as session:
+            self._row(session, account_id)
+            state = self._state(session, account_id)
+            state.watcher_enabled = enabled
+        return self.get(account_id)
+
+    def reset_cursor(self, account_id: str, uidvalidity: int) -> None:
+        with self._sessions.begin() as session:
+            self._row(session, account_id)
+            state = self._state(session, account_id)
+            state.uidvalidity = uidvalidity
+            state.last_uid = 0
+
+    def set_baseline(
+        self,
+        account_id: str,
+        uidvalidity: int,
+        last_uid: int,
+        synced_at: str,
+    ) -> None:
+        with self._sessions.begin() as session:
+            self._row(session, account_id)
+            state = self._state(session, account_id)
+            if state.uidvalidity != uidvalidity:
+                state.uidvalidity = uidvalidity
+                state.last_uid = last_uid
+            else:
+                state.last_uid = max(state.last_uid, last_uid)
+            state.last_sync_at = synced_at
+            state.last_error = None
+            state.consecutive_failures = 0
+
+    def watcher_succeeded(self, account_id: str, synced_at: str) -> None:
+        with self._sessions.begin() as session:
+            state = session.get(AccountStateRow, account_id)
+            if state is None:
+                return
+            state.last_sync_at = synced_at
+            state.last_error = None
+            state.consecutive_failures = 0
+
+    def watcher_failed(self, account_id: str, reason: str) -> None:
+        with self._sessions.begin() as session:
+            state = session.get(AccountStateRow, account_id)
+            if state is None:
+                return
+            state.last_error = reason
+            state.consecutive_failures += 1
 
     def delete(self, account_id: str) -> None:
         with self._sessions.begin() as session:

@@ -29,10 +29,12 @@ def read_vault(request: Request) -> VaultOut:
 def unlock(body: VaultUnlock, request: Request) -> VaultOut:
     _service(request).unlock(body.password)
     request.app.state.services.accounts.prune_orphans()
+    request.app.state.services.inbound.start_all()
     return _out(request)
 
 
 @router.post("/lock", response_model=VaultOut)
 def lock(request: Request) -> VaultOut:
+    request.app.state.services.inbound.stop_all("vault_locked")
     _service(request).lock("api")
     return _out(request)

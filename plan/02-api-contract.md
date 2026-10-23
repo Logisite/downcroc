@@ -76,13 +76,16 @@ client can tell whether a provider can start an OAuth attempt.
 | GET | `/api/accounts` | list, with status and send policy |
 | POST | `/api/accounts` | body: provider id, address, label |
 | GET | `/api/accounts/{id}` | one account |
-| PATCH | `/api/accounts/{id}` | update label, enabled, watcher toggle |
+| PATCH | `/api/accounts/{id}/watcher` | body: `enabled`. Stop or start one watcher without touching its cursor |
+| POST | `/api/accounts/{id}/sync` | request an immediate watcher refresh |
 | DELETE | `/api/accounts/{id}` | remove account and its credentials |
 | POST | `/api/accounts/{id}/connect` | body: app password. Connect a password account |
 | POST | `/api/accounts/{id}/verify` | test the credential against the provider |
 
 An account carries `id`, `provider`, `address`, `label`, `status`, `credential_present`,
-`created_at`, `last_verified_at`, `last_error`, and the stored send policy as `quota`. Status is
+`created_at`, `last_verified_at`, `last_error`, `watcher_enabled`, a `sync` object
+(`last_uid`, `uidvalidity`, `last_sync_at`, `last_error`, `consecutive_failures`), and the
+stored send policy as `quota`. Status is
 one of `pending`, `connected`, `needs_reauth`, `disabled`, `unverified`. `last_error` carries the
 last stable reason code, such as `invalid_grant` or `imap_auth_failed`, and never carries
 credential material.
@@ -244,6 +247,7 @@ account object itself. Nothing in this section can throttle a send.
 | account_id | string | |
 | folder | string | `INBOX` in the current scope |
 | uid | int | IMAP UID, the cursor anchor |
+| uidvalidity | int | server UIDVALIDITY for this UID |
 | message_id | string | |
 | in_reply_to | string | null |
 | references | string[] | |
@@ -255,6 +259,7 @@ account object itself. Nothing in this section can throttle a send.
 | reply_state | enum | `none`, `confirmed`, `probable` |
 | thread_id | string | null until linked |
 | job_id | string | null, set when a confirmed reply is attributed |
+| body_truncated | bool | true when a stored body hit the size cap |
 
 **Thread**
 
@@ -290,8 +295,10 @@ batch.submitted       batch.awaiting_approval  batch.started
 batch.completed       batch.cancelled
 job.queued            job.started            job.sent
 job.retry_wait        job.failed             job.sent_unconfirmed
-message.received      reply.matched          bounce.received
-quota.consumed        watcher.state_changed  config.changed
+message.ingested      attachment.stored      reply.matched          bounce.received
+quota.consumed        config.changed
+watcher.started       watcher.stopped        watcher.idle_wake
+imap.fetch            account.watcher
 stats.pruned          backup.created         backup.failed          restore.pending
 ```
 

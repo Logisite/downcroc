@@ -21,6 +21,20 @@ class AppPasswordConnect(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class WatcherToggle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
+class SyncOut(BaseModel):
+    last_uid: int
+    uidvalidity: int
+    last_sync_at: str | None
+    last_error: str | None
+    consecutive_failures: int
+
+
 class QuotaOut(BaseModel):
     daily_allowance: int
     window_start: int
@@ -41,6 +55,8 @@ class AccountOut(BaseModel):
     created_at: str
     last_verified_at: str | None
     last_error: str | None
+    watcher_enabled: bool
+    sync: SyncOut
     quota: QuotaOut
 
     @classmethod
@@ -55,6 +71,14 @@ class AccountOut(BaseModel):
             created_at=account.created_at,
             last_verified_at=account.last_verified_at,
             last_error=account.last_error,
+            watcher_enabled=account.watcher_enabled,
+            sync=SyncOut(
+                last_uid=account.last_uid,
+                uidvalidity=account.uidvalidity,
+                last_sync_at=account.last_sync_at,
+                last_error=account.last_error,
+                consecutive_failures=account.consecutive_failures,
+            ),
             quota=QuotaOut(
                 daily_allowance=account.policy.daily_allowance,
                 window_start=account.policy.window_start,

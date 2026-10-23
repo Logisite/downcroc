@@ -54,7 +54,8 @@ They live on the row because accounts differ and the account API edits one accou
 |---|---|---|
 | account_id | text pk | |
 | watcher_enabled | int | toggle from the TUI |
-| last_uid | int | highest UID ingested, the fetch cursor |
+| uidvalidity | int | server UIDVALIDITY for the current cursor |
+| last_uid | int | highest UID ingested for that UIDVALIDITY |
 | last_sync_at | text | |
 | last_error | text | |
 | consecutive_failures | int | drives watcher backoff |
@@ -109,7 +110,8 @@ unique `message_id`.
 | id | text pk | |
 | account_id | text | |
 | folder | text | `INBOX` in current scope |
-| uid | int | unique per account and folder |
+| uid | int | unique per account, folder, and UIDVALIDITY |
+| uidvalidity | int | server UIDVALIDITY that assigned this UID |
 | message_id | text | header, may be null if malformed |
 | in_reply_to | text | null |
 | references_json | text | array |
@@ -125,10 +127,13 @@ unique `message_id`.
 | job_id | text | null until attributed |
 | body_text | text | nullable |
 | body_html | text | nullable |
+| body_truncated | int | a stored body hit the size cap |
 | ingested_at | text | |
 
-Indexes: unique `(account_id, folder, uid)`, `(thread_id, date)`, `(job_id)`,
-`(message_id)`.
+Indexes: unique `(account_id, folder, uidvalidity, uid)`, unique
+`(account_id, message_id)`, `(thread_id, date)`, `(job_id)`, `(message_id)`.
+The message-id index makes a UIDVALIDITY re-scan idempotent; the UID index catches
+the same message arriving twice in one UIDVALIDITY.
 
 ### `attachments`
 
@@ -138,7 +143,7 @@ No binary payload is ever stored in the database. This table is the index into t
 |---|---|---|
 | id | text pk | `att_...` |
 | message_id | text | |
-| filename | text | sanitized for the filesystem |
+| filename | text | original name, sanitized only in the stored path |
 | content_type | text | |
 | size | int | |
 | path | text | content store path |
@@ -151,7 +156,7 @@ No binary payload is ever stored in the database. This table is the index into t
 | Field | Type | Notes |
 |---|---|---|
 | id | text pk | |
-| root_message_id | text | the outbound Message-ID that started it |
+| root_message_id | text | root message id, outbound once attribution succeeds |
 | subject | text | normalized |
 | batch_id | text | null when not started by a batch |
 | message_count | int | denormalized, recomputed on insert |

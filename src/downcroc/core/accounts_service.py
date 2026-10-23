@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 
 from downcroc.core.events import EventBus
+from downcroc.core.inbound_service import InboundService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus, SendPolicy
 from downcroc.domain.attempts import ConnectAttempt
@@ -53,6 +54,7 @@ class AccountsService:
         tokens: TokenManager,
         attempts: AttemptRepo,
         settings: ConnectSettings,
+        inbound: InboundService,
     ) -> None:
         self._accounts = accounts
         self._bus = bus
@@ -62,6 +64,7 @@ class AccountsService:
         self._vault = vault
         self._tokens = tokens
         self._settings = settings
+        self._inbound = inbound
         self._flow = OAuthFlow(attempts, settings, log, self._complete_oauth)
 
     def create(self, provider: str, address: str, label: str) -> Account:
@@ -96,6 +99,7 @@ class AccountsService:
 
     def delete(self, account_id: str) -> None:
         self._flow.stop_for_account(account_id)
+        self._inbound.account_removed(account_id)
         self._accounts.delete(account_id)
         try:
             self._vault.delete_account_secrets(account_id)
@@ -159,6 +163,31 @@ class AccountsService:
         if account.status is AccountStatus.NEEDS_REAUTH:
             self._connected(account, updated)
         return updated
+
+    def set_watcher(self, account_id: str, enabled: bool) -> Account:
+        account = self._accounts.set_watcher_enabled(account_id, enabled)
+        self._inbound.account_changed(account.id, enabled)
+        self._bus.publish(
+            "account.watcher",
+            {"id": account.id, "enabled": enabled},
+        )
+        self._log.info(
+            "account.watcher",
+            account=account.id,
+            enabled=enabled,
+        )
+        return account
+
+    def sync(self, account_id: str) -> Account:
+        account = self._accounts.get(account_id)
+        if account.status is not AccountStatus.CONNECTED:
+            raise AccountNeedsReauth(
+                "the account is not connected",
+                hint="connect the account before syncing",
+            )
+        self._vault.ensure_unlocked()
+        self._inbound.sync_now(account.id)
+        return account
 
     def close_flows(self, reason: str) -> None:
         self._flow.close_all(reason)
@@ -349,10 +378,12 @@ class AccountsService:
         ):
             return
         updated = self._accounts.mark_needs_reauth(account.id, reason)
+        self._inbound.account_changed(account.id, False)
         self._bus.publish("account.needs_reauth", {"id": updated.id, "reason": reason})
         self._log.warning("account.needs_reauth", account=updated.id, reason=reason)
 
     def _connected(self, previous: Account, updated: Account) -> None:
+        self._inbound.account_connected(updated.id)
         if previous.status is AccountStatus.CONNECTED:
             return
         self._bus.publish("account.connected", {"id": updated.id})

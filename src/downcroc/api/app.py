@@ -8,7 +8,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from downcroc.api import errors
-from downcroc.api.routes import accounts, attempts, events, health, providers, vault
+from downcroc.api.routes import (
+    accounts,
+    attempts,
+    events,
+    health,
+    messages,
+    providers,
+    vault,
+)
 from downcroc.core.bootstrap import build
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
@@ -33,6 +41,7 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
         try:
             yield
         finally:
+            services.inbound.stop_all("shutdown")
             services.accounts.close_flows("daemon_stopped")
             services.vault.lock("shutdown")
             services.bus.close_all("shutdown")
@@ -56,5 +65,6 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     app.include_router(accounts.router)
     app.include_router(attempts.router)
     app.include_router(providers.router)
+    app.include_router(messages.router)
     app.include_router(events.router)
     return app

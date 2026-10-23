@@ -53,18 +53,25 @@ connect (imap-tools, XOAUTH2 or app password)
   |      update last_uid after each successful handoff, in order
   |
   +-- IDLE with a 25 minute timeout
-         on "exists": loop back to the search
-         on timeout: close and reopen IDLE (some servers drop after 29 minutes)
+         on "exists": return to SELECT INBOX, refresh UIDVALIDITY/UIDNEXT, then search
+         on timeout: return to SELECT INBOX, then reopen IDLE
          on connection error: reconnect with backoff
 ```
+
+Every IDLE return, including a timeout, goes back through `SELECT INBOX`. That is how a
+UIDVALIDITY change is seen even when the server did not announce a new message.
 
 Details that prevent real bugs:
 
 - **`last_uid` advances only after the message is durably stored.** A crash mid-fetch replays
-  one message, which the unique index on `(account_id, folder, uid)` rejects. Replay is safe;
-  skipping is not.
+  one message, which the unique index on `(account_id, folder, uidvalidity, uid)` rejects.
+  Replay is safe; skipping is not.
 - **UIDVALIDITY is stored per account.** Ignoring it is how a mailbox silently stops syncing
-  after the server renumbers.
+  after the server renumbers. A change resets the cursor and forces a full INBOX re-scan.
+- **Re-scans are idempotent at the message level.** The unique index on
+  `(account_id, message_id)` drops a message seen before the renumber; a missing Message-ID
+  falls back to the UID key.
+- **The watcher opens INBOX with EXAMINE**, so a sync never sets `\Seen` or any other flag.
 - **Search is `UID n:*`, then filtered client-side by uid > last_uid**, because some servers
   return the highest UID for an empty range.
 - **IDLE uses a timeout shorter than the server's limit**, so a silently dead connection is
@@ -131,8 +138,8 @@ Run once per ingested message, in this order, stopping at the first hit:
 
 | Step | Match | Result |
 |---|---|---|
-| 1 | any id in `References` is a known message | link to that message's thread |
-| 2 | `In-Reply-To` is a known message | link to that message's thread |
+| 1 | `In-Reply-To` is a known message | link to that message's thread |
+| 2 | any id in `References`, newest first, is a known message | link to that message's thread |
 | 3 | normalized subject matches a known thread, same correspondent, inside the window | `probable` |
 | 4 | no match | create a new thread, unattached to any batch |
 

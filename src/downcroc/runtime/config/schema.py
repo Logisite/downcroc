@@ -94,6 +94,33 @@ class ConnectSettings(BaseModel):
     shutdown_join_s: float = Field(default=2.0, gt=0, le=30)
 
 
+class InboundSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idle_timeout_s: float = Field(default=1500.0, ge=10, le=1740)
+    poll_interval_s: float = Field(default=300.0, ge=5, le=3600)
+    initial_sync_days: int = Field(default=7, ge=0, le=3650)
+    initial_sync_limit: int = Field(default=500, ge=1, le=100_000)
+    body_max_bytes: int = Field(default=2_097_152, ge=1024, le=268_435_456)
+    fetch_batch: int = Field(default=25, ge=1, le=500)
+    ingest_timeout_s: float = Field(default=60.0, gt=0, le=600)
+    backoff_s: list[int] = Field(
+        default_factory=lambda: [5, 15, 60, 300, 900],
+        min_length=1,
+        max_length=16,
+    )
+    shutdown_join_s: float = Field(default=2.0, gt=0, le=30)
+
+    @field_validator("backoff_s")
+    @classmethod
+    def ordered_backoff(cls, value: list[int]) -> list[int]:
+        if any(item < 1 for item in value):
+            raise ValueError("backoff values must be positive seconds")
+        if value != sorted(value):
+            raise ValueError("backoff values must be in ascending order")
+        return value
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -103,3 +130,4 @@ class Settings(BaseModel):
     events: EventsSettings = Field(default_factory=EventsSettings)
     vault: VaultSettings = Field(default_factory=VaultSettings)
     connect: ConnectSettings = Field(default_factory=ConnectSettings)
+    inbound: InboundSettings = Field(default_factory=InboundSettings)

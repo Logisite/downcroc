@@ -37,6 +37,7 @@ class AccountStateRow(Base):
     )
     watcher_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_uid: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    uidvalidity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_sync_at: Mapped[str | None] = mapped_column(Text)
     last_error: Mapped[str | None] = mapped_column(Text)
     consecutive_failures: Mapped[int] = mapped_column(

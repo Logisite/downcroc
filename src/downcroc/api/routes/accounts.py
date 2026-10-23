@@ -8,6 +8,7 @@ from downcroc.api.schemas.accounts import (
     AccountOut,
     AppPasswordConnect,
     AttemptOut,
+    WatcherToggle,
 )
 from downcroc.core.accounts_service import AccountsService
 
@@ -58,3 +59,13 @@ def verify_account(
     account_id: str, request: Request, refresh: bool = False
 ) -> AccountOut:
     return AccountOut.of(_service(request).verify(account_id, refresh=refresh))
+
+
+@router.patch("/{account_id}/watcher", response_model=AccountOut)
+def set_watcher(account_id: str, body: WatcherToggle, request: Request) -> AccountOut:
+    return AccountOut.of(_service(request).set_watcher(account_id, body.enabled))
+
+
+@router.post("/{account_id}/sync", response_model=AccountOut, status_code=202)
+def sync_account(account_id: str, request: Request) -> AccountOut:
+    return AccountOut.of(_service(request).sync(account_id))

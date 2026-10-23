@@ -167,3 +167,28 @@ class CredentialMissing(DomainError):
 class AccountNeedsReauth(DomainError):
     code = "account_needs_reauth"
     status = 409
+
+
+class MessageNotFound(DomainError):
+    code = "message_not_found"
+    status = 404
+
+
+class ThreadNotFound(DomainError):
+    code = "thread_not_found"
+    status = 404
+
+
+class AttachmentNotFound(DomainError):
+    code = "attachment_not_found"
+    status = 404
+
+
+class ContentMissing(DomainError):
+    code = "content_missing"
+    status = 410
+
+
+class ContentCorrupt(DomainError):
+    code = "content_corrupt"
+    status = 500

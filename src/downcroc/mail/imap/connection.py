@@ -22,6 +22,10 @@ class ImapTlsError(Exception):
     pass
 
 
+class ImapProtocolError(Exception):
+    pass
+
+
 class _PlainMailBox(MailBox):
     def _get_mailbox_client(self) -> imaplib.IMAP4:
         return imaplib.IMAP4(self._host, self._port, timeout=self._timeout)
@@ -34,15 +38,13 @@ class _StartTlsMailBox(MailBox):
         return client
 
 
-def login(
-    spec: ProviderSpec,
+def authenticate(
+    box: MailBox,
     address: str,
     *,
     password: str | None = None,
     access_token: str | None = None,
-    timeout_s: float,
 ) -> None:
-    box = _connect(spec, timeout_s)
     try:
         if access_token is not None:
             box.xoauth2(address, access_token, initial_folder=None)
@@ -60,6 +62,24 @@ def login(
         raise ImapNetworkError from error
     except ImapToolsError as error:
         raise ImapNetworkError from error
+
+
+def login(
+    spec: ProviderSpec,
+    address: str,
+    *,
+    password: str | None = None,
+    access_token: str | None = None,
+    timeout_s: float,
+) -> None:
+    box = connect(spec, timeout_s)
+    try:
+        authenticate(
+            box,
+            address,
+            password=password,
+            access_token=access_token,
+        )
     finally:
         with contextlib.suppress(
             MailboxLoginError, imaplib.IMAP4.error, OSError, ImapToolsError
@@ -67,7 +87,7 @@ def login(
             box.logout()
 
 
-def _connect(spec: ProviderSpec, timeout_s: float) -> MailBox:
+def connect(spec: ProviderSpec, timeout_s: float) -> MailBox:
     try:
         if spec.imap_tls is TlsMode.SSL:
             return MailBox(spec.imap_host, spec.imap_port, timeout=timeout_s)
