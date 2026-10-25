@@ -35,12 +35,12 @@ def test_submit_routes_and_snapshots(stack: Stack) -> None:
     assert len(document["messages"]) == 8
 
 
-def test_approve_one_sends_one_and_leaves_the_rest_queued(stack: Stack) -> None:
+def test_approve_one_sends_one_and_leaves_the_rest_locked(stack: Stack) -> None:
     batch = submit(stack, campaign_of(3))
     approved = stack.api.post(f"/api/batches/{batch['id']}/approve", {"mode": "one"})
 
-    assert approved["counts"] == {"sent": 1, "queued": 2}
-    assert approved["state"] == "sending"
+    assert approved["counts"] == {"sent": 1, "awaiting_approval": 2}
+    assert approved["state"] == "awaiting_approval"
     sent = stack.fakes.sent()
     assert len(sent) == 1
     assert parseaddr(sent[0]["To"])[1].endswith("@example.com")
@@ -56,7 +56,10 @@ def test_approve_one_sends_one_and_leaves_the_rest_queued(stack: Stack) -> None:
 
 
 def test_approve_all_queues_everything(stack: Stack) -> None:
-    batch = submit(stack, campaign_of(3))
+    batch = submit(
+        stack,
+        campaign_of(3, options={"not_before": "2999-01-01T00:00:00Z"}),
+    )
     approved = stack.api.post(f"/api/batches/{batch['id']}/approve", {"mode": "all"})
 
     assert approved["counts"] == {"queued": 3}
@@ -65,14 +68,26 @@ def test_approve_all_queues_everything(stack: Stack) -> None:
 
 
 def test_auto_approval_skips_the_review_gate(stack: Stack) -> None:
-    batch = submit(stack, campaign_of(2, options={"approval": "auto"}))
+    batch = submit(
+        stack,
+        campaign_of(
+            2,
+            options={
+                "approval": "auto",
+                "not_before": "2999-01-01T00:00:00Z",
+            },
+        ),
+    )
 
     assert batch["state"] == "sending"
     assert batch["counts"] == {"queued": 2}
 
 
 def test_cancel_stops_queued_jobs(stack: Stack) -> None:
-    batch = submit(stack, campaign_of(2))
+    batch = submit(
+        stack,
+        campaign_of(2, options={"not_before": "2999-01-01T00:00:00Z"}),
+    )
     stack.api.post(f"/api/batches/{batch['id']}/approve", {"mode": "all"})
     cancelled = stack.api.post(f"/api/batches/{batch['id']}/cancel")
 

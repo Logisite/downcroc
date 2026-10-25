@@ -338,7 +338,7 @@ unlock, every `sending` row is checked against the Sent folder by its minted Mes
 | Result | Action |
 |---|---|
 | Found | mark `sent`, publish `job.sent`, log `job.reconciled` with `found=true` |
-| Not found after the configured searches | return to `queued`, then send once more |
+| Not found after the configured searches | return to `queued`; the dispatcher sends it once more |
 | Search unavailable | leave `sending`, log `outbound.reconcile_failed`, retry on the next unlock |
 
 This closes both crash windows. A crash after the server accepted but before the commit finds the
@@ -354,6 +354,23 @@ configured by `reconcile_attempts` and `reconcile_delay_s`.
 | `lease_seconds` | how long a worker owns a `sending` row |
 | `reconcile_attempts` | Sent-folder searches before deciding a message never left |
 | `reconcile_delay_s` | delay between those searches |
+
+## Dispatch settings
+
+| Setting | Meaning |
+|---|---|
+| `tick_s` | loop interval when no send is running |
+| `max_attempts` | total attempts before a transient failure becomes terminal |
+| `retry_base_s` | first retry delay |
+| `retry_factor` | multiplier applied per attempt |
+| `retry_cap_s` | ceiling on the computed retry delay |
+| `retry_jitter` | fraction applied either side of the retry delay |
+| `global_in_flight` | cap on concurrent sends across all accounts |
+| `shutdown_join_s` | time allowed for in-flight sends during shutdown |
+
+The dispatcher claims up to `global_in_flight` jobs per tick, respecting each account's
+`max_in_flight`. It waits for that wave to finish, applies the per-account jitter delay, and
+ticks again. A lease is held for `outbound.lease_seconds`; an expired lease is claimable.
 
 ## Retries
 
@@ -390,7 +407,9 @@ Terminal failures are written in two places, in this order:
 2. insert into `failed_queue`
 
 The file is the durable, portable record. The table is the query surface the TUI reads. A startup
-reconciliation compares them and reinserts a row whose append succeeded but whose insert did not.
+reconciliation compares them and reinserts a row whose append succeeded but whose insert did not,
+but only while the job is still `failed`. Retrying rewrites the file atomically without that job
+and deletes its row, so a restart cannot resurrect a cleared failure.
 
 The TUI shows a persistent count in the status bar and a screen listing failures with recipient,
 account, reason code, and the human reason. Actions are: retry one, retry all, dump to a file.

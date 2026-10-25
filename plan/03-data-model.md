@@ -292,21 +292,21 @@ Pruned to the newest 10,000 rows. This is the SSE replay buffer, not an audit lo
 
 | Field | Type | Notes |
 |---|---|---|
-| id | text pk | |
-| job_id | text | |
+| job_id | text pk | one row per failed job |
 | batch_id | text | |
 | account_id | text | |
 | recipient | text | |
-| reason_code | text | |
-| reason | text | human readable |
-| payload_ref | text | content store path able to reconstruct the job |
+| code | text | stable reason code |
+| message | text | human readable reason |
+| retryable | integer | null, true, or false |
+| attempts | integer | attempts at the failure boundary |
 | failed_at | text | |
-| reintroduced_at | text | null until retried |
 
 Mirrors `failed.jsonl` so the TUI can count and filter without parsing a file. The JSONL file
-is the durable, portable record; the table is the query surface. Both are written in the same
-transaction boundary: file append first, then row insert, and a startup check reconciles a
-crash between the two.
+is the durable, portable record; the table is the query surface. The file is appended first,
+then the row is inserted, and startup reconciliation reinserts any row missing from the table
+whose job is still `failed`. Retrying rewrites the file without that job, deletes the row, and
+returns the job to `queued` with its attempt count reset.
 
 ## Statistics and activity
 

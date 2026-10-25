@@ -34,7 +34,7 @@ class Daemon:
         self.stdout = root / "daemon.out"
         self.stderr = root / "daemon.err"
 
-    def start(self, fakes: FakeMailServers) -> Daemon:
+    def start(self, fakes: FakeMailServers, config_extra: str = "") -> Daemon:
         for directory in (
             self.config,
             self.data_home,
@@ -50,6 +50,7 @@ class Daemon:
             "\n"
             "[intake]\n"
             "sample_count = 5\n"
+            f"{config_extra}"
         )
         env = {
             **os.environ,

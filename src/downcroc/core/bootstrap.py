@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.batches import BatchesService
+from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
 from downcroc.core.events import EventBus
 from downcroc.core.inbound import InboundService
 from downcroc.core.outbound import OutboundService
@@ -24,8 +25,10 @@ from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.attempts import AttemptRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.events import EventRepo
+from downcroc.store.repositories.failures import FailureRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
+from downcroc.store.repositories.quota import QuotaRepo
 
 
 @dataclass
@@ -42,6 +45,8 @@ class Services:
     inbound: InboundService
     outbound: OutboundService
     batches: BatchesService
+    failures: FailureService
+    dispatcher: Dispatcher
 
     def close(self) -> None:
         self.inbound.close()
@@ -121,6 +126,29 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         bus,
         log,
     )
+    failure_repo = FailureRepo(sessions)
+    quota_repo = QuotaRepo(sessions)
+    failures = FailureService(
+        failure_repo,
+        FailureLog(paths.data / "failed.jsonl"),
+        job_repo,
+        batch_repo,
+        bus,
+        log,
+    )
+    dispatcher = Dispatcher(
+        settings.dispatch,
+        settings.outbound.lease_seconds,
+        job_repo,
+        account_repo,
+        batch_repo,
+        quota_repo,
+        failures,
+        outbound,
+        vault,
+        bus,
+        log,
+    )
     return Services(
         engine=engine,
         sessions=sessions,
@@ -134,4 +162,6 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         inbound=inbound,
         outbound=outbound,
         batches=batches,
+        failures=failures,
+        dispatcher=dispatcher,
     )

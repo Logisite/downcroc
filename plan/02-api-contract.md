@@ -188,8 +188,10 @@ account object itself. Nothing in this section can throttle a send.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/failed` | records from `failed.jsonl`, with reasons |
-| POST | `/api/failed/retry` | retry one or all |
+| GET | `/api/failed` | failure rows from `failed_queue`, newest first, bounded by `limit` |
+| GET | `/api/failed/{job_id}` | one failure by job id |
+| POST | `/api/failed/{job_id}/retry` | reset one job to `queued`, clear its failure, reopen its batch |
+| POST | `/api/failed/retry` | retry every failure, returns the count |
 
 ### Config
 
@@ -326,7 +328,7 @@ account.added         account.connected      account.needs_reauth    account.rem
 batch.submitted       batch.awaiting_approval  batch.started
 batch.completed       batch.cancelled
 job.queued            job.started            job.sent
-job.retry_wait        job.failed             job.sent_unconfirmed
+job.retry_wait        job.failed             job.sent_unconfirmed   job.retried
 message.ingested      attachment.stored      reply.matched          bounce.received
 quota.consumed        config.changed
 watcher.started       watcher.stopped        watcher.idle_wake

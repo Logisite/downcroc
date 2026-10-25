@@ -52,6 +52,27 @@ class SendingSettings(BaseModel):
     def ordered_jitter(self) -> SendingSettings:
         if self.jitter_max < self.jitter_min:
             raise ValueError("jitter_max must be at least jitter_min")
+        if self.window_start == self.window_end:
+            raise ValueError("window_start and window_end must differ")
+        return self
+
+
+class DispatchSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tick_s: float = Field(default=2.0, ge=0.05, le=60)
+    max_attempts: int = Field(default=5, ge=1, le=20)
+    retry_base_s: int = Field(default=30, ge=1, le=3600)
+    retry_factor: float = Field(default=2.0, ge=1.0, le=10.0)
+    retry_cap_s: int = Field(default=3600, ge=1, le=86_400)
+    retry_jitter: float = Field(default=0.2, ge=0.0, le=1.0)
+    global_in_flight: int = Field(default=8, ge=1, le=256)
+    shutdown_join_s: float = Field(default=5.0, gt=0, le=30)
+
+    @model_validator(mode="after")
+    def ordered_retries(self) -> DispatchSettings:
+        if self.retry_cap_s < self.retry_base_s:
+            raise ValueError("retry_cap_s must be at least retry_base_s")
         return self
 
 
@@ -146,6 +167,7 @@ class Settings(BaseModel):
     daemon: DaemonSettings = Field(default_factory=DaemonSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     sending: SendingSettings = Field(default_factory=SendingSettings)
+    dispatch: DispatchSettings = Field(default_factory=DispatchSettings)
     events: EventsSettings = Field(default_factory=EventsSettings)
     vault: VaultSettings = Field(default_factory=VaultSettings)
     connect: ConnectSettings = Field(default_factory=ConnectSettings)

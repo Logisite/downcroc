@@ -195,17 +195,25 @@ class BatchesService:
             )
         if mode not in {"one", "all"}:
             raise BatchInvalid("approve mode must be one or all")
-        self._jobs.transition_batch(
-            batch_id,
-            from_states=(JobState.AWAITING_APPROVAL,),
-            to_state=JobState.QUEUED,
-        )
-        now = utc_now()
-        self._batches.set_state(batch_id, BatchState.SENDING, approved_at=now)
         if mode == "one":
             chosen = batch.samples[0] if batch.samples else self._first_job(batch_id)
+            released = self._jobs.transition_one(
+                chosen,
+                from_state=JobState.AWAITING_APPROVAL,
+                to_state=JobState.QUEUED,
+            )
+            if released is None:
+                raise BatchInvalid("the sample job is not awaiting approval")
             self._batches.set_sample_job(batch_id, chosen)
             await self._outbound.send(chosen)
+        else:
+            self._jobs.transition_batch(
+                batch_id,
+                from_states=(JobState.AWAITING_APPROVAL,),
+                to_state=JobState.QUEUED,
+            )
+            now = utc_now()
+            self._batches.set_state(batch_id, BatchState.SENDING, approved_at=now)
         self._log.info("batch.approved", batch=batch_id, sample=mode == "one")
         self._bus.publish("batch.approved", {"batch_id": batch_id, "mode": mode})
         return self.detail(batch_id)
@@ -288,7 +296,9 @@ class BatchesService:
         )
 
     def _first_job(self, batch_id: str) -> str:
-        jobs = self._jobs.ids_in_states(batch_id, (JobState.QUEUED,))
+        jobs = self._jobs.ids_in_states(
+            batch_id, (JobState.AWAITING_APPROVAL, JobState.QUEUED)
+        )
         if not jobs:
             raise BatchInvalid("the batch has no sendable job")
         return jobs[0]

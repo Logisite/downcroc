@@ -86,7 +86,6 @@ downcroc/
       files.py          put, get, open, delete, hash
       blobs.py          copy a file into the store
     search.py           FTS5 over message bodies
-    failed_log.py       failed.jsonl append and read
 
   vault/
     kdf.py              Argon2id parameters, bounded tuning, derive
@@ -137,10 +136,8 @@ downcroc/
       samples.py        sample selection and stored sample previews
     jobs_service.py     lease, requeue, reassign, cancel, retry
     templates_service.py list, read, preview, edit through $EDITOR
-    failures_service.py failed.jsonl and the failure table
     stats_service.py    counter increments, rollups, rebuild
     retention.py        every pruning policy
-    retry.py            backoff math, error classification
     followups.py        sequence planning, due steps, eligibility, thread headers
     routing.py          fixed and weighted account assignment, recorded once
     inputs/
@@ -157,12 +154,10 @@ downcroc/
       renderer.py       variable substitution
       assets.py         template assets and inline image references
     dispatch/
-      dispatcher.py     the tick loop
-      eligibility.py    window, allowance, status
-      picker.py         weighted random account choice
-      quota.py          allowance accounting
-      jitter.py         inter send delay
-      lease.py          acquire, renew, release
+      service.py        tick loop, weighted pick, leases, retries, batch completion
+      eligibility.py    local day, window, status checks
+      failures.py       failed.jsonl, failure table, retry, startup reconcile
+      retry.py          exponential backoff with jitter
     inbound/
       service.py        supervision, reconcile, watcher lifecycle
       watcher.py        per account thread, IMAP sync, idle and poll

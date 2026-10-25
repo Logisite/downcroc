@@ -249,3 +249,13 @@ class UnsupportedSchema(DomainError):
 class InputUnreadable(DomainError):
     code = "input_unreadable"
     status = 422
+
+
+class FailureNotFound(DomainError):
+    code = "failure_not_found"
+    status = 404
+
+
+class JobNotFailed(DomainError):
+    code = "job_not_failed"
+    status = 409

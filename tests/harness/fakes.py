@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import email
+import re
 import socketserver
 import threading
 from dataclasses import dataclass, field
 from email.message import Message
+
+MESSAGE_ID = re.compile(r'HEADER\s+"?Message-ID"?\s+"?<?([^"\s>]+)', re.IGNORECASE)
 
 
 class _Threaded(socketserver.ThreadingTCPServer):
@@ -35,7 +38,11 @@ class _SmtpHandler(socketserver.StreamRequestHandler):
             elif upper.startswith("MAIL FROM:"):
                 self._send("250 2.1.0 OK")
             elif upper.startswith("RCPT TO:"):
-                self._send("250 2.1.5 OK")
+                failure = self.server.owner.rcpt_failure(text)  # type: ignore[attr-defined]
+                if failure is None:
+                    self._send("250 2.1.5 OK")
+                else:
+                    self._send(failure)
             elif upper == "DATA":
                 self._data()
             elif upper == "QUIT":
@@ -111,7 +118,11 @@ class _ImapHandler(socketserver.StreamRequestHandler):
                 self._send(f"{tag} OK STATUS completed")
             elif command == "UID":
                 if argument.upper().startswith("SEARCH"):
-                    self._send("* SEARCH")
+                    match = MESSAGE_ID.search(argument)
+                    found = bool(
+                        match and self.server.owner.has_sent(match.group(1))  # type: ignore[attr-defined]
+                    )
+                    self._send("* SEARCH 1" if found else "* SEARCH")
                 self._send(f"{tag} OK UID completed")
             elif command == "IDLE":
                 self._send("+ idling")
@@ -136,6 +147,8 @@ class FakeMailServers:
     smtp_port: int = 0
     imap_port: int = 0
     _messages: list[bytes] = field(default_factory=list)
+    _sent_ids: set[str] = field(default_factory=set)
+    _rcpt_counts: dict[str, int] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _smtp: _Threaded | None = None
     _imap: _Threaded | None = None
@@ -144,6 +157,7 @@ class FakeMailServers:
         self._smtp = _Threaded((self.host, 0), _SmtpHandler)
         self._smtp.owner = self  # type: ignore[attr-defined]
         self._imap = _Threaded((self.host, 0), _ImapHandler)
+        self._imap.owner = self  # type: ignore[attr-defined]
         self.smtp_port = self._smtp.server_address[1]
         self.imap_port = self._imap.server_address[1]
         threading.Thread(target=self._smtp.serve_forever, daemon=True).start()
@@ -157,17 +171,48 @@ class FakeMailServers:
                 server.server_close()
 
     def record(self, raw: bytes) -> None:
+        parsed = email.message_from_bytes(raw)
+        message_id = (parsed.get("Message-ID") or "").strip().strip("<>")
         with self._lock:
             self._messages.append(raw)
+            if message_id:
+                self._sent_ids.add(message_id)
+
+    def has_sent(self, message_id: str) -> bool:
+        key = message_id.strip().strip("<>")
+        with self._lock:
+            return key in self._sent_ids
+
+    def rcpt_failure(self, line: str) -> str | None:
+        address = line.split(":", 1)[-1].strip().strip("<>")
+        local = address.split("@", 1)[0].lower()
+        with self._lock:
+            count = self._rcpt_counts.get(local, 0) + 1
+            self._rcpt_counts[local] = count
+        if "permanent" in local:
+            if "once" in local and count > 1:
+                return None
+            return "550 5.1.1 no such user"
+        if "transient" in local:
+            if "once" in local and count > 1:
+                return None
+            return "451 4.3.0 try later"
+        return None
 
     def sent(self) -> list[Message]:
         with self._lock:
             raw = list(self._messages)
         return [email.message_from_bytes(item) for item in raw]
 
+    def sent_ids(self) -> list[str]:
+        with self._lock:
+            return list(self._sent_ids)
+
     def reset(self) -> None:
         with self._lock:
             self._messages.clear()
+            self._sent_ids.clear()
+            self._rcpt_counts.clear()
 
     @property
     def providers_toml(self) -> str:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
 
 from downcroc.core.events import EventBus
 from downcroc.core.outbound.credentials import CredentialResolver
@@ -9,7 +8,6 @@ from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (
     AccountNeedsReauth,
     CredentialMissing,
-    DomainError,
     OAuthFailed,
     OAuthUnavailable,
     SmtpUnavailable,
@@ -32,8 +30,6 @@ from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.jobs import JobRepo
 
-SendJob = Callable[[str], Awaitable[Job]]
-
 
 class SentReconciler:
     def __init__(
@@ -42,7 +38,6 @@ class SentReconciler:
         accounts: AccountRepo,
         providers: ProviderRegistry,
         credentials: CredentialResolver,
-        send: SendJob,
         bus: EventBus,
         log: EventLogger,
         settings: OutboundSettings,
@@ -52,7 +47,6 @@ class SentReconciler:
         self._accounts = accounts
         self._providers = providers
         self._credentials = credentials
-        self._send = send
         self._bus = bus
         self._log = log
         self._settings = settings
@@ -156,11 +150,3 @@ class SentReconciler:
             message_id=job.message_id,
             found=False,
         )
-        try:
-            await self._send(job.id)
-        except DomainError as error:
-            self._log.warning(
-                "outbound.recover_failed",
-                job=job.id,
-                reason=error.code,
-            )

@@ -132,9 +132,10 @@ class JobRepo:
             row = session.get(JobRow, job_id)
             if row is None:
                 raise JobNotFound(f"no job {job_id}")
-            if row.state not in _SENDABLE:
+            expired = row.lease_expires_at is None or row.lease_expires_at <= now
+            if row.state == JobState.SENDING.value and not expired:
                 return None
-            if row.lease_expires_at is not None and row.lease_expires_at > now:
+            if row.state not in _SENDABLE and row.state != JobState.SENDING.value:
                 return None
             row.state = JobState.SENDING.value
             row.attempts += 1
@@ -237,6 +238,57 @@ class JobRepo:
                 select(JobRow).where(JobRow.state == JobState.SENDING.value)
             )
             return [_to_job(row) for row in rows]
+
+    def due(self, account_id: str, now: str, limit: int = 50) -> list[Job]:
+        sendable = JobRow.state.in_(_SENDABLE) & (
+            (JobRow.next_attempt_at.is_(None)) | (JobRow.next_attempt_at <= now)
+        )
+        expired = (JobRow.state == JobState.SENDING.value) & (
+            JobRow.lease_expires_at.is_(None) | (JobRow.lease_expires_at <= now)
+        )
+        query = (
+            select(JobRow)
+            .where(JobRow.account_id == account_id, sendable | expired)
+            .order_by(
+                func.coalesce(JobRow.next_attempt_at, JobRow.created_at),
+                JobRow.created_at,
+                JobRow.id,
+            )
+            .limit(limit)
+        )
+        with self._sessions() as session:
+            return [_to_job(row) for row in session.scalars(query)]
+
+    def reset_for_retry(self, job_id: str) -> Job:
+        with self._sessions.begin() as session:
+            row = self._row(session, job_id)
+            row.state = JobState.QUEUED.value
+            row.attempts = 0
+            row.next_attempt_at = None
+            row.lease_owner = None
+            row.lease_expires_at = None
+            row.last_error_code = None
+            row.last_error_message = None
+            row.retryable = None
+            row.updated_at = utc_now()
+        return self.get(job_id)
+
+    def transition_one(
+        self,
+        job_id: str,
+        *,
+        from_state: JobState,
+        to_state: JobState,
+    ) -> Job | None:
+        with self._sessions.begin() as session:
+            row = session.get(JobRow, job_id)
+            if row is None:
+                raise JobNotFound(f"no job {job_id}")
+            if row.state != from_state.value:
+                return None
+            row.state = to_state.value
+            row.updated_at = utc_now()
+        return self.get(job_id)
 
     def counts(self, batch_id: str) -> dict[str, int]:
         with self._sessions() as session:

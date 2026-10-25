@@ -20,7 +20,7 @@ from downcroc.domain.errors import (
     SmtpUnavailable,
     VaultLocked,
 )
-from downcroc.domain.jobs import Job, NewJob
+from downcroc.domain.jobs import Job, JobState, NewJob
 from downcroc.domain.validators import ADDRESS
 from downcroc.mail.mime.builder import build_message, mint_message_id, prepare_for_send
 from downcroc.mail.smtp import sender
@@ -62,7 +62,6 @@ class OutboundService:
             accounts,
             providers,
             self._credentials,
-            self.send,
             bus,
             log,
             settings,
@@ -146,7 +145,6 @@ class OutboundService:
         job = self._jobs.get(job_id)
         account = self._accounts.get(job.account_id)
         self._require_connected(account)
-        spec = self._providers.get(account.provider)
         claimed = self._jobs.claim(
             job_id,
             self._owner,
@@ -158,6 +156,16 @@ class OutboundService:
                 "the job is not ready to send",
                 hint="only queued or retry_wait jobs can be sent",
             )
+        return await self.deliver(claimed, account)
+
+    async def deliver(self, job: Job, account: Account | None = None) -> Job:
+        self._credentials.ensure_unlocked()
+        claimed = job
+        if claimed.state is not JobState.SENDING or claimed.lease_owner is None:
+            raise JobNotSendable("the job is not leased for sending")
+        account = account or self._accounts.get(claimed.account_id)
+        self._require_connected(account)
+        spec = self._providers.get(account.provider)
         started = time.monotonic()
         self._log.info(
             "job.send_start",

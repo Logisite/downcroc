@@ -21,22 +21,40 @@ class Stack:
 
 
 @pytest.fixture
-def stack(tmp_path: Path) -> Stack:
-    runtime = tmp_path / "runtime"
-    fakes = FakeMailServers().start()
-    daemon = Daemon(runtime)
-    try:
-        daemon.start(fakes)
+def stack_factory(tmp_path: Path):
+    created: list[Stack] = []
+
+    def make(
+        *,
+        config_extra: str = "",
+        accounts: list[str] | None = None,
+    ) -> Stack:
+        runtime = tmp_path / f"runtime-{len(created)}"
+        fakes = FakeMailServers().start()
+        daemon = Daemon(runtime)
+        daemon.start(fakes, config_extra)
         api = Api(daemon.base_url)
         api.unlock()
-        accounts = connect_accounts(api, ["alice@local.test", "bob@local.test"])
-        yield Stack(
-            root=tmp_path,
+        connected = connect_accounts(
+            api,
+            accounts or ["alice@local.test", "bob@local.test"],
+        )
+        stack = Stack(
+            root=runtime,
             daemon=daemon,
             fakes=fakes,
             api=api,
-            accounts=accounts,
+            accounts=connected,
         )
-    finally:
-        daemon.stop()
-        fakes.stop()
+        created.append(stack)
+        return stack
+
+    yield make
+    for stack in created:
+        stack.daemon.stop()
+        stack.fakes.stop()
+
+
+@pytest.fixture
+def stack(stack_factory) -> Stack:
+    return stack_factory()
