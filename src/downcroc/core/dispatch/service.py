@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from downcroc.core.dispatch import eligibility, retry
 from downcroc.core.dispatch.failures import FailureService
 from downcroc.core.events import EventBus
+from downcroc.core.followups import FollowUpService
 from downcroc.core.outbound import OutboundService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus
@@ -46,10 +47,12 @@ class Dispatcher:
         batches: BatchRepo,
         quota: QuotaRepo,
         failures: FailureService,
+        followups: FollowUpService,
         outbound: OutboundService,
         vault: VaultService,
         bus: EventBus,
         log: EventLogger,
+        followup_check_s: float,
     ) -> None:
         self._settings = settings
         self._lease_seconds = lease_seconds
@@ -58,6 +61,8 @@ class Dispatcher:
         self._batches = batches
         self._quota = quota
         self._failures = failures
+        self._followups = followups
+        self._followup_check_s = followup_check_s
         self._outbound = outbound
         self._vault = vault
         self._bus = bus
@@ -67,6 +72,7 @@ class Dispatcher:
         self._stop = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
         self._next_allowed: dict[str, float] = {}
+        self._next_followup = 0.0
 
     def start(self) -> None:
         if self._task is not None:
@@ -107,6 +113,12 @@ class Dispatcher:
     async def _cycle(self) -> None:
         if self._vault.status().state != "unlocked":
             return
+        await asyncio.to_thread(self._followups.cancel_stopped)
+        if time.monotonic() >= self._next_followup:
+            try:
+                await asyncio.to_thread(self._followups.plan_due)
+            finally:
+                self._next_followup = time.monotonic() + self._followup_check_s
         started = time.monotonic()
         moment = eligibility.local_now()
         day = eligibility.day_key(moment)

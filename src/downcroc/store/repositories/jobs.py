@@ -114,6 +114,40 @@ class JobRepo:
         with self._sessions() as session:
             return [_to_job(row) for row in session.scalars(query)]
 
+    def thread_jobs(self, thread_root_job_id: str) -> list[Job]:
+        return self.thread_jobs_many([thread_root_job_id]).get(thread_root_job_id, [])
+
+    def thread_jobs_many(self, root_ids: list[str]) -> dict[str, list[Job]]:
+        if not root_ids:
+            return {}
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(JobRow)
+                .where(JobRow.thread_root_job_id.in_(root_ids))
+                .order_by(JobRow.created_at, JobRow.id)
+            )
+            grouped: dict[str, list[Job]] = {}
+            for row in rows:
+                grouped.setdefault(row.thread_root_job_id or "", []).append(
+                    _to_job(row)
+                )
+            return grouped
+
+    def pending_followups(self, limit: int = 1000) -> list[Job]:
+        active = (
+            JobState.QUEUED.value,
+            JobState.AWAITING_APPROVAL.value,
+            JobState.RETRY_WAIT.value,
+        )
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(JobRow)
+                .where(JobRow.step_key.is_not(None), JobRow.state.in_(active))
+                .order_by(JobRow.created_at, JobRow.id)
+                .limit(limit)
+            )
+            return [_to_job(row) for row in rows]
+
     def message_id_exists(self, message_id: str) -> bool:
         with self._sessions() as session:
             row = session.scalar(

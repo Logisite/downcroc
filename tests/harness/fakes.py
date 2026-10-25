@@ -289,6 +289,8 @@ class FakeMailServers:
             if "once" in local and count > 1:
                 return None
             return "451 4.3.0 try later"
+        if "secondfails" in local and count == 2:
+            return "550 5.1.1 no such user"
         return None
 
     def sent(self) -> list[Message]:

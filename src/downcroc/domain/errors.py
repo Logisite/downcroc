@@ -236,6 +236,11 @@ class BatchNotAwaitingApproval(DomainError):
     status = 409
 
 
+class FollowUpSyncFailed(DomainError):
+    code = "followup_sync_failed"
+    status = 502
+
+
 class SampleAlreadySent(DomainError):
     code = "sample_already_sent"
     status = 409

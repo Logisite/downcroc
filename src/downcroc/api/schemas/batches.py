@@ -24,6 +24,15 @@ class ApproveRequest(BaseModel):
     mode: Literal["one", "all"]
 
 
+class FollowUpRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(min_length=1, max_length=4096)
+    template: str | None = Field(default=None, max_length=64)
+    step: str = Field(min_length=1, max_length=64)
+    require_approval: bool = False
+
+
 class BatchOut(BaseModel):
     id: str
     kind: str

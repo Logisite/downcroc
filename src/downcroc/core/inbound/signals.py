@@ -48,10 +48,18 @@ class WatcherEvent:
 
 
 @dataclass
+class SyncWaiter:
+    done: threading.Event = field(default_factory=threading.Event)
+    ok: bool = False
+    reason: str = ""
+
+
+@dataclass
 class WatcherHandle:
     account: Account
     stop: threading.Event = field(default_factory=threading.Event)
     refresh: threading.Event = field(default_factory=threading.Event)
+    sync_waiters: list[SyncWaiter] = field(default_factory=list)
     failures: int = 0
     next_start: float = 0.0
     blocked: str | None = None

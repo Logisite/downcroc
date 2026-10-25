@@ -7,6 +7,7 @@ from downcroc.api.schemas.batches import (
     BatchDetailOut,
     BatchOut,
     BatchSubmit,
+    FollowUpRequest,
     PreviewOut,
     SuppressionPreviewOut,
 )
@@ -62,6 +63,21 @@ async def approve_batch(
 @router.post("/{batch_id}/cancel", response_model=BatchDetailOut)
 def cancel_batch(batch_id: str, request: Request) -> BatchDetailOut:
     return BatchDetailOut.from_detail(_services(request).batches.cancel(batch_id))
+
+
+@router.post("/{batch_id}/followups", response_model=BatchDetailOut, status_code=201)
+def create_followup(
+    batch_id: str, body: FollowUpRequest, request: Request
+) -> BatchDetailOut:
+    services = _services(request)
+    created = services.followups.create_from_payload(
+        batch_id,
+        path=body.path,
+        template=body.template,
+        step=body.step,
+        require_approval=body.require_approval,
+    )
+    return BatchDetailOut.from_detail(services.batches.detail(created))
 
 
 @router.get(

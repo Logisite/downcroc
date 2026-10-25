@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from downcroc.core.events import EventBus
 from downcroc.core.inbound.signals import (
     STOP,
+    SyncWaiter,
     WatcherHandle,
     WatcherState,
 )
@@ -134,6 +135,29 @@ class InboundService:
                     handle.refresh.set()
                     return
         self._wake.set()
+
+    def sync_wait(self, account_id: str, timeout_s: float) -> tuple[bool, str]:
+        with self._guard:
+            handle = self._watchers.get(account_id)
+            if handle is None:
+                return False, "watcher_unavailable"
+            if handle.blocked is not None:
+                return False, handle.blocked
+            waiter = SyncWaiter()
+            handle.sync_waiters.append(waiter)
+            handle.next_start = 0.0
+            if handle.thread is not None and handle.thread.is_alive():
+                handle.refresh.set()
+            else:
+                self._wake.set()
+        try:
+            if not waiter.done.wait(timeout_s):
+                return False, "timeout"
+        finally:
+            with self._guard:
+                if waiter in handle.sync_waiters:
+                    handle.sync_waiters.remove(waiter)
+        return waiter.ok, waiter.reason
 
     def close(self) -> None:
         if self._closed:

@@ -12,8 +12,9 @@ from downcroc.runtime.ids import new_id
 from downcroc.store.db.models.accounts import AccountStateRow
 from downcroc.store.db.models.jobs import JobRow
 from downcroc.store.db.models.messages import AttachmentRow, MessageRow, ThreadLinkRow
-from downcroc.store.repositories import replies
+from downcroc.store.repositories import replies, thread_signals
 from downcroc.store.repositories.replies import BatchTotals
+from downcroc.store.repositories.thread_signals import ThreadSignals
 
 
 @dataclass(frozen=True)
@@ -179,6 +180,16 @@ class InboundMixin:
     def suppressed_addresses(self, account_id: str) -> set[str]:
         with self._sessions() as session:
             return replies.suppressed_addresses(session, account_id)
+
+    def thread_signals(self, root_message_ids: list[str]) -> ThreadSignals:
+        with self._sessions() as session:
+            return thread_signals.thread_signals(session, root_message_ids)
+
+    def thread_signals_by_root(
+        self, root_message_ids: list[str]
+    ) -> dict[str, ThreadSignals]:
+        with self._sessions() as session:
+            return thread_signals.thread_signals_by_root(session, root_message_ids)
 
 
 def _attachment(message_id: str, prepared: PreparedAttachment) -> AttachmentRow:

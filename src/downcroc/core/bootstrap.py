@@ -9,6 +9,7 @@ from downcroc.core.accounts_service import AccountsService
 from downcroc.core.batches import BatchesService
 from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
 from downcroc.core.events import EventBus
+from downcroc.core.followups import FollowUpService
 from downcroc.core.inbound import InboundService
 from downcroc.core.outbound import OutboundService
 from downcroc.core.vault_service import VaultService
@@ -45,6 +46,7 @@ class Services:
     inbound: InboundService
     outbound: OutboundService
     batches: BatchesService
+    followups: FollowUpService
     failures: FailureService
     dispatcher: Dispatcher
 
@@ -127,6 +129,18 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         bus,
         log,
     )
+    followups = FollowUpService(
+        settings,
+        paths,
+        batch_repo,
+        job_repo,
+        account_repo,
+        message_repo,
+        content,
+        inbound,
+        bus,
+        log,
+    )
     failure_repo = FailureRepo(sessions)
     quota_repo = QuotaRepo(sessions)
     failures = FailureService(
@@ -145,10 +159,12 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         batch_repo,
         quota_repo,
         failures,
+        followups,
         outbound,
         vault,
         bus,
         log,
+        settings.followups.check_s,
     )
     return Services(
         engine=engine,
@@ -163,6 +179,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         inbound=inbound,
         outbound=outbound,
         batches=batches,
+        followups=followups,
         failures=failures,
         dispatcher=dispatcher,
     )

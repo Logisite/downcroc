@@ -372,6 +372,16 @@ The dispatcher claims up to `global_in_flight` jobs per tick, respecting each ac
 `max_in_flight`. It waits for that wave to finish, applies the per-account jitter delay, and
 ticks again. A lease is held for `outbound.lease_seconds`; an expired lease is claimable.
 
+## Follow-up settings
+
+| Setting | Meaning |
+|---|---|
+| `check_s` | interval between scans for due follow-up steps |
+| `sync_timeout_s` | bound on the forced inbound sync before deriving a step |
+| `defer_s` | how long an account waits after a failed sync before the next attempt |
+
+A failed sync logs `followup.sync_failed` with `defer_s` and defers the step instead of mailing.
+
 ## Retries
 
 | Property | Value |

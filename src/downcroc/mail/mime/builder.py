@@ -42,6 +42,8 @@ def build_message(
     html: str | None,
     message_id: str,
     reply_to: str | None = None,
+    in_reply_to: str | None = None,
+    references: tuple[str, ...] = (),
     attachments: tuple[OutgoingAttachment, ...] = (),
 ) -> bytes:
     message = EmailMessage(policy=SMTP)
@@ -54,6 +56,8 @@ def build_message(
         subject=subject,
         message_id=message_id,
         reply_to=reply_to,
+        in_reply_to=in_reply_to,
+        references=references,
     )
     message.set_content(text, subtype="plain", charset="utf-8")
     if html:
@@ -108,6 +112,8 @@ def _set_headers(
     subject: str,
     message_id: str,
     reply_to: str | None,
+    in_reply_to: str | None = None,
+    references: tuple[str, ...] = (),
 ) -> None:
     message["From"] = formataddr((from_name, from_address))
     message["To"] = formataddr((to_name or "", to_address))
@@ -118,6 +124,10 @@ def _set_headers(
         message["MIME-Version"] = "1.0"
     if reply_to:
         message["Reply-To"] = reply_to
+    if in_reply_to:
+        message["In-Reply-To"] = _angle(in_reply_to)
+    if references:
+        message["References"] = " ".join(_angle(item) for item in references)
 
 
 def _serialize(message: EmailMessage) -> bytes:

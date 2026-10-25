@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from downcroc.runtime.config.schema import DispatchSettings, SendingSettings
+from downcroc.runtime.config.schema import (
+    DispatchSettings,
+    FollowUpSettings,
+    SendingSettings,
+)
 
 
 def dispatch_config(
@@ -21,8 +25,16 @@ def dispatch_config(
     global_in_flight: int = 8,
     lease_seconds: int = 120,
     reconcile_attempts: int = 1,
+    followup_check_s: float = 0.05,
+    followup_sync_timeout_s: float = 5.0,
+    followup_defer_s: float = 1.0,
 ) -> str:
     defaults = DispatchSettings()
+    followups = FollowUpSettings(
+        check_s=followup_check_s,
+        sync_timeout_s=followup_sync_timeout_s,
+        defer_s=followup_defer_s,
+    )
     sending = SendingSettings(
         daily_allowance=daily_allowance,
         window_start=window_start,
@@ -52,4 +64,8 @@ def dispatch_config(
         f"retry_jitter = {retry_jitter}\n"
         f"global_in_flight = {global_in_flight}\n"
         f"shutdown_join_s = {defaults.shutdown_join_s}\n"
+        "\n[followups]\n"
+        f"check_s = {followups.check_s}\n"
+        f"sync_timeout_s = {followups.sync_timeout_s}\n"
+        f"defer_s = {followups.defer_s}\n"
     )

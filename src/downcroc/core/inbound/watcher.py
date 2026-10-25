@@ -122,12 +122,24 @@ class WatcherRunner:
                     },
                 )
             )
+        self._notify_sync(handle, ok=False, reason=reason)
         self._log.warning(
             "watcher.stopped",
             account=handle.account.id,
             reason=reason,
             retry_in_s=retry,
         )
+
+    def _notify_sync(
+        self, handle: WatcherHandle, *, ok: bool, reason: str = ""
+    ) -> None:
+        with self._guard:
+            waiters = list(handle.sync_waiters)
+            handle.sync_waiters.clear()
+        for waiter in waiters:
+            waiter.ok = ok
+            waiter.reason = reason
+            waiter.done.set()
 
     def _retry_after(self, handle: WatcherHandle, failure: WatchFailure) -> int:
         if failure.needs_reauth or failure.fatal:
@@ -176,6 +188,7 @@ class WatcherRunner:
                     uidvalidity,
                     last_uid,
                 )
+                self._notify_sync(handle, ok=True)
                 if handle.stop.is_set():
                     break
                 if spec.supports_idle:

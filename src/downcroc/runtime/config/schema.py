@@ -76,6 +76,14 @@ class DispatchSettings(BaseModel):
         return self
 
 
+class FollowUpSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    check_s: float = Field(default=30.0, ge=0.05, le=3600)
+    sync_timeout_s: float = Field(default=30.0, gt=0, le=300)
+    defer_s: float = Field(default=300.0, ge=1, le=86_400)
+
+
 class EventsSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -168,6 +176,7 @@ class Settings(BaseModel):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     sending: SendingSettings = Field(default_factory=SendingSettings)
     dispatch: DispatchSettings = Field(default_factory=DispatchSettings)
+    followups: FollowUpSettings = Field(default_factory=FollowUpSettings)
     events: EventsSettings = Field(default_factory=EventsSettings)
     vault: VaultSettings = Field(default_factory=VaultSettings)
     connect: ConnectSettings = Field(default_factory=ConnectSettings)
