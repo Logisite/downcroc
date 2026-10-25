@@ -186,6 +186,11 @@ not a recomputation.
 Batches also report: `sent`, `failed`, `bounces`, `reply rate`, `inbound`, `replies`. Reply rate
 is `replies / sent` with a zero guard.
 
+Implementation note for ticket 09: `replies` counts every confirmed, non-DSN message, and
+`late_replies` is the subset outside the window. The in-window headline is `replies -
+late_replies`. Counts are derived from message rows joined to batch threads until ticket 11 adds
+the stored aggregates. The suppression preview returns the address, account, and reason.
+
 ## Reply window
 
 `reply_window_days` is per batch, default 60.

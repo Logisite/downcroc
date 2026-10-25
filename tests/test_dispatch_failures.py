@@ -54,7 +54,14 @@ def test_transient_retries_and_permanent_records_once(stack_factory) -> None:
     )
     _done(stack, batch["id"])
     detail = stack.api.get(f"/api/batches/{batch['id']}")
-    assert detail["counts"] == {"sent": 2, "failed": 1}
+    assert detail["counts"] == {
+        "sent": 2,
+        "failed": 1,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
 
     failures = stack.api.get("/api/failed")
     assert len(failures) == 1
@@ -83,7 +90,13 @@ def test_transient_retries_and_permanent_records_once(stack_factory) -> None:
     _done(stack, batch["id"], timeout=30)
 
     detail = stack.api.get(f"/api/batches/{batch['id']}")
-    assert detail["counts"] == {"sent": 3}
+    assert detail["counts"] == {
+        "sent": 3,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     recipients = {message["To"] for message in stack.fakes.sent()}
     assert any("permanent-once@example.com" in item for item in recipients)
     retried_sends = sum(
@@ -130,7 +143,13 @@ def test_retry_all_requeues_each_failure_once(stack_factory) -> None:
     until(lambda: stack.api.get("/api/failed") == [], timeout=30)
     _done(stack, batch["id"], timeout=30)
 
-    assert stack.api.get(f"/api/batches/{batch['id']}")["counts"] == {"sent": 2}
+    assert stack.api.get(f"/api/batches/{batch['id']}")["counts"] == {
+        "sent": 2,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     assert len(stack.fakes.sent()) == 2
 
 

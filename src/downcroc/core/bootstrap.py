@@ -121,6 +121,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         batch_repo,
         job_repo,
         account_repo,
+        message_repo,
         content,
         outbound,
         bus,

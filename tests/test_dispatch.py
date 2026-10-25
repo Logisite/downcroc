@@ -49,7 +49,13 @@ def test_thousand_jobs_drain_within_per_account_allowance(stack_factory) -> None
     assert len(counts) == 4
     assert max(counts.values()) <= 300
     detail = stack.api.get(f"/api/batches/{batch['id']}")
-    assert detail["counts"] == {"sent": 1000}
+    assert detail["counts"] == {
+        "sent": 1000,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
 
 
 def test_nothing_sends_outside_the_window(stack_factory) -> None:

@@ -8,6 +8,7 @@ from downcroc.api.schemas.batches import (
     BatchOut,
     BatchSubmit,
     PreviewOut,
+    SuppressionPreviewOut,
 )
 from downcroc.core.bootstrap import Services
 
@@ -61,3 +62,12 @@ async def approve_batch(
 @router.post("/{batch_id}/cancel", response_model=BatchDetailOut)
 def cancel_batch(batch_id: str, request: Request) -> BatchDetailOut:
     return BatchDetailOut.from_detail(_services(request).batches.cancel(batch_id))
+
+
+@router.get(
+    "/{batch_id}/suppression-preview",
+    response_model=list[SuppressionPreviewOut],
+)
+def suppression_preview(batch_id: str, request: Request) -> list[SuppressionPreviewOut]:
+    entries = _services(request).batches.suppression_preview(batch_id)
+    return [SuppressionPreviewOut(**entry) for entry in entries]

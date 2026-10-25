@@ -30,6 +30,11 @@ class IncomingMessage:
     body_html: str | None
     body_truncated: bool
     attachments: tuple[IncomingAttachment, ...]
+    is_dsn: bool = False
+    dsn_status: str | None = None
+    dsn_code: str | None = None
+    dsn_recipient: str | None = None
+    dsn_original_message_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -148,3 +153,7 @@ def parse_references(*values: str | None) -> tuple[str, ...]:
 def normalize_subject(value: str) -> str:
     stripped = _PREFIX.sub("", value or "")
     return " ".join(stripped.lower().split())
+
+
+def has_reply_prefix(value: str) -> bool:
+    return bool(_PREFIX.match(value or ""))

@@ -14,7 +14,13 @@ def test_submit_routes_and_snapshots(stack: Stack) -> None:
 
     assert response["source_kind"] == "json"
     assert response["state"] == "awaiting_approval"
-    assert response["counts"] == {"awaiting_approval": 8}
+    assert response["counts"] == {
+        "awaiting_approval": 8,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     assert len(response["recipients"]) == 8
     assert len(response["samples"]) == 5
     assert all(sample["text"] == "Body" for sample in response["samples"])
@@ -39,7 +45,14 @@ def test_approve_one_sends_one_and_leaves_the_rest_locked(stack: Stack) -> None:
     batch = submit(stack, campaign_of(3))
     approved = stack.api.post(f"/api/batches/{batch['id']}/approve", {"mode": "one"})
 
-    assert approved["counts"] == {"sent": 1, "awaiting_approval": 2}
+    assert approved["counts"] == {
+        "sent": 1,
+        "awaiting_approval": 2,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     assert approved["state"] == "awaiting_approval"
     sent = stack.fakes.sent()
     assert len(sent) == 1
@@ -62,7 +75,13 @@ def test_approve_all_queues_everything(stack: Stack) -> None:
     )
     approved = stack.api.post(f"/api/batches/{batch['id']}/approve", {"mode": "all"})
 
-    assert approved["counts"] == {"queued": 3}
+    assert approved["counts"] == {
+        "queued": 3,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     assert stack.fakes.sent() == []
     assert approved["approved_at"] is not None
 
@@ -80,7 +99,13 @@ def test_auto_approval_skips_the_review_gate(stack: Stack) -> None:
     )
 
     assert batch["state"] == "sending"
-    assert batch["counts"] == {"queued": 2}
+    assert batch["counts"] == {
+        "queued": 2,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
 
 
 def test_cancel_stops_queued_jobs(stack: Stack) -> None:
@@ -92,7 +117,13 @@ def test_cancel_stops_queued_jobs(stack: Stack) -> None:
     cancelled = stack.api.post(f"/api/batches/{batch['id']}/cancel")
 
     assert cancelled["state"] == "cancelled"
-    assert cancelled["counts"] == {"cancelled": 2}
+    assert cancelled["counts"] == {
+        "cancelled": 2,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     assert events(stack)["batch.cancelled"][0]["sent_so_far"] == 0
 
 
@@ -101,7 +132,14 @@ def test_cancel_reports_what_was_already_sent(stack: Stack) -> None:
     stack.api.post(f"/api/batches/{batch['id']}/approve", {"mode": "one"})
     cancelled = stack.api.post(f"/api/batches/{batch['id']}/cancel")
 
-    assert cancelled["counts"] == {"sent": 1, "cancelled": 2}
+    assert cancelled["counts"] == {
+        "sent": 1,
+        "cancelled": 2,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
 
 
 def test_fixed_routing_sends_every_message_from_one_account(stack: Stack) -> None:

@@ -33,6 +33,8 @@ from downcroc.store.content import ContentStore, StoredContent
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
+from downcroc.store.repositories.messages import MessageRepo
+from downcroc.store.repositories.replies import DEFAULT_REPLY_WINDOW_DAYS
 
 
 class BatchesService:
@@ -43,6 +45,7 @@ class BatchesService:
         batches: BatchRepo,
         jobs: JobRepo,
         accounts: AccountRepo,
+        messages: MessageRepo,
         content: ContentStore,
         outbound: OutboundService,
         bus: EventBus,
@@ -52,6 +55,7 @@ class BatchesService:
         self._batches = batches
         self._jobs = jobs
         self._accounts = accounts
+        self._messages = messages
         self._content = content
         self._outbound = outbound
         self._bus = bus
@@ -173,14 +177,44 @@ class BatchesService:
         return self._batches.list(state=state, limit=limit)
 
     def counts(self, batch_id: str) -> dict[str, int]:
-        return self._jobs.counts(batch_id)
+        batch = self._batches.get(batch_id)
+        totals = self._messages.batch_totals(
+            batch_id, _reply_window(batch.options_json)
+        )
+        return {
+            **self._jobs.counts(batch_id),
+            "inbound": totals.inbound,
+            "replies": totals.replies,
+            "late_replies": totals.late_replies,
+            "bounces": totals.bounces,
+        }
+
+    def suppression_preview(self, batch_id: str) -> list[dict[str, str]]:
+        self._batches.get(batch_id)
+        known: dict[str, set[str]] = {}
+        found: dict[tuple[str, str], str] = {}
+        for job in self._jobs.list(batch_id=batch_id, limit=10_000):
+            if job.account_id not in known:
+                known[job.account_id] = self._messages.suppressed_addresses(
+                    job.account_id
+                )
+            if job.recipient in known[job.account_id]:
+                found[(job.recipient, job.account_id)] = "confirmed_reply"
+        return [
+            {
+                "address": address,
+                "account_id": account_id,
+                "reason": reason,
+            }
+            for (address, account_id), reason in sorted(found.items())
+        ]
 
     def detail(self, batch_id: str) -> BatchDetail:
         batch = self._batches.get(batch_id)
         jobs = self._jobs.list(batch_id=batch_id, limit=10_000)
         return BatchDetail(
             batch=batch,
-            counts=self._jobs.counts(batch_id),
+            counts=self.counts(batch_id),
             jobs=tuple(jobs),
             samples=samples.previews(batch, jobs, self._content),
         )
@@ -302,3 +336,14 @@ class BatchesService:
         if not jobs:
             raise BatchInvalid("the batch has no sendable job")
         return jobs[0]
+
+
+def _reply_window(options_json: str) -> int:
+    try:
+        options = json.loads(options_json or "{}")
+    except json.JSONDecodeError:
+        return DEFAULT_REPLY_WINDOW_DAYS
+    value = options.get("reply_window_days")
+    if isinstance(value, int) and value >= 0:
+        return value
+    return DEFAULT_REPLY_WINDOW_DAYS

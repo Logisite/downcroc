@@ -12,13 +12,13 @@ from downcroc.core.inbound.signals import (
     WatcherState,
 )
 from downcroc.domain.errors import AccountNotFound
-from downcroc.domain.messages import PreparedAttachment
+from downcroc.domain.messages import IncomingMessage, PreparedAttachment
 from downcroc.runtime.clock import utc_now
 from downcroc.runtime.ids import new_id
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
-from downcroc.store.repositories.messages import MessageRepo
+from downcroc.store.repositories.messages import IngestResult, MessageRepo
 
 
 class QueueWorker:
@@ -120,6 +120,7 @@ class QueueWorker:
             thread=result.thread_id,
             account=job.account_id,
         )
+        self._log_attribution(incoming, result)
         self._bus.publish(
             "message.ingested",
             {
@@ -147,6 +148,58 @@ class QueueWorker:
                     "account": job.account_id,
                     "message_id": result.message_id,
                 },
+            )
+
+    def _log_attribution(
+        self,
+        incoming: IncomingMessage,
+        result: IngestResult,
+    ) -> None:
+        kind = "bounce" if incoming.is_dsn else "reply"
+        if result.reply_state == "none" and result.unattributed_reason is None:
+            kind = "message"
+        self._log.info(
+            "message.classified",
+            message_id=result.message_id,
+            kind=kind,
+            confidence=result.reply_state,
+            headers=_headers(incoming, result.method),
+        )
+        self._log.info(
+            "thread.linked",
+            message_id=result.message_id,
+            thread=result.thread_id,
+            method=result.method,
+        )
+        if incoming.is_dsn:
+            self._log.info(
+                "dsn.parsed",
+                message_id=result.message_id,
+                job=result.job_id,
+                status=incoming.dsn_status,
+                code=incoming.dsn_code,
+            )
+        elif result.confirmed or result.reply_state == "probable":
+            self._log.info(
+                "reply.attributed",
+                message_id=result.message_id,
+                batch=result.batch_id,
+                job=result.root_job_id,
+                confirmed=result.confirmed,
+            )
+        if result.unattributed_reason and not incoming.is_dsn:
+            self._log.info(
+                "reply.unattributed",
+                message_id=result.message_id,
+                reason=result.unattributed_reason,
+            )
+        if result.suppression_added:
+            self._log.info(
+                "suppression.added",
+                address=incoming.from_address,
+                reason="confirmed_reply",
+                account=result.suppression_account_id,
+                message_id=result.message_id,
             )
 
     def _handle_cursor(self, job: CursorJob) -> None:
@@ -195,3 +248,16 @@ class QueueWorker:
                 "retry_in_s": state.retry_in_s,
             },
         )
+
+
+def _headers(incoming: IncomingMessage, method: str) -> list[str]:
+    names: list[str] = []
+    if incoming.in_reply_to:
+        names.append("in-reply-to")
+    if incoming.references:
+        names.append("references")
+    if incoming.is_dsn:
+        names.append("delivery-status")
+    if method == "subject":
+        names.append("subject")
+    return names

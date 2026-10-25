@@ -10,6 +10,7 @@ from downcroc.domain.messages import (
     normalize_message_id,
     parse_references,
 )
+from downcroc.mail.imap.dsn import classify_dsn
 
 
 def parse_message(
@@ -23,6 +24,7 @@ def parse_message(
     text, text_cut = _truncate(message.text, body_max_bytes)
     html, html_cut = _truncate(message.html, body_max_bytes)
     sender = message.from_values
+    dsn = classify_dsn(message.obj)
     return IncomingMessage(
         uid=uid,
         uidvalidity=uidvalidity,
@@ -48,6 +50,11 @@ def parse_message(
             )
             for index, item in enumerate(message.attachments, start=1)
         ),
+        is_dsn=dsn.is_dsn,
+        dsn_status=dsn.action,
+        dsn_code=dsn.code,
+        dsn_recipient=dsn.recipient,
+        dsn_original_message_id=dsn.original_message_id,
     )
 
 

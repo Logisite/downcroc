@@ -114,6 +114,12 @@ class BatchDetailOut(BatchOut):
         )
 
 
+class SuppressionPreviewOut(BaseModel):
+    address: str
+    account_id: str
+    reason: str
+
+
 class PreviewMessageOut(BaseModel):
     key: str
     row: int | None

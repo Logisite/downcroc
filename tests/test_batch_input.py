@@ -184,7 +184,13 @@ def test_bare_array_of_messages_imports(stack: Stack) -> None:
 
 def test_thousand_message_sources_import(stack: Stack) -> None:
     json_batch = submit_campaign(stack, campaign_of(1000), "thousand.json")
-    assert json_batch["counts"] == {"awaiting_approval": 1000}
+    assert json_batch["counts"] == {
+        "awaiting_approval": 1000,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     assert len(json_batch["recipients"]) == 1000
 
     write_template(stack.daemon.config, "bulk", subject="Hi {{ name }}", body="Body")
@@ -193,7 +199,13 @@ def test_thousand_message_sources_import(stack: Stack) -> None:
     ]
     path = write_csv(input_files(stack), "thousand.csv", "\n".join(rows) + "\n")
     csv_batch = stack.api.submit(str(path), template="bulk")
-    assert csv_batch["counts"] == {"awaiting_approval": 1000}
+    assert csv_batch["counts"] == {
+        "awaiting_approval": 1000,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
 
 
 def test_resubmission_keeps_the_same_routing_spread(stack: Stack) -> None:
@@ -226,7 +238,13 @@ def test_followups_validate_and_create_no_jobs(stack: Stack) -> None:
     )
     batch = submit_campaign(stack, document, "followups.json")
 
-    assert batch["counts"] == {"awaiting_approval": 1}
+    assert batch["counts"] == {
+        "awaiting_approval": 1,
+        "inbound": 0,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
     assert len(batch["recipients"]) == 1
     snapshot = stack.daemon.data_home / "downcroc" / "content" / batch["source_ref"]
     stored = json.loads(snapshot.read_text())
