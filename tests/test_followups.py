@@ -235,7 +235,7 @@ def test_approval_restart_and_later_step_without_approval(stack_factory) -> None
     stack.daemon.stop()
     stack.daemon.start(stack.fakes, config)
     stack.api.unlock()
-    until(lambda: len(events(stack)["followup.planned"]) > before)
+    until(lambda: len(events(stack).get("followup.planned", [])) > before)
     assert len(batches(stack, batch["id"])) == 1
     assert len(step_one["recipients"]) == 1
 
@@ -280,7 +280,8 @@ def test_bounce_blocks_declared_steps(stack_factory) -> None:
 
     until(
         lambda: any(
-            item["reason"] == "bounced" for item in events(stack)["followup.skipped"]
+            item["reason"] == "bounced"
+            for item in events(stack).get("followup.skipped", [])
         )
     )
     assert batches(stack, batch["id"]) == []
