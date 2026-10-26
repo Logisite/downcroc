@@ -207,6 +207,7 @@ def test_dsn_is_a_bounce_not_a_reply(stack_factory) -> None:
         "bounces": 1,
     }
 
+    until(lambda: len(events(stack).get("dsn.parsed", [])) >= 1)
     parsed = events(stack)["dsn.parsed"]
     assert len(parsed) == 1
     assert parsed[0]["job"] == job["id"]
@@ -222,6 +223,7 @@ def test_dsn_is_a_bounce_not_a_reply(stack_factory) -> None:
     dsns = [item for item in found if item["is_dsn"]]
     assert len(dsns) == 2
     assert all(item["job_id"] == job["id"] for item in dsns)
+    until(lambda: len(events(stack).get("dsn.parsed", [])) >= 2)
     parsed = events(stack)["dsn.parsed"]
     assert len(parsed) == 2
     assert all(item["job"] == job["id"] for item in parsed)
