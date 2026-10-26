@@ -22,7 +22,7 @@ from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.errors import BatchNotFound, DomainError
 from downcroc.domain.jobs import Job, JobState
 from downcroc.runtime.clock import parse_utc, utc_after, utc_now
-from downcroc.runtime.config.schema import DispatchSettings
+from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
@@ -40,8 +40,7 @@ class Candidate:
 class Dispatcher:
     def __init__(
         self,
-        settings: DispatchSettings,
-        lease_seconds: int,
+        settings: Settings,
         jobs: JobRepo,
         accounts: AccountRepo,
         batches: BatchRepo,
@@ -52,17 +51,16 @@ class Dispatcher:
         vault: VaultService,
         bus: EventBus,
         log: EventLogger,
-        followup_check_s: float,
     ) -> None:
-        self._settings = settings
-        self._lease_seconds = lease_seconds
+        self._dispatch = settings.dispatch
+        self._outbound_settings = settings.outbound
+        self._followup_settings = settings.followups
         self._jobs = jobs
         self._accounts = accounts
         self._batches = batches
         self._quota = quota
         self._failures = failures
         self._followups = followups
-        self._followup_check_s = followup_check_s
         self._outbound = outbound
         self._vault = vault
         self._bus = bus
@@ -87,7 +85,7 @@ class Dispatcher:
         if task is None:
             return
         try:
-            await asyncio.wait_for(task, timeout=self._settings.shutdown_join_s)
+            await asyncio.wait_for(task, timeout=self._dispatch.shutdown_join_s)
         except TimeoutError:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -106,7 +104,7 @@ class Dispatcher:
             ) as error:
                 self._log.error("dispatch.error", error=error.__class__.__name__)
             try:
-                await asyncio.wait_for(self._stop.wait(), timeout=self._settings.tick_s)
+                await asyncio.wait_for(self._stop.wait(), timeout=self._dispatch.tick_s)
             except TimeoutError:
                 continue
 
@@ -118,7 +116,7 @@ class Dispatcher:
             try:
                 await asyncio.to_thread(self._followups.plan_due)
             finally:
-                self._next_followup = time.monotonic() + self._followup_check_s
+                self._next_followup = time.monotonic() + self._followup_settings.check_s
         started = time.monotonic()
         moment = eligibility.local_now()
         day = eligibility.day_key(moment)
@@ -155,7 +153,7 @@ class Dispatcher:
             self._idle(due_accounts, blocked_window, blocked_allowance)
             self._log_cycle(0, 0, 0, started)
             return
-        capacity = self._settings.global_in_flight
+        capacity = self._dispatch.global_in_flight
         picked: list[tuple[Job, Account]] = []
         while candidates and len(picked) < capacity:
             candidate = self._weighted(candidates)
@@ -243,7 +241,7 @@ class Dispatcher:
             job.id,
             self._owner,
             utc_now(),
-            utc_after(self._lease_seconds),
+            utc_after(self._outbound_settings.lease_seconds),
         )
 
     def _weighted(self, candidates: list[Candidate]) -> Candidate:
@@ -284,7 +282,7 @@ class Dispatcher:
         return "deferred"
 
     def _retry_or_fail(self, job: Job) -> str:
-        if job.attempts >= self._settings.max_attempts:
+        if job.attempts >= self._dispatch.max_attempts:
             failed = self._jobs.mark_failed(
                 job.id,
                 code=job.last_error_code or "retry_exhausted",
@@ -295,7 +293,7 @@ class Dispatcher:
             return "failed"
         delay = retry.backoff_seconds(
             job.attempts,
-            self._settings,
+            self._dispatch,
             self._rng,
         )
         self._jobs.mark_retry(

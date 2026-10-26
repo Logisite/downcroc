@@ -39,6 +39,11 @@ class Api:
         _raise(status, payload)
         return payload
 
+    def patch(self, path: str, body: dict[str, Any]) -> Any:
+        status, payload = self.raw("PATCH", path, body)
+        _raise(status, payload)
+        return payload
+
     def unlock(self, password: str = "test-password") -> dict[str, Any]:
         return self.post("/api/vault/unlock", {"password": password})
 

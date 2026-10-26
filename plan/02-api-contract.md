@@ -204,8 +204,8 @@ a no-op for activity and batch counters.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/config` | the effective config, plus the on-disk document |
-| PATCH | `/api/config` | validated merge. Daemon writes `config.toml`, reloads, emits event |
-| GET | `/api/config/schema` | field descriptions for TUI form generation |
+| PATCH | `/api/config` | validated merge. Daemon writes `config.toml`, reloads, emits `config.reloaded` |
+| GET | `/api/config/schema` | every field with type, default, range, description, and restart flag |
 
 ### Backup
 
@@ -334,7 +334,8 @@ batch.completed       batch.cancelled
 job.queued            job.started            job.sent
 job.retry_wait        job.failed             job.sent_unconfirmed   job.retried
 message.ingested      attachment.stored      reply.matched          bounce.received
-quota.consumed        config.changed
+quota.consumed        config.loaded          config.reloaded
+config.rejected       openapi.exported
 watcher.started       watcher.stopped        watcher.idle_wake
 imap.fetch            account.watcher
 stats.increment       stats.rebuilt          stats.invariant

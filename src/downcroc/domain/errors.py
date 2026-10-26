@@ -299,3 +299,8 @@ class RestorePending(DomainError):
 class DaemonRunning(DomainError):
     code = "daemon_running"
     status = 409
+
+
+class ConfigRejected(DomainError):
+    code = "config_rejected"
+    status = 422

@@ -153,7 +153,7 @@ client change. Each field carries its type, range, default, and one-line explana
 daemon.
 
 Save is `PATCH /api/config`, which validates, writes `config.toml` atomically, reloads, and emits
-`config.changed`. The form shows the field-level errors the daemon returns. It never writes the
+`config.reloaded`. The form shows the field-level errors the daemon returns. It never writes the
 file itself, and it never silently clamps a value you typed.
 
 ## Live updates
@@ -167,7 +167,8 @@ One SSE subscription for the life of the app, with reconnect and `Last-Event-ID`
 | `message.received` | add to the mailbox list if visible, bump the reply count |
 | `reply.matched` | update batch and thread counts |
 | `account.needs_reauth` | frame band, banner, account row |
-| `config.changed` | refresh the settings form and derived labels |
+| `config.reloaded` | refresh the settings form and derived labels |
+| `config.rejected` | show the field and reason in a quiet banner |
 | `gap` | full refetch of the current screen |
 
 Rules: no event triggers a blocking dialog except `needs_reauth`, which is a banner. A tool that

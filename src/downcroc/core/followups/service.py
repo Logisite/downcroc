@@ -6,7 +6,8 @@ import time
 from downcroc.core.batches.source import CampaignReader
 from downcroc.core.events import EventBus
 from downcroc.core.followups.builder import DerivedBuilder, DerivedInput
-from downcroc.core.followups.model import Candidate, Content, Skip, StepEvaluation
+from downcroc.core.followups.log import FollowUpLog
+from downcroc.core.followups.model import Candidate, Content
 from downcroc.core.followups.planner import Anchor, AnchorResult, Planner
 from downcroc.core.followups.snapshot import ParentDeclaration, read_parent
 from downcroc.core.followups.stop import FollowUpStopper
@@ -62,8 +63,7 @@ class FollowUpService:
         self._builder = DerivedBuilder(settings, accounts, jobs, batches, content)
         self._lock = threading.RLock()
         self._snapshots: dict[str, ParentDeclaration] = {}
-        self._planned_once: set[tuple[str, str]] = set()
-        self._skipped: set[tuple[str, str, str]] = set()
+        self._events = FollowUpLog(log)
         self._defer: dict[tuple[str, str], float] = {}
 
     def plan_due(self) -> None:
@@ -71,6 +71,14 @@ class FollowUpService:
             sync_cache: dict[str, bool] = {}
             for parent in self._campaigns():
                 self._plan_parent(parent, sync_cache)
+
+    def reload_limits(self) -> None:
+        with self._lock:
+            self._limits = IntakeLimits(
+                max_messages=self._settings.intake.max_messages,
+                max_body_bytes=self._settings.intake.max_body_bytes,
+                max_attachment_bytes=self._settings.intake.max_attachment_bytes,
+            )
 
     def cancel_stopped(self) -> None:
         with self._lock:
@@ -154,7 +162,7 @@ class FollowUpService:
             )
             batch = self._create(source)
             record_suppressed(self._stats, self._jobs, batch.id, anchors.skipped)
-            self._log_skip_many(first.skipped)
+            self._events.skip_many(first.skipped)
             return batch.id
 
     def _plan_parent(self, parent: Batch, sync_cache: dict[str, bool]) -> None:
@@ -167,9 +175,9 @@ class FollowUpService:
         context = self._planner.context(initial)
         for step in declaration.followups:
             evaluation = self._planner.plan_step(declaration, step, initial, context)
-            self._log_skip_many(evaluation.skipped)
+            self._events.skip_many(evaluation.skipped)
             if not evaluation.candidates:
-                self._log_planned_once(parent, evaluation)
+                self._events.planned_once(parent, evaluation)
                 continue
             allowed = []
             for candidate in evaluation.candidates:
@@ -181,9 +189,9 @@ class FollowUpService:
                 if sync_cache[account_id]:
                     allowed.append(candidate)
             if not allowed:
-                self._log_planned_once(parent, evaluation)
+                self._events.planned_once(parent, evaluation)
                 continue
-            self._log_planned(parent, evaluation, len(allowed))
+            self._events.planned(parent, evaluation, len(allowed))
             source = DerivedInput(
                 parent=parent,
                 step_key=step.key,
@@ -344,56 +352,4 @@ class FollowUpService:
         raise BatchInvalid(
             "no eligible recipients for the follow-up",
             details=details or None,
-        )
-
-    def _log_planned_once(self, parent: Batch, evaluation: StepEvaluation) -> None:
-        key = (parent.id, evaluation.step_key)
-        if key in self._planned_once:
-            return
-        self._planned_once.add(key)
-        self._log.info(
-            "followup.planned",
-            batch=parent.id,
-            step=evaluation.step_key,
-            candidates=0,
-            replied=evaluation.replied,
-            bounced=evaluation.bounced,
-            suppressed=evaluation.suppressed,
-            pending=evaluation.pending,
-            not_due=evaluation.not_due,
-        )
-
-    def _log_planned(
-        self,
-        parent: Batch,
-        evaluation: StepEvaluation,
-        allowed: int,
-    ) -> None:
-        self._planned_once.add((parent.id, evaluation.step_key))
-        self._log.info(
-            "followup.planned",
-            batch=parent.id,
-            step=evaluation.step_key,
-            candidates=allowed,
-            replied=evaluation.replied,
-            bounced=evaluation.bounced,
-            suppressed=evaluation.suppressed,
-            pending=evaluation.pending,
-            not_due=evaluation.not_due,
-        )
-
-    def _log_skip_many(self, skipped: tuple[Skip, ...]) -> None:
-        for item in skipped:
-            self._log_skip(item.job_id, item.step_key, item.reason)
-
-    def _log_skip(self, job_id: str, step: str, reason: str) -> None:
-        key = (job_id, step, reason)
-        if key in self._skipped:
-            return
-        self._skipped.add(key)
-        self._log.info(
-            "followup.skipped",
-            job=job_id,
-            step=step,
-            reason=reason,
         )

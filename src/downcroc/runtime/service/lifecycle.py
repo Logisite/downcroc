@@ -142,7 +142,7 @@ def run_foreground(paths: Paths) -> None:
             "config.loaded",
             path=str(paths.config_file),
             first_run=created,
-            keys=",".join(settings.model_dump().keys()),
+            keys=list(settings.model_dump().keys()),
         )
         info = ServiceInfo(
             pid=os.getpid(),

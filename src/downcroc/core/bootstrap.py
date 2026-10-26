@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from downcroc.backup import BackupService, RestoreService
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.batches import BatchesService
+from downcroc.core.config_service import ConfigService
 from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
@@ -58,6 +59,7 @@ class Services:
     dispatcher: Dispatcher
     backup: BackupService
     restore: RestoreService
+    config: ConfigService
 
     def close(self) -> None:
         self.inbound.close()
@@ -187,8 +189,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         log,
     )
     dispatcher = Dispatcher(
-        settings.dispatch,
-        settings.outbound.lease_seconds,
+        settings,
         job_repo,
         account_repo,
         batch_repo,
@@ -199,10 +200,10 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         vault,
         bus,
         log,
-        settings.followups.check_s,
     )
     backup = BackupService(paths, log)
     restore = RestoreService(paths, log)
+    config = ConfigService(paths, settings, log, accounts, followups)
     return Services(
         engine=engine,
         sessions=sessions,
@@ -223,4 +224,5 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         dispatcher=dispatcher,
         backup=backup,
         restore=restore,
+        config=config,
     )

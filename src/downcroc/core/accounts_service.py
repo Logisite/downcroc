@@ -94,6 +94,11 @@ class AccountsService:
     def list(self) -> list[Account]:
         return self._accounts.list()
 
+    def apply_sending_defaults(self, old: SendPolicy, new: SendPolicy) -> int:
+        updated = self._accounts.update_policy_matching(old, new)
+        self._policy = new
+        return updated
+
     def get(self, account_id: str) -> Account:
         return self._accounts.get(account_id)
 

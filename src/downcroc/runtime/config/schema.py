@@ -1,197 +1,95 @@
 from __future__ import annotations
 
-from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    field_validator,
-    model_validator,
+from downcroc.runtime.config.sections_mail import (
+    ConfigSettings,
+    ConnectSettings,
+    EventsSettings,
+    InboundSettings,
+    IntakeSettings,
+    OutboundSettings,
+    VaultSettings,
+)
+from downcroc.runtime.config.sections_runtime import (
+    DaemonSettings,
+    DispatchSettings,
+    FollowUpSettings,
+    LoggingSettings,
+    RetentionSettings,
+    SendingSettings,
 )
 
-LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost"})
-
-
-class DaemonSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    host: str = "127.0.0.1"
-    port: int = Field(default=8765, ge=1024, le=65535)
-    start_timeout_s: float = Field(default=10.0, gt=0, le=120)
-    stop_timeout_s: float = Field(default=15.0, gt=0, le=120)
-
-    @field_validator("host")
-    @classmethod
-    def loopback_only(cls, value: str) -> str:
-        if value not in LOOPBACK:
-            raise ValueError("must be a loopback address")
-        return value
-
-
-class LoggingSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    level: Literal["debug", "info", "warning", "error"] = "info"
-    max_bytes: int = Field(default=10_485_760, ge=65_536)
-    backups: int = Field(default=5, ge=1, le=50)
-
-
-class SendingSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    daily_allowance: int = Field(default=200, ge=1, le=100_000)
-    window_start: int = Field(default=0, ge=0, le=23)
-    window_end: int = Field(default=24, ge=1, le=24)
-    jitter_min: int = Field(default=30, ge=0, le=3600)
-    jitter_max: int = Field(default=90, ge=0, le=3600)
-    max_in_flight: int = Field(default=2, ge=1, le=64)
-    enabled: bool = True
-
-    @model_validator(mode="after")
-    def ordered_jitter(self) -> SendingSettings:
-        if self.jitter_max < self.jitter_min:
-            raise ValueError("jitter_max must be at least jitter_min")
-        if self.window_start == self.window_end:
-            raise ValueError("window_start and window_end must differ")
-        return self
-
-
-class DispatchSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    tick_s: float = Field(default=2.0, ge=0.05, le=60)
-    max_attempts: int = Field(default=5, ge=1, le=20)
-    retry_base_s: int = Field(default=30, ge=1, le=3600)
-    retry_factor: float = Field(default=2.0, ge=1.0, le=10.0)
-    retry_cap_s: int = Field(default=3600, ge=1, le=86_400)
-    retry_jitter: float = Field(default=0.2, ge=0.0, le=1.0)
-    global_in_flight: int = Field(default=8, ge=1, le=256)
-    shutdown_join_s: float = Field(default=5.0, gt=0, le=30)
-
-    @model_validator(mode="after")
-    def ordered_retries(self) -> DispatchSettings:
-        if self.retry_cap_s < self.retry_base_s:
-            raise ValueError("retry_cap_s must be at least retry_base_s")
-        return self
-
-
-class FollowUpSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    check_s: float = Field(default=30.0, ge=0.05, le=3600)
-    sync_timeout_s: float = Field(default=30.0, gt=0, le=300)
-    defer_s: float = Field(default=300.0, ge=1, le=86_400)
-
-
-class RetentionSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    check_s: float = Field(default=3600.0, ge=0.05, le=86_400)
-    jobs_days: int = Field(default=30, ge=1, le=3650)
-    jobs_max: int = Field(default=10_000, ge=1, le=1_000_000)
-    mail_days: int = Field(default=90, ge=1, le=3650)
-    hourly_days: int = Field(default=90, ge=1, le=3650)
-    daily_days: int = Field(default=730, ge=1, le=3650)
-
-
-class EventsSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    ring_size: int = Field(default=10_000, ge=1, le=1_000_000)
-    queue_size: int = Field(default=1000, ge=16, le=100_000)
-    keepalive_s: float = Field(default=15.0, gt=0, le=300)
-
-
-class VaultSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    kdf_memory_kib: int = Field(default=65_536, ge=8192, le=1_048_576)
-    kdf_iterations: int = Field(default=3, ge=1, le=10)
-    kdf_lanes: int = Field(default=1, ge=1, le=8)
-    kdf_target_ms: int = Field(default=250, ge=50, le=2000)
-    kdf_max_memory_kib: int = Field(default=262_144, ge=8192, le=1_048_576)
-    free_attempts: int = Field(default=5, ge=0, le=100)
-    base_delay_s: float = Field(default=1.0, gt=0, le=60)
-    max_delay_s: float = Field(default=300.0, ge=1, le=3600)
-
-    @model_validator(mode="after")
-    def ordered_vault(self) -> VaultSettings:
-        if self.kdf_max_memory_kib < self.kdf_memory_kib:
-            raise ValueError("kdf_max_memory_kib must be at least kdf_memory_kib")
-        if self.max_delay_s < self.base_delay_s:
-            raise ValueError("max_delay_s must be at least base_delay_s")
-        return self
-
-
-class ConnectSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    oauth_attempt_ttl_s: int = Field(default=600, ge=5, le=3600)
-    oauth_timeout_s: float = Field(default=15.0, gt=0, le=120)
-    imap_timeout_s: float = Field(default=15.0, gt=0, le=120)
-    token_refresh_margin_s: int = Field(default=120, ge=0, le=3600)
-    shutdown_join_s: float = Field(default=2.0, gt=0, le=30)
-
-
-class InboundSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    idle_timeout_s: float = Field(default=1500.0, ge=10, le=1740)
-    poll_interval_s: float = Field(default=300.0, ge=5, le=3600)
-    initial_sync_days: int = Field(default=7, ge=0, le=3650)
-    initial_sync_limit: int = Field(default=500, ge=1, le=100_000)
-    body_max_bytes: int = Field(default=2_097_152, ge=1024, le=268_435_456)
-    fetch_batch: int = Field(default=25, ge=1, le=500)
-    ingest_timeout_s: float = Field(default=60.0, gt=0, le=600)
-    backoff_s: list[int] = Field(
-        default_factory=lambda: [5, 15, 60, 300, 900],
-        min_length=1,
-        max_length=16,
-    )
-    shutdown_join_s: float = Field(default=2.0, gt=0, le=30)
-
-    @field_validator("backoff_s")
-    @classmethod
-    def ordered_backoff(cls, value: list[int]) -> list[int]:
-        if any(item < 1 for item in value):
-            raise ValueError("backoff values must be positive seconds")
-        if value != sorted(value):
-            raise ValueError("backoff values must be in ascending order")
-        return value
-
-
-class OutboundSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    smtp_timeout_s: float = Field(default=30.0, gt=0, le=300)
-    lease_seconds: int = Field(default=120, ge=10, le=3600)
-    reconcile_attempts: int = Field(default=3, ge=1, le=10)
-    reconcile_delay_s: float = Field(default=1.0, ge=0, le=60)
-
-
-class IntakeSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    max_messages: int = Field(default=10_000, ge=1, le=1_000_000)
-    max_body_bytes: int = Field(default=1_000_000, ge=1024, le=26_214_400)
-    max_attachment_bytes: int = Field(default=26_214_400, ge=1024, le=104_857_600)
-    max_file_bytes: int = Field(default=67_108_864, ge=1024, le=536_870_912)
-    sample_count: int = Field(default=5, ge=1, le=20)
+__all__ = [
+    "ConfigSettings",
+    "ConnectSettings",
+    "DaemonSettings",
+    "DispatchSettings",
+    "EventsSettings",
+    "FollowUpSettings",
+    "InboundSettings",
+    "IntakeSettings",
+    "LoggingSettings",
+    "OutboundSettings",
+    "RetentionSettings",
+    "SendingSettings",
+    "Settings",
+    "VaultSettings",
+]
 
 
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    daemon: DaemonSettings = Field(default_factory=DaemonSettings)
-    logging: LoggingSettings = Field(default_factory=LoggingSettings)
-    sending: SendingSettings = Field(default_factory=SendingSettings)
-    dispatch: DispatchSettings = Field(default_factory=DispatchSettings)
-    followups: FollowUpSettings = Field(default_factory=FollowUpSettings)
-    retention: RetentionSettings = Field(default_factory=RetentionSettings)
-    events: EventsSettings = Field(default_factory=EventsSettings)
-    vault: VaultSettings = Field(default_factory=VaultSettings)
-    connect: ConnectSettings = Field(default_factory=ConnectSettings)
-    inbound: InboundSettings = Field(default_factory=InboundSettings)
-    outbound: OutboundSettings = Field(default_factory=OutboundSettings)
-    intake: IntakeSettings = Field(default_factory=IntakeSettings)
+    daemon: DaemonSettings = Field(
+        default_factory=DaemonSettings,
+        description="HTTP daemon settings.",
+    )
+    logging: LoggingSettings = Field(
+        default_factory=LoggingSettings,
+        description="Daemon log settings.",
+    )
+    sending: SendingSettings = Field(
+        default_factory=SendingSettings,
+        description="Sending defaults copied into new accounts.",
+    )
+    dispatch: DispatchSettings = Field(
+        default_factory=DispatchSettings,
+        description="Dispatcher loop, retry, and concurrency settings.",
+    )
+    followups: FollowUpSettings = Field(
+        default_factory=FollowUpSettings,
+        description="Follow-up planning settings.",
+    )
+    retention: RetentionSettings = Field(
+        default_factory=RetentionSettings,
+        description="Retention and pruning settings.",
+    )
+    events: EventsSettings = Field(
+        default_factory=EventsSettings,
+        description="Event ring and stream settings.",
+    )
+    vault: VaultSettings = Field(
+        default_factory=VaultSettings,
+        description="Vault key derivation and throttle settings.",
+    )
+    connect: ConnectSettings = Field(
+        default_factory=ConnectSettings,
+        description="OAuth and IMAP connection settings.",
+    )
+    inbound: InboundSettings = Field(
+        default_factory=InboundSettings,
+        description="Inbound watcher and ingest settings.",
+    )
+    outbound: OutboundSettings = Field(
+        default_factory=OutboundSettings,
+        description="Outbound send and reconciliation settings.",
+    )
+    intake: IntakeSettings = Field(
+        default_factory=IntakeSettings,
+        description="Campaign input and attachment limits.",
+    )
+    config: ConfigSettings = Field(
+        default_factory=ConfigSettings,
+        description="Configuration reload settings.",
+    )
