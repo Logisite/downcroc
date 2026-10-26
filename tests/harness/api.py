@@ -4,23 +4,47 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 
 class Api:
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, token_file: Path | None = None) -> None:
         self.base_url = base_url
+        self.token_file = token_file
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
+    def token(self) -> str | None:
+        if self.token_file is None:
+            return None
+        try:
+            value = self.token_file.read_text(encoding="ascii").strip()
+        except OSError:
+            return None
+        return value or None
+
     def raw(
-        self, method: str, path: str, body: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+        auth: bool = True,
     ) -> tuple[int, Any]:
         data = None if body is None else json.dumps(body).encode()
+        merged = dict(headers or {})
+        if data is not None:
+            merged.setdefault("Content-Type", "application/json")
+        if auth:
+            token = self.token()
+            if token is not None:
+                merged["Authorization"] = f"Bearer {token}"
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             data=data,
             method=method,
-            headers={"Content-Type": "application/json"} if data else {},
+            headers=merged,
         )
         try:
             with self._opener.open(request, timeout=180) as response:

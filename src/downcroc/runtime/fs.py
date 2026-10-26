@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import getpass
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -13,6 +15,22 @@ def restrict(path: Path, mode: int) -> None:
     if os.name == "nt":
         return
     path.chmod(mode)
+
+
+def restrict_owner(path: Path) -> None:
+    if os.name != "nt":
+        path.chmod(0o600)
+        return
+    user = getpass.getuser()
+    completed = subprocess.run(
+        ["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:F"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise OSError(f"could not restrict {path}: {detail}")
 
 
 def restrict_fd(descriptor: int, mode: int) -> None:

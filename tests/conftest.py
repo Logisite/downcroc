@@ -33,7 +33,7 @@ def stack_factory(tmp_path: Path):
         fakes = FakeMailServers().start()
         daemon = Daemon(runtime)
         daemon.start(fakes, config_extra)
-        api = Api(daemon.base_url)
+        api = Api(daemon.base_url, daemon.state_home / "downcroc" / "daemon.token")
         api.unlock()
         connected = connect_accounts(
             api,

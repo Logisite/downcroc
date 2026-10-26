@@ -12,7 +12,7 @@ to events.
              +----------+-----------+
                         |
              +----------+-----------+
-             |   HTTP API (loopback)|        (FastAPI, no auth, see 04)
+             |   HTTP API (loopback)|        (FastAPI, bearer auth, see 04)
              |   + SSE event stream |
              +----------+-----------+
                         |
@@ -152,12 +152,12 @@ Lifecycle rules:
 7. `SIGTERM` and `SIGINT` stop the daemon cleanly: it stops accepting, logs `daemon.stopping`
    with the signal and uptime, removes `service.json`, releases the lock, and exits 0. The
    signal is not re-raised, so a supervisor reads a clean stop rather than a signal death.
-8. `downcroc service stop` uses the per-run control token to post `/api/service/stop`. The
+8. `downcroc service stop` uses the per-run bearer token to post `/api/service/stop`. The
    endpoint sets the server's shutdown flag, so the same application lifespan path runs:
    inbound stops, vault locks, the event bus closes, `service.json` is removed, and the lock
    is released. It does not signal the process directly.
 9. A hard kill skips all of that; the operating system drops the lock and the next start
-   replaces the stale `service.json` and rotates the control token.
+   replaces the stale `service.json` and rotates the bearer token.
 
 ## Discovery
 
@@ -169,9 +169,10 @@ started_at, version, and api_version. A client:
 3. if healthy and the version matches, attaches
 4. if stale, removes the file and starts a daemon
 
-The daemon also writes `daemon.token` in the state directory at startup, mode `0600`, and
-removes it on clean stop. `service stop` reads that token and authenticates the shutdown
-request. A live lock file prevents two daemons. The second one exits with a clear message
+The daemon also writes `daemon.token` in the state directory at startup, mode `0600` on Unix
+and an owner-only ACL on Windows, and removes it on clean stop. Every client reads it and sends
+it as a bearer token; `service stop` uses it for the shutdown request. A live lock file prevents
+two daemons. The second one exits with a clear message
 rather than fighting for the database.
 
 ## Platform boundary
@@ -203,12 +204,19 @@ CI-only.
 The API binds `127.0.0.1` only. Port selection: a fixed configured port when set, otherwise
 an ephemeral port recorded in `service.json`.
 
-The daemon control path is authenticated with the per-run token from `daemon.token`. Release
-1 applies the same bearer token to every API route except `GET /api/health` and the OAuth
-callback, which is protected by its state nonce. The token is created at startup, mode `0600`,
-never logged, removed on clean stop, and rotated on the next start. This closes the local
-API exposure recorded in `04` and `11`; it does not defend against a process that can read
-the token file as the same user.
+The API is authenticated with the per-run token from `daemon.token`. Release 1 applies the
+same bearer token to every route except `GET /api/health` and the OAuth callback, which is
+protected by its state nonce. The token is created at startup, mode `0600` on Unix and an
+owner-only ACL on Windows, never logged, removed on clean stop, and rotated on the next
+start. Requests must also carry a trusted loopback Host and, when present, a loopback Origin.
+The public `/docs`, `/redoc`, and `/openapi.json` routes are disabled; `downcroc openapi`
+exports the schema from inside the package.
+
+There is no browser login, cookie, pairing flow, or GUI session. A client is any process that
+can read the token file as the same user, and `downcroc auth status` reports whether that
+token exists and is accepted without printing it. This closes the accidental local API
+exposure recorded in `04` and `11`; it does not defend against a process that can read the
+token file as the same user.
 
 ## Package layout
 

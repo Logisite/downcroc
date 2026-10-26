@@ -36,7 +36,8 @@ peer, no multi-tenancy, no privilege boundary between users.
 
 ## The honest statement about local access
 
-The API is loopback-bound and unauthenticated. Any local process can:
+The API is loopback-bound and requires a per-run bearer token. Any local process that can read
+`daemon.token` as the same user can:
 
 - read stored mail
 - enqueue a batch within your configured allowance
@@ -44,20 +45,22 @@ The API is loopback-bound and unauthenticated. Any local process can:
 - trigger a connect attempt
 
 While the daemon is unlocked, it can also **send** using your accounts, because the daemon holds
-the key in memory and the API has no way to tell a legitimate TUI from anything else.
+the key in memory and the token only identifies a caller that can already read the state
+directory.
 
-This was a considered decision. The alternatives were a token the TUI must store (which is a
-second credential with no stronger protection than the first) or a unix socket with peer
-credentials (which defends against other users, on a machine where the other users are already
-trusted or the box is already lost).
+The token is not a defence against a process running as you. It removes the accidental exposure
+where any local process, including one running as another user, could drive the API. The
+alternative considered was a unix socket with peer credentials, which is not portable to
+Windows and does not help once the attacker is already the same user.
 
-The mitigation that actually matters is the one already in place: **the daemon starts locked,
-unlock is an explicit human act, and stopping the daemon discards the key.** On a machine where
-you are the only interactive user, the practical exposure is that a compromised local process
-can act as you while you are working. That process could already read your SSH keys.
+The mitigation that actually matters is unchanged: **the daemon starts locked, unlock is an
+explicit human act, and stopping the daemon discards the key.** Host and Origin validation stop
+a browser page or a DNS-rebound request from reaching the API, and `/docs`, `/redoc`, and
+`/openapi.json` are disabled so the surface is not advertised. There is no browser login,
+cookie, pairing flow, or GUI session.
 
-If remote access is ever built, it ships with a token and a pairing flow, and the loopback
-assumption is re-opened in `11-decision-log.md`.
+If remote access is ever built, it ships with a pairing flow and the loopback assumption is
+re-opened in `11-decision-log.md`.
 
 ## Vault format
 
@@ -165,15 +168,19 @@ Rules:
   its lease, then stops. Jobs left in `sending` follow the normal crash path in `03`.
 - Stopping the daemon locks. There is no separate step and no way to stop it unlocked.
 
-## Daemon control token
+## Daemon bearer token
 
-The daemon writes a per-run control token to `daemon.token` in the state directory at startup.
-It is 32 random bytes encoded as URL-safe text, mode `0600` on Unix, and never appears in a log,
-event, API response, or error message. The token is removed on clean stop and rotated on every
-start. `downcroc service stop` reads it from the state directory and sends it as a bearer token
-to `POST /api/service/stop`. The endpoint sets the server shutdown flag, so shutdown runs the
-normal application lifespan. Release 1 applies the same token to every route except
+The daemon writes a per-run bearer token to `daemon.token` in the state directory at startup.
+It is 32 random bytes encoded as URL-safe text, mode `0600` on Unix and an owner-only ACL on
+Windows, and never appears in a log, event, API response, error message, or backup bundle. The
+token is removed on clean stop and rotated on every start. The CLI reads it from the state
+directory and sends it as a bearer token. Release 1 applies the token to every route except
 `GET /api/health` and the OAuth callback, which is protected by its state nonce.
+
+Requests must also present a trusted loopback `Host` and, when present, a loopback `Origin`;
+anything else is rejected with `403`. `POST /api/service/stop` uses the same token and sets the
+server shutdown flag, so shutdown runs the normal application lifespan. `downcroc auth status`
+reports whether the token is present and accepted without printing it.
 
 ## The token invariant
 
@@ -191,10 +198,13 @@ Concretely, all of the following are forbidden and are checked at the boundary:
 | Backups | bundles include `vault.enc`, which is encrypted anyway |
 | Crash dumps | a deliberate risk: a dump of the process may contain the key. Not defended |
 
-No test is required for this. It is enforced structurally instead: secrets live in a single
-object owned by `core/vault_service.py`, and nothing outside the provider and mail layers can
-obtain one. `VaultService.get_secret` is the only accessor; it requires an unlocked vault,
-raises `vault_locked` otherwise, and no HTTP route imports it.
+Authentication and leak tests check the boundary: a missing, malformed, or wrong token is
+rejected, an untrusted Host or Origin is rejected, a restart invalidates the previous token,
+and logs, API errors, and backup bundles are searched for the daemon token. Inside the daemon
+the provider-secret invariant is still structural: secrets live in a single object owned by
+`core/vault_service.py`, and nothing outside the provider and mail layers can obtain one.
+`VaultService.get_secret` is the only accessor; it requires an unlocked vault, raises
+`vault_locked` otherwise, and no HTTP route imports it.
 
 ## Filesystem permissions
 
@@ -216,7 +226,8 @@ The daemon checks these at startup and corrects a looser mode with a warning in 
 than refusing to start. Refusing to start would lock a user out of their own tool over a `chmod`.
 macOS uses `~/Library/Application Support/downcroc/{config,data,state}` unless an XDG override
 is set. Windows uses `%APPDATA%\\downcroc` for config and `%LOCALAPPDATA%\\downcroc` for data and
-state, with the inherited user profile ACL rather than POSIX modes.
+state. POSIX modes do not apply there; credential files such as `daemon.token` and `vault.enc`
+get an owner-only ACL with inheritance removed.
 
 ## Failure modes
 

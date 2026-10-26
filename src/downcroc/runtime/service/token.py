@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 from pathlib import Path
 
-from downcroc.runtime.fs import atomic_write, restrict
+from downcroc.runtime.fs import atomic_write, restrict_owner
 
 TOKEN_BYTES = 32
 
@@ -11,7 +11,7 @@ TOKEN_BYTES = 32
 def issue(path: Path) -> str:
     token = secrets.token_urlsafe(TOKEN_BYTES)
     atomic_write(path, token.encode("ascii"))
-    restrict(path, 0o600)
+    restrict_owner(path)
     return token
 
 

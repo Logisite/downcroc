@@ -171,13 +171,14 @@ downcroc/
       suppression.py    suppression index and queries
 
   api/
-    app.py              app factory, lifespan, routers
+    app.py              app factory, lifespan, routers, disabled public docs
+    auth.py             bearer token and Host/Origin middleware
     deps.py             pulls services from the composition root
     errors.py           error envelope, code to HTTP mapping
     sse.py              stream, Last-Event-ID replay, gap detection
     schemas/            request and response models per resource
     routes/
-      health.py vault.py accounts.py attempts.py providers.py batches.py
+      health.py service.py vault.py accounts.py attempts.py providers.py batches.py
       jobs.py messages.py threads.py stats.py failed.py config.py backups.py
       events.py
 
@@ -223,7 +224,7 @@ downcroc/
     service/
       registry.py       service.json
       process.py        liveness, terminate, kill, detached process flags
-      token.py          per-run control token
+      token.py          per-run bearer token
       lock.py           single instance lock on POSIX and Windows
       lifecycle.py      start, stop, status, foreground serve
 
@@ -234,7 +235,7 @@ downcroc/
     context.py          paths and config loading
     output.py           tables, records, JSON, colour detection
     commands/
-      serve.py service.py openapi.py vault.py accounts.py batches.py jobs.py
+      serve.py service.py openapi.py auth.py vault.py accounts.py batches.py jobs.py
       failed.py config.py stats.py mail.py backup.py restore.py logs.py
 ```
 
@@ -292,13 +293,16 @@ and it is one import linter rule per row.
 If a change requires editing both `dispatch/` and `api/`, the boundary is wrong and the design
 should be fixed before the code is written.
 
-## No test tree
+## Test tree
 
-There is no `tests/` package and no test framework. Verification is live: run the daemon, use it,
-watch what happens. `scripts/` holds throwaway setup tools (seed a mailbox, generate a 1,000-row
-CSV) that print their output and assert nothing. If one piece of logic is genuinely hard to
-observe live, a self-check script printing a table is acceptable, and it is never wired into a
-build.
+`tests/` is the black-box acceptance suite. It starts the real daemon and drives it over
+loopback HTTP, real SQLite storage, and the real JSONL log. Only external SMTP, IMAP, and OAuth
+servers are faked. `tests/harness/` owns process startup, API helpers, and the fakes; one file
+per feature area sits beside it. `tests/wheel_smoke.py` checks an installed wheel and its
+artifacts.
+
+Run only the affected file while working, and the full suite once at the end. Authentication and
+token-leak coverage lives in `tests/test_api_auth.py` and `tests/test_auth_leaks.py`.
 
 ## Which modules land in which build phase
 

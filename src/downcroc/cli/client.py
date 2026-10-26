@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from downcroc.runtime.paths import Paths
+from downcroc.runtime.service import token as service_token
 from downcroc.runtime.service.lock import running
 
 
@@ -20,6 +21,10 @@ class CliError(RuntimeError):
         self.fields = fields or {}
 
 
+def token(paths: Paths) -> str | None:
+    return service_token.read(paths.token_file)
+
+
 @contextmanager
 def api(paths: Paths) -> Iterator[httpx.Client]:
     info = running(paths.service_file)
@@ -28,10 +33,17 @@ def api(paths: Paths) -> Iterator[httpx.Client]:
             "downcroc is not running",
             {"hint": "start it with: downcroc service start"},
         )
+    current = token(paths)
+    if current is None:
+        raise CliError(
+            "the daemon token is missing",
+            {"hint": "restart the daemon to issue a new token"},
+        )
     with httpx.Client(
         base_url=info.base_url,
         timeout=None,
         trust_env=False,
+        headers={"Authorization": f"Bearer {current}"},
     ) as client:
         yield client
 

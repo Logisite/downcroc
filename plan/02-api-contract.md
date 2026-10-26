@@ -29,16 +29,22 @@ daemon whose major API version differs from its own.
 ## Authentication
 
 The daemon writes a per-run bearer token to `daemon.token` in the state directory at startup,
-mode `0600`, and removes it on clean stop. The CLI reads it and sends `Authorization: Bearer
-<token>` on every call. Release 1 protects every route except `GET /api/health` and the OAuth
-callback, which is protected by its state nonce. A missing or wrong token returns `401` with
-`unauthorized`.
+mode `0600` on Unix and an owner-only ACL on Windows, and removes it on clean stop. The CLI
+reads it and sends `Authorization: Bearer <token>` on every call. Release 1 protects every
+route except `GET /api/health` and the OAuth callback, which is protected by its state nonce.
+A missing, malformed, or wrong token returns `401` with `unauthorized`. A restarted daemon
+issues a new token and the previous token stops working.
+
+Requests must also present a trusted loopback `Host` and, when present, a loopback `Origin`;
+anything else returns `403`. `/docs`, `/redoc`, and `/openapi.json` are disabled, and the CLI
+generates the document in process. `downcroc auth status` reports `state`, `token_present`,
+`accepted`, `pid`, and `url`, never the secret.
 
 `POST /api/service/stop` requires the token and sets the server shutdown flag. The stop is
 graceful and runs the normal application lifespan. The token never appears in a response,
-event, log line, or error. Because the token file is readable by the same user, it does not
-defend against a process running as that user; it closes the accidental and cross-user local
-API exposure described in `04-security.md`.
+event, log line, error, or backup bundle. Because the token file is readable by the same user,
+it does not defend against a process running as that user; it closes the accidental and
+cross-user local API exposure described in `04-security.md`.
 
 ## Endpoint map
 

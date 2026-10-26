@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from downcroc.api import errors
+from downcroc.api.auth import ApiAuthMiddleware
 from downcroc.api.routes import (
     accounts,
     attempts,
@@ -70,11 +71,18 @@ def create_app(
         title="downcroc",
         version=__version__,
         lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
+    app.add_middleware(
+        ApiAuthMiddleware,
+        token=token,
+        settings=settings,
     )
     app.state.settings = settings
     app.state.paths = paths
     app.state.log = log
-    app.state.token = token
     app.state.request_shutdown = lambda: None
     app.state.pid = os.getpid()
     app.state.started = boot

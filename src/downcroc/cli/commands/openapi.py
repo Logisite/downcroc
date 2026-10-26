@@ -5,16 +5,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from downcroc.api.app import create_app
 from downcroc.runtime.config.loader import ConfigError, read
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger, setup_logging
 from downcroc.runtime.paths import Paths, resolve
-from downcroc.runtime.service.lock import running
-
-TIMEOUT_S = 5.0
 
 
 def _settings(paths: Paths) -> Settings:
@@ -26,26 +21,7 @@ def _settings(paths: Paths) -> Settings:
         return Settings()
 
 
-def _served(paths: Paths) -> dict[str, Any] | None:
-    info = running(paths.service_file)
-    if info is None:
-        return None
-    try:
-        with httpx.Client(timeout=TIMEOUT_S, trust_env=False) as client:
-            response = client.get(f"{info.base_url}/openapi.json")
-            response.raise_for_status()
-            document = response.json()
-    except httpx.HTTPError:
-        return None
-    if not isinstance(document, dict):
-        return None
-    return document
-
-
 def _document(paths: Paths, settings: Settings, log: EventLogger) -> dict[str, Any]:
-    served = _served(paths)
-    if served is not None:
-        return served
     app = create_app(settings, paths, log)
     return app.openapi()
 

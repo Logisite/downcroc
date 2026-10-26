@@ -22,6 +22,10 @@ def _dispatch(args: object) -> int:
         from downcroc.cli.commands import openapi
 
         return openapi.run(args.output)
+    if args.command == "auth":
+        from downcroc.cli.commands import auth
+
+        return auth.run(args)
     if args.command == "backup":
         from downcroc.cli.commands import backup
 

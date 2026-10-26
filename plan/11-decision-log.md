@@ -35,9 +35,10 @@ No unsubscribe header, no suppression-by-request list beyond replies.
 **Q3 - Daemon lifecycle.** First answer: explicit lock, process death means locked.
 **Superseded by Q31**: an always-on service that starts locked and unlocks on demand.
 
-**Q11 / Q22 - API surface and auth.** Loopback HTTP plus SSE. No token, no cookie, no pairing.
-Documented in `04-security.md` with the consequences stated plainly. Re-opened only if remote
-access is ever built.
+**Q11 / Q22 - API surface and auth.** Loopback HTTP plus SSE. The original answer had no token,
+no cookie, and no pairing. **Superseded for release 1 by Q71**: every route except public
+health and the OAuth callback requires a per-run bearer token, and Host and Origin are
+validated. The loopback assumption still holds for anything with the token file.
 
 **Q19 / Q31 - Startup and stop.** The daemon starts locked, so it can start at boot. Unlock is a
 separate human act. Stopping from the CLI locks, because the key only ever lived in memory.
@@ -174,11 +175,13 @@ error message ever contains one. Local access is accepted as copy-level harm: so
 machine and your unlocked session can read your mail, which is bad but recoverable, unlike a leaked
 refresh token.
 
-**Q38 - No test for the invariant.** Not tested. Enforced structurally: one accessor, short-lived
-bearer tokens, and redaction at the logging boundary.
+**Q38 - Checks on the invariant.** Originally untested and enforced structurally: one accessor,
+short-lived bearer tokens, and redaction at the logging boundary. Release 1 adds authentication
+and leak tests that scan logs, API errors, and backup bundles for the daemon token.
 
-**Q4 / Q22 - Explicitly accepted risk.** The loopback API is unauthenticated. Recorded here, in
-`02-api-contract.md`, and in `04-security.md`, so nobody later mistakes it for an oversight.
+**Q4 / Q22 - Explicitly accepted risk.** The original loopback API was unauthenticated.
+**Superseded for release 1 by Q71**: the API now requires a per-run bearer token, and the
+remaining same-user risk is recorded in `04-security.md` rather than treated as an oversight.
 
 ## Client
 
@@ -287,11 +290,19 @@ Windows, and process liveness is `os.kill(pid, 0)` on POSIX and `OpenProcess` pl
 `GetExitCodeProcess` on Windows. Detached start uses `start_new_session` on POSIX and the
 Windows detached process flags. `downcroc service stop` does not signal the process: it
 authenticates `POST /api/service/stop` with a per-run token in `daemon.token` (32 random
-bytes, mode `0600`, removed on clean stop), and the endpoint sets Uvicorn's shutdown flag so
-the normal application lifespan locks the vault and releases resources. A hard kill drops the
-OS lock and the next start replaces the stale `service.json` and rotates the token. The full
-suite runs on a Linux, macOS, and Windows GitHub Actions matrix; packaging and binary builds
-stay in CI.
+bytes, mode `0600` on Unix and an owner-only ACL on Windows, removed on clean stop), and the
+endpoint sets Uvicorn's shutdown flag so the normal application lifespan locks the vault and
+releases resources. A hard kill drops the OS lock and the next start replaces the stale
+`service.json` and rotates the token.
+
+**Q73 - Full API authentication.** Release 1 extends that token to every API route
+except `GET /api/health` and the OAuth callback, which keeps its state nonce. The CLI reads the
+token automatically, so existing commands do not change. Requests must present a trusted
+loopback Host and, when present, a loopback Origin. `/docs`, `/redoc`, and `/openapi.json` are
+disabled; `downcroc openapi` generates the document in process. `downcroc auth status` reports
+state and token acceptance without printing the secret. There is no browser login, cookie,
+pairing flow, or GUI session. The full suite runs on a Linux, macOS, and Windows GitHub Actions
+matrix; packaging and binary builds stay in CI.
 
 **Q72 - Packaging and licensing.** Release 1 ships as an Apache 2.0 wheel and source distribution
 built with `uv_build`. Alembic migrations and the provider declarations live inside the

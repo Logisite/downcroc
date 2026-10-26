@@ -23,6 +23,13 @@ def _stats_range(parser: argparse.ArgumentParser) -> None:
     _json(parser)
 
 
+def _auth(commands: argparse._SubParsersAction) -> None:
+    auth = commands.add_parser("auth", help="inspect daemon authentication")
+    actions = auth.add_subparsers(dest="action", required=True)
+    status = actions.add_parser("status", help="check the daemon token")
+    _json(status)
+
+
 def _vault(commands: argparse._SubParsersAction) -> None:
     vault = commands.add_parser("vault", help="inspect and control the vault")
     actions = vault.add_subparsers(dest="action", required=True)
@@ -312,6 +319,7 @@ def build_parser() -> argparse.ArgumentParser:
     restore = commands.add_parser("restore", help="restore a backup bundle")
     restore.add_argument("path", type=Path)
 
+    _auth(commands)
     _vault(commands)
     _account(commands)
     _batch(commands)
