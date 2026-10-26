@@ -1,44 +1,160 @@
 from __future__ import annotations
 
-import sys
-
-import httpx
-
+from downcroc.cli.client import api, get, post
 from downcroc.cli.context import load
-from downcroc.runtime.config.loader import ConfigError
-from downcroc.runtime.service.registry import read
+from downcroc.cli.output import json_out, record, table
+
+TOTAL_KEYS = ["sent", "failed", "received", "replies", "bounces", "suppressed"]
 
 
-def rebuild(since: str | None) -> int:
-    try:
-        paths, settings, _ = load()
-    except ConfigError as error:
-        detail = f"{error.field}: {error}" if error.field else str(error)
-        print(f"config error: {detail}", file=sys.stderr)
-        return 1
-    info = read(paths.service_file)
-    if info is None:
-        print("downcroc is not running", file=sys.stderr)
-        return 1
-    try:
-        response = httpx.post(
-            f"{info.base_url}/api/stats/rebuild",
-            json={"since": since},
-            timeout=settings.daemon.stop_timeout_s,
+def _totals(row: dict) -> dict:
+    return {key: row.get(key, 0) for key in TOTAL_KEYS}
+
+
+def _summary(data: dict) -> None:
+    record({"from": data["from"], "to": data["to"], **_totals(data["total"])})
+    rows = data.get("accounts") or []
+    if rows:
+        table(
+            ["account", *TOTAL_KEYS],
+            [
+                [row["account_id"], *[_totals(row)[key] for key in TOTAL_KEYS]]
+                for row in rows
+            ],
         )
-    except httpx.HTTPError as error:
-        print(f"cannot reach downcroc: {error}", file=sys.stderr)
-        return 1
-    if response.status_code >= 400:
-        body = response.json()
-        detail = body.get("message") if isinstance(body, dict) else response.text
-        print(f"rebuild failed: {detail}", file=sys.stderr)
-        return 1
-    result = response.json()
-    print(
-        "rebuilt {rows} rows in {duration_ms} ms".format(
-            rows=result["rows"],
-            duration_ms=result["duration_ms"],
-        )
+
+
+def _hourly(data: dict) -> None:
+    record({"from": data["from"], "to": data["to"]})
+    table(
+        ["hour", "account", *TOTAL_KEYS],
+        [
+            [
+                row["hour_start"],
+                row["account_id"],
+                *[_totals(row)[key] for key in TOTAL_KEYS],
+            ]
+            for row in data["rows"]
+        ],
     )
-    return 0
+
+
+def _daily(data: dict) -> None:
+    record({"from": data["from"], "to": data["to"]})
+    table(
+        ["day", "account", "limit", *TOTAL_KEYS],
+        [
+            [
+                row["day"],
+                row["account_id"],
+                row["quota_limit"],
+                *[_totals(row)[key] for key in TOTAL_KEYS],
+            ]
+            for row in data["rows"]
+        ],
+    )
+
+
+def _batches(data: dict) -> None:
+    record({"from": data["from"], "to": data["to"]})
+    table(
+        ["batch", "name", "kind", "sent", "failed", "replies", "rate"],
+        [
+            [
+                row["batch_id"],
+                row["name"],
+                row["kind"],
+                row["sent"],
+                row["failed"],
+                row["replies"],
+                row["reply_rate"],
+            ]
+            for row in data["rows"]
+        ],
+    )
+
+
+def _accounts(data: dict) -> None:
+    record({"from": data["from"], "to": data["to"]})
+    table(
+        ["account", "address", "remaining", *TOTAL_KEYS],
+        [
+            [
+                row["account_id"],
+                row["address"],
+                row["remaining_allowance"],
+                *[_totals(row)[key] for key in TOTAL_KEYS],
+            ]
+            for row in data["rows"]
+        ],
+    )
+
+
+def _range(args: object) -> dict:
+    return {
+        "from": getattr(args, "from_value", None),
+        "to": getattr(args, "to", None),
+        "account_id": getattr(args, "account_id", None),
+    }
+
+
+def run(args: object) -> int:
+    paths, _, _ = load()
+    with api(paths) as client:
+        if args.action == "summary":
+            data = get(client, "/api/stats/summary", **_range(args))
+            if args.json:
+                json_out(data)
+            else:
+                _summary(data)
+            return 0
+        if args.action == "hourly":
+            data = get(client, "/api/stats/hourly", **_range(args))
+            if args.json:
+                json_out(data)
+            else:
+                _hourly(data)
+            return 0
+        if args.action == "daily":
+            data = get(client, "/api/stats/daily", **_range(args))
+            if args.json:
+                json_out(data)
+            else:
+                _daily(data)
+            return 0
+        if args.action == "batches":
+            data = get(client, "/api/stats/batches", **_range(args))
+            if args.json:
+                json_out(data)
+            else:
+                _batches(data)
+            return 0
+        if args.action == "accounts":
+            data = get(client, "/api/stats/accounts", **_range(args))
+            if args.json:
+                json_out(data)
+            else:
+                _accounts(data)
+            return 0
+        if args.action == "prune":
+            result = post(client, "/api/stats/prune")
+            if args.json:
+                json_out(result)
+            else:
+                record({"bytes": result["bytes"], **result["tables"]})
+            return 0
+        result = post(
+            client,
+            "/api/stats/rebuild",
+            {"since": getattr(args, "since", None)},
+        )
+        if args.json:
+            json_out(result)
+        else:
+            print(
+                "rebuilt {rows} rows in {duration_ms} ms".format(
+                    rows=result["rows"],
+                    duration_ms=result["duration_ms"],
+                )
+            )
+        return 0

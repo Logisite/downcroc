@@ -113,15 +113,27 @@ only have meaning if the process is up.
 
 | Command | Effect |
 |---|---|
-| `downcroc` | discovers or starts the daemon, then attaches the TUI |
+| `downcroc` | show daemon status |
 | `downcroc service start` | start detached |
 | `downcroc service status` | pid, address, uptime, vault state, queue counts |
 | `downcroc service stop` | stop. This locks the vault |
 | `downcroc serve` | run in the foreground, for systemd or containers |
-| `downcroc web` | attach the browser client (later) |
+| `downcroc vault status` | show whether the vault is locked |
+| `downcroc vault unlock` | unlock and start inbound workers |
+| `downcroc vault lock` | lock and stop inbound workers |
+| `downcroc account ...` | list, add, remove, connect, verify, sync, and watch accounts |
+| `downcroc batch ...` | preview, submit, approve, cancel, and add follow-ups |
+| `downcroc job ...` | list, show, create, and send jobs |
+| `downcroc failed ...` | list and retry permanent failures |
+| `downcroc mail ...` | browse stored messages, threads, and attachments |
+| `downcroc config ...` | show, describe, and change settings |
+| `downcroc stats ...` | read totals, rebuild aggregates, and prune expired rows |
+| `downcroc backup [path]` | write a bundle, optionally into a directory with a generated name |
 | `downcroc restore <bundle>` | restore while the daemon is stopped |
-| `downcroc stats rebuild [--since DATE]` | recompute stored aggregates from the source rows |
 | `downcroc logs [filters]` | query the log file, pretty on a terminal, raw JSON with `--json` |
+
+Human output is plain when piped and colourised on a terminal. `NO_COLOR=1` disables colour;
+`--json` prints the raw document.
 
 Lifecycle rules:
 

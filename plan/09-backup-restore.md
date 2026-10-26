@@ -66,6 +66,17 @@ the old bundle.
 ## Creating a backup
 
 ```
+downcroc backup /backups/downcroc.dncbak
+downcroc backup /backups/
+```
+
+A file path writes that file. A directory, or a path ending in a separator, writes a generated
+`downcroc-<UTC timestamp>.tar.zst` inside it. With no path, the bundle goes into the current
+directory. The parent directory is created when needed.
+
+The HTTP endpoint does the same work when the daemon is running:
+
+```
 POST /api/backups   { "path": "/backups/downcroc.dncbak", "include_logs": false }
 ```
 

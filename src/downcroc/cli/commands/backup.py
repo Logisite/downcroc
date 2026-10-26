@@ -1,55 +1,56 @@
 from __future__ import annotations
 
+import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
-import httpx
-
 from downcroc.backup.bundle import BackupService
+from downcroc.cli.client import api, post
 from downcroc.cli.context import load
 from downcroc.domain.errors import BackupFailed, BackupInvalid, RestoreRefused
-from downcroc.runtime.config.loader import ConfigError
 from downcroc.runtime.logging.setup import setup_logging
 from downcroc.runtime.service.lock import running
 
 
-def _print_api(response: httpx.Response) -> int:
-    if response.status_code >= 400:
-        body = response.json()
-        detail = body.get("message") if isinstance(body, dict) else response.text
-        print(f"backup failed: {detail}", file=sys.stderr)
-        return 1
-    result = response.json()
-    print(f"wrote {result['path']} ({result['files']} files, {result['bytes']} bytes)")
-    return 0
+def _target(path: Path | None) -> Path:
+    stamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+    name = f"downcroc-{stamp}.tar.zst"
+    if path is None:
+        return Path.cwd() / name
+    path = path.expanduser()
+    text = str(path)
+    if path.is_dir() or text.endswith(os.sep):
+        return path / name
+    return path
 
 
-def run(path: Path, include_logs: bool) -> int:
-    try:
-        paths, settings, _ = load()
-    except ConfigError as error:
-        detail = f"{error.field}: {error}" if error.field else str(error)
-        print(f"config error: {detail}", file=sys.stderr)
-        return 1
-    info = running(paths.service_file)
-    if info is not None:
-        try:
-            response = httpx.post(
-                f"{info.base_url}/api/backups",
-                json={"path": str(path), "include_logs": include_logs},
-                timeout=None,
+def run(path: Path | None, include_logs: bool) -> int:
+    paths, settings, _ = load()
+    target = _target(path)
+    if running(paths.service_file) is not None:
+        with api(paths) as client:
+            result = post(
+                client,
+                "/api/backups",
+                {"path": str(target), "include_logs": include_logs},
             )
-        except httpx.HTTPError as error:
-            print(f"cannot reach downcroc: {error}", file=sys.stderr)
+    else:
+        try:
+            created = BackupService(
+                paths,
+                setup_logging(paths, settings),
+            ).create(
+                target,
+                include_logs=include_logs,
+            )
+        except (BackupFailed, BackupInvalid, RestoreRefused) as error:
+            print(f"backup failed: {error}", file=sys.stderr)
             return 1
-        return _print_api(response)
-    try:
-        result = BackupService(paths, setup_logging(paths, settings)).create(
-            path,
-            include_logs=include_logs,
-        )
-    except (BackupFailed, BackupInvalid, RestoreRefused) as error:
-        print(f"backup failed: {error}", file=sys.stderr)
-        return 1
-    print(f"wrote {result.path} ({result.files} files, {result.bytes} bytes)")
+        result = {
+            "path": str(created.path),
+            "files": created.files,
+            "bytes": created.bytes,
+        }
+    print(f"wrote {result['path']} ({result['files']} files, {result['bytes']} bytes)")
     return 0

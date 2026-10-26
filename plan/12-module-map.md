@@ -223,10 +223,14 @@ downcroc/
       lifecycle.py      start, stop, status, foreground serve
 
   cli/
-    main.py             argument parsing, subcommands
-    attach.py           discover the daemon, start it if needed, attach the TUI
+    main.py             dispatch, error reporting, exit codes
+    parser.py           argparse surface and subcommands
+    client.py           loopback HTTP client and API errors
+    context.py          paths and config loading
+    output.py           tables, records, JSON, colour detection
     commands/
-      serve.py service.py send.py account.py stats.py backup.py restore.py logs.py
+      serve.py service.py openapi.py vault.py accounts.py batches.py jobs.py
+      failed.py config.py stats.py mail.py backup.py restore.py logs.py
 ```
 
 ## The seams

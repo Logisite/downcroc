@@ -7,8 +7,8 @@ It is not a mail client. You draft elsewhere and hand downcroc a file. downcroc 
 it, schedules it, sends it, tracks it, and reports who answered.
 
 The whole system is one background daemon that owns all state, and one or more clients
-that attach to it and render what it says. Today the client is a terminal UI. Later the
-same API serves a browser UI with nothing in the daemon changing.
+that attach to it and render what it says. Today the client is the command line. The TUI
+described in `08-tui.md` and a later browser UI use the same API.
 
 ## Status of these documents
 
@@ -22,7 +22,7 @@ Work items live in `.scratch/downcroc/issues/`, one file per ticket, numbered in
 ## Architecture in one line
 
 ```
-TUI / web client  ->  loopback HTTP + event stream  ->  daemon  ->  IMAP + SMTP  ->  providers
+CLI / TUI / web client  ->  loopback HTTP + event stream  ->  daemon  ->  IMAP + SMTP  ->  providers
                                                           |
                                           SQLite (state, mail) + content store (bodies) + vault (credentials)
 ```

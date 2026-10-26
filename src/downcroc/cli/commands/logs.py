@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import FrameType
 
+from downcroc.cli.output import colour_enabled
 from downcroc.runtime.logging.format import render
 from downcroc.runtime.paths import Paths, resolve
 
@@ -57,7 +58,7 @@ def _print(entry: dict, raw: bool) -> None:
     if raw:
         print(json.dumps(entry, ensure_ascii=False), flush=True)
     else:
-        print(render(entry, colour=sys.stdout.isatty()), flush=True)
+        print(render(entry, colour=colour_enabled()), flush=True)
 
 
 def _entries(path: Path) -> list[dict]:
