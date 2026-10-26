@@ -3,7 +3,13 @@
 Always-on local daemon for personalised mail merged from your own Gmail or IMAP accounts.
 Batches in, mail out, replies tracked, statistics kept on this machine.
 
-Requires Python 3.14 and uv.
+Requires Python 3.14. Install the wheel into a clean environment and run the
+`downcroc` console script:
+
+    python -m pip install downcroc-1.0.0rc1-py3-none-any.whl
+    downcroc --version
+
+From a checkout, use uv:
 
     uv run downcroc service start
     uv run downcroc vault unlock
@@ -38,3 +44,9 @@ Requires Python 3.14 and uv.
 Human output is colourised only on a terminal. Set `NO_COLOR=1` to turn it off.
 
 Design and decisions live in `plan/`.
+
+## Licence
+
+downcroc is licensed under the Apache License, Version 2.0. See `LICENSE` and
+`NOTICE`. Third-party licence information is in `THIRD_PARTY_NOTICES.md` and is
+also installed with the package metadata.

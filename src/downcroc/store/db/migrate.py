@@ -11,21 +11,12 @@ from sqlalchemy import Engine, inspect
 
 from downcroc.runtime.logging.setup import EventLogger
 
-ALEMBIC_INI = "alembic.ini"
-MIGRATIONS = "migrations"
-
-
-def project_root() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        if (parent / ALEMBIC_INI).is_file() and (parent / MIGRATIONS).is_dir():
-            return parent
-    raise RuntimeError(f"cannot find {ALEMBIC_INI} above {__file__}")
+MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 
 
 def alembic_config() -> Config:
-    root = project_root()
-    config = Config(str(root / ALEMBIC_INI))
-    config.set_main_option("script_location", str(root / MIGRATIONS))
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS))
     return config
 
 

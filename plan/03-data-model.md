@@ -439,10 +439,15 @@ hand-written SQL migration and no hand-mapped row code.
 
 ```
 alembic.ini
-migrations/
+src/downcroc/store/db/migrations/
   env.py
+  script.py.mako
   versions/2026_10_22_0001_initial.py
 ```
+
+The migrations live inside the package so a wheel carries them. The root
+`alembic.ini` is a developer convenience for `uv run alembic`; runtime code builds the
+Alembic config from the package path and never reads a repository-root file.
 
 Rules:
 

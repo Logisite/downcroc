@@ -1,10 +1,23 @@
 [project]
 name = "downcroc"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0rc1"
+description = "Always-on local mail daemon for personalised mail from your own accounts"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 authors = [
-    { name = "logisite", email = "divinechinemeremeke@gmail.com" }
+    { name = "Logisite", email = "divinechinemeremeke@gmail.com" }
+]
+keywords = ["email", "smtp", "imap", "mail", "daemon"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Email",
 ]
 requires-python = ">=3.14"
 dependencies = [
@@ -25,6 +38,13 @@ dependencies = [
 
 [project.scripts]
 downcroc = "downcroc.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/Logisite/downcroc"
+Repository = "https://github.com/Logisite/downcroc"
+Issues = "https://github.com/Logisite/downcroc/issues"
+Documentation = "https://github.com/Logisite/downcroc#readme"
+Changelog = "https://github.com/Logisite/downcroc/blob/master/CHANGELOG.md"
 
 [build-system]
 requires = ["uv_build>=0.12.18,<0.13.0"]

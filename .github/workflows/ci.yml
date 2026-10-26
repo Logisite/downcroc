@@ -25,8 +25,48 @@ jobs:
       - run: uv sync --frozen --group dev
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run python -m compileall -q src migrations tests
+      - run: uv run python -m compileall -q src tests
+      - run: uv run python scripts/generate_third_party_notices.py --check
       - run: uv lock --check
+
+  wheel:
+    name: wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - name: Build wheel and source distribution
+        run: uv build --out-dir dist
+      - name: Install the wheel into a clean environment
+        shell: bash
+        run: |
+          uv venv .wheel-env
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            WHEEL_PY=.wheel-env/Scripts/python.exe
+            WHEEL_BIN=.wheel-env/Scripts
+          else
+            WHEEL_PY=.wheel-env/bin/python
+            WHEEL_BIN=.wheel-env/bin
+          fi
+          echo "WHEEL_PY=$WHEEL_PY" >> "$GITHUB_ENV"
+          echo "WHEEL_BIN=$WHEEL_BIN" >> "$GITHUB_ENV"
+          uv pip install --python "$WHEEL_PY" dist/*.whl
+      - name: Smoke-test the installed package outside the repository
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/downcroc-wheel-smoke"
+          cd "$RUNNER_TEMP/downcroc-wheel-smoke"
+          "$GITHUB_WORKSPACE/$WHEEL_PY" "$GITHUB_WORKSPACE/tests/wheel_smoke.py" \
+            --bin "$GITHUB_WORKSPACE/$WHEEL_BIN" \
+            --dist "$GITHUB_WORKSPACE/dist"
 
   test:
     runs-on: ${{ matrix.os }}

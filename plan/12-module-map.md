@@ -74,6 +74,8 @@ downcroc/
   store/
     db/
       engine.py         engine, session factory, WAL pragmas
+      migrate.py        packaged Alembic config and upgrade
+      migrations/       env.py, script.py.mako, versions/
       models/           SQLAlchemy declarative models
         accounts.py jobs.py batches.py messages.py threads.py
         attempts.py counters.py events.py failures.py
@@ -238,8 +240,10 @@ downcroc/
 
 ## The seams
 
-`alembic.ini` and `migrations/` sit at the repo root, the way the Alembic docs lay them out. The
-models they generate from live in `store/db/models/`, so the schema has exactly one definition.
+`alembic.ini` at the repo root is a developer convenience. The migrations themselves live in
+`store/db/migrations/` inside the package, so a wheel carries them and runtime never reads a
+repository-root file. The models they generate from live in `store/db/models/`, so the schema
+has exactly one definition.
 
 | Protocol | Real implementation | Local substitute |
 |---|---|---|
