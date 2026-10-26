@@ -29,7 +29,7 @@ class DaemonSettings(BaseModel):
         json_schema_extra=RESTART,
     )
     start_timeout_s: float = Field(
-        default=10.0,
+        default=60.0,
         gt=0,
         le=120,
         description="Seconds to wait for a detached daemon to become healthy.",

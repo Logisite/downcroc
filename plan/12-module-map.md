@@ -207,7 +207,8 @@ downcroc/
   runtime/
     clock.py            Clock, SystemClock, FakeClock
     ids.py              prefixed id generation
-    paths.py            XDG directories and permissions
+    fs.py               permission, directory sync, atomic write helpers
+    paths.py            XDG, macOS, and Windows directories and permissions
     logging/
       setup.py          sinks, rotation, level from config
       format.py         the JSONL formatter and the pretty one
@@ -219,7 +220,9 @@ downcroc/
       store.py          atomic write and hot reload
     service/
       registry.py       service.json
-      lock.py           single instance lock
+      process.py        liveness, terminate, kill, detached process flags
+      token.py          per-run control token
+      lock.py           single instance lock on POSIX and Windows
       lifecycle.py      start, stop, status, foreground serve
 
   cli/

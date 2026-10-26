@@ -20,6 +20,7 @@ from downcroc.api.routes import (
     jobs,
     messages,
     providers,
+    service,
     stats,
     vault,
 )
@@ -30,7 +31,12 @@ from downcroc.runtime.paths import Paths
 from downcroc.version import API_VERSION, __version__
 
 
-def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
+def create_app(
+    settings: Settings,
+    paths: Paths,
+    log: EventLogger,
+    token: str = "",
+) -> FastAPI:
     boot = time.monotonic()
     started_at = time.time()
 
@@ -68,11 +74,14 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     app.state.settings = settings
     app.state.paths = paths
     app.state.log = log
+    app.state.token = token
+    app.state.request_shutdown = lambda: None
     app.state.pid = os.getpid()
     app.state.started = boot
     app.state.started_at = started_at
     app.state.api_version = API_VERSION
     errors.install(app)
+    app.include_router(service.router)
     app.include_router(health.router)
     app.include_router(vault.router)
     app.include_router(config.router)

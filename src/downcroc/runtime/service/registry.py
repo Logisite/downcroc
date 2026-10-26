@@ -6,6 +6,8 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from downcroc.runtime.fs import restrict
+
 
 @dataclass(frozen=True)
 class ServiceInfo:
@@ -40,7 +42,7 @@ def write(path: Path, info: ServiceInfo) -> None:
             json.dump(asdict(info), stream)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(temporary, 0o600)
+        restrict(Path(temporary), 0o600)
         os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)

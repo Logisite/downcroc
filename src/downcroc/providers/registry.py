@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tomllib
 from importlib.resources import files
 from pathlib import Path
@@ -303,6 +304,8 @@ class ProviderRegistry:
 
     @classmethod
     def _secure(cls, path: Path, log: EventLogger) -> None:
+        if os.name == "nt":
+            return
         try:
             mode = path.stat().st_mode & 0o777
         except OSError as error:

@@ -26,6 +26,8 @@ from downcroc.backup.manifest import (
 from downcroc.backup.verify import verify_bundle
 from downcroc.core.maintenance import MAINTENANCE
 from downcroc.domain.errors import BackupFailed, BackupInvalid, RestoreRefused
+from downcroc.runtime.fs import replace as replace_path
+from downcroc.runtime.fs import restrict
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
 from downcroc.version import __version__
@@ -105,8 +107,8 @@ class BackupService:
                     f"backup verification failed: {error}",
                     fields={"path": str(destination)},
                 ) from error
-            os.chmod(partial, 0o600)
-            os.replace(partial, destination)
+            restrict(partial, 0o600)
+            replace_path(partial, destination)
             sync_dir(destination.parent)
             duration = round((time.monotonic() - started) * 1000)
             size = destination.stat().st_size
@@ -169,7 +171,7 @@ class BackupService:
             target = work / "files" / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
-            target.chmod(0o600)
+            restrict(target, 0o600)
             frozen.append((name, target))
         return frozen
 
@@ -198,7 +200,7 @@ class BackupService:
                         archive.addfile(info, stream)
             raw.flush()
             os.fsync(raw.fileno())
-        target.chmod(0o600)
+        restrict(target, 0o600)
 
     def _add(self, archive: tarfile.TarFile, name: str, payload: bytes) -> None:
         info = tarfile.TarInfo(name)

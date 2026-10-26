@@ -9,6 +9,7 @@ import tomli_w
 from pydantic import ValidationError
 
 from downcroc.runtime.config.schema import Settings
+from downcroc.runtime.fs import restrict
 
 
 class ConfigError(Exception):
@@ -51,7 +52,7 @@ def write(path: Path, settings: Settings) -> None:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(temporary, 0o600)
+        restrict(Path(temporary), 0o600)
         os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)

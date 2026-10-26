@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 import logging.handlers
-import os
 import sys
+from pathlib import Path
 from typing import Any, TextIO
 
 from downcroc.runtime.config.schema import Settings
+from downcroc.runtime.fs import restrict
 from downcroc.runtime.logging.format import RESERVED, JsonFormatter, PrettyFormatter
 from downcroc.runtime.paths import Paths, ensure
 
@@ -24,7 +25,7 @@ SENSITIVE = (
 class PrivateRotatingFileHandler(logging.handlers.RotatingFileHandler):
     def _open(self) -> Any:
         stream = super()._open()
-        os.chmod(self.baseFilename, 0o600)
+        restrict(Path(self.baseFilename), 0o600)
         return stream
 
 
@@ -74,7 +75,7 @@ def setup_logging(
     root.handlers.clear()
 
     paths.log_file.touch(mode=0o600, exist_ok=True)
-    paths.log_file.chmod(0o600)
+    restrict(paths.log_file, 0o600)
     rotating = PrivateRotatingFileHandler(
         paths.log_file,
         maxBytes=settings.logging.max_bytes,

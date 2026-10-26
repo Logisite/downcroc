@@ -12,6 +12,7 @@ from downcroc.domain.errors import BatchInvalid, JobNotFailed, JobNotFound
 from downcroc.domain.failures import FailedJob
 from downcroc.domain.jobs import Job, JobState
 from downcroc.runtime.clock import utc_now
+from downcroc.runtime.fs import restrict_fd
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.failures import FailureRepo
@@ -61,7 +62,7 @@ class FailureLog:
             os.O_CREAT | os.O_TRUNC | os.O_WRONLY,
             0o600,
         )
-        os.fchmod(descriptor, 0o600)
+        restrict_fd(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             for entry in entries:
                 stream.write(json.dumps(entry, sort_keys=True) + "\n")

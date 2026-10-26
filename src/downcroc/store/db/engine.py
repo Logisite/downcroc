@@ -6,6 +6,8 @@ from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session, sessionmaker
 
+from downcroc.runtime.fs import restrict
+
 
 def open_database(path: Path) -> Engine:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -28,7 +30,7 @@ def open_database(path: Path) -> Engine:
     for suffix in ("", "-wal", "-shm"):
         sibling = Path(f"{path}{suffix}")
         if sibling.exists():
-            sibling.chmod(0o600)
+            restrict(sibling, 0o600)
 
     return engine
 

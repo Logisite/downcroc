@@ -28,12 +28,17 @@ daemon whose major API version differs from its own.
 
 ## Authentication
 
-None. The socket is bound to `127.0.0.1` and there is no token, no cookie, and no session.
+The daemon writes a per-run bearer token to `daemon.token` in the state directory at startup,
+mode `0600`, and removes it on clean stop. The CLI reads it and sends `Authorization: Bearer
+<token>` on every call. Release 1 protects every route except `GET /api/health` and the OAuth
+callback, which is protected by its state nonce. A missing or wrong token returns `401` with
+`unauthorized`.
 
-This is deliberate and its consequences are spelled out in `04-security.md`. In short: any
-local process can call this API while the daemon is unlocked. The vault protects credentials
-at rest, not the live socket. When remote access becomes a feature, it ships with a token and
-a pairing flow; until then, adding auth would be defending a boundary nobody crosses.
+`POST /api/service/stop` requires the token and sets the server shutdown flag. The stop is
+graceful and runs the normal application lifespan. The token never appears in a response,
+event, log line, or error. Because the token file is readable by the same user, it does not
+defend against a process running as that user; it closes the accidental and cross-user local
+API exposure described in `04-security.md`.
 
 ## Endpoint map
 
@@ -41,9 +46,10 @@ a pairing flow; until then, adding auth would be defending a boundary nobody cro
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/health` | liveness, version, pid, uptime, API version |
+| GET | `/api/health` | liveness, version, pid, uptime, API version. Public |
 | GET | `/api/status` | daemon state, vault state, queue counts, watcher states |
-| GET | `/openapi.json` | the generated spec |
+| POST | `/api/service/stop` | authenticated graceful shutdown |
+| GET | `/openapi.json` | the generated spec. Disabled in release 1 |
 
 ### Vault
 

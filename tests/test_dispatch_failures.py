@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-import os
-import signal
 import sqlite3
+from contextlib import closing
 
 from tests.conftest import Stack
 from tests.harness.campaigns import campaign_of, submit
@@ -196,11 +195,11 @@ def test_failure_file_reconciles_the_table_after_restart(stack_factory) -> None:
     _done(stack, batch["id"])
     failure = stack.api.get("/api/failed")[0]
 
-    os.kill(stack.daemon.process.pid, signal.SIGKILL)
-    stack.daemon.process.wait(timeout=10)
+    stack.daemon.kill()
     database = stack.daemon.data_home / "downcroc" / "downcroc.db"
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection:
         connection.execute("delete from failed_queue")
+        connection.commit()
     stack.daemon.start(stack.fakes, config)
     stack.api.unlock()
 

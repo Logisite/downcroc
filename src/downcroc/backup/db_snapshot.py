@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from downcroc.runtime.fs import restrict
+
 TABLES = ("accounts", "batches", "jobs", "messages", "threads")
 CONTENT_REFS = (
     ("batches", "source_ref"),
@@ -27,7 +29,7 @@ def snapshot_database(source: Path, target: Path) -> None:
     target.unlink(missing_ok=True)
     with _connect(source) as reader, _connect(target) as writer:
         reader.backup(writer)
-    target.chmod(0o600)
+    restrict(target, 0o600)
 
 
 def schema_revision(path: Path) -> str | None:

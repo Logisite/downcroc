@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from email.message import Message
 
@@ -68,11 +69,12 @@ def age_jobs(stack: Stack, job_ids: list[str], days: int) -> None:
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
-    with sqlite3.connect(path, timeout=10) as database:
+    with closing(sqlite3.connect(path, timeout=10)) as database:
         for job_id in job_ids:
             database.execute(
                 "update jobs set sent_at = ? where id = ?", (stamp, job_id)
             )
+        database.commit()
 
 
 def sent(stack: Stack, message_id: str) -> Message:

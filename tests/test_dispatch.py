@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import os
-import signal
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from email.utils import parseaddr
 
@@ -97,8 +96,7 @@ def test_kill_restart_loses_nothing_and_duplicates_nothing(stack_factory) -> Non
     batch = submit(stack, campaign_of(40, options={"approval": "auto"}))
     until(lambda: len(stack.fakes.sent()) >= 3, timeout=30)
 
-    os.kill(stack.daemon.process.pid, signal.SIGKILL)
-    stack.daemon.process.wait(timeout=10)
+    stack.daemon.kill()
     stack.daemon.start(stack.fakes, config)
     stack.api.unlock()
 
@@ -122,14 +120,14 @@ def test_expired_lease_is_reclaimed(stack_factory) -> None:
     batch = submit(stack, campaign_of(20, options={"approval": "auto"}))
     until(lambda: len(stack.fakes.sent()) >= 2, timeout=30)
 
-    os.kill(stack.daemon.process.pid, signal.SIGKILL)
-    stack.daemon.process.wait(timeout=10)
+    stack.daemon.kill()
     database = stack.daemon.data_home / "downcroc" / "downcroc.db"
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection:
         connection.execute(
             "update jobs set lease_expires_at = '2000-01-01T00:00:00Z' "
             "where state = 'sending'"
         )
+        connection.commit()
     providers = stack.daemon.config / "providers.toml"
     text = providers.read_text()
     text = text.replace(

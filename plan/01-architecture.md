@@ -152,31 +152,63 @@ Lifecycle rules:
 7. `SIGTERM` and `SIGINT` stop the daemon cleanly: it stops accepting, logs `daemon.stopping`
    with the signal and uptime, removes `service.json`, releases the lock, and exits 0. The
    signal is not re-raised, so a supervisor reads a clean stop rather than a signal death.
-   `kill -9` skips all of it; the kernel drops the lock and the next start replaces the stale
-   `service.json`.
+8. `downcroc service stop` uses the per-run control token to post `/api/service/stop`. The
+   endpoint sets the server's shutdown flag, so the same application lifespan path runs:
+   inbound stops, vault locks, the event bus closes, `service.json` is removed, and the lock
+   is released. It does not signal the process directly.
+9. A hard kill skips all of that; the operating system drops the lock and the next start
+   replaces the stale `service.json` and rotates the control token.
 
 ## Discovery
 
 `service.json` is written atomically on start and removed on clean stop. It holds pid, port,
-started_at, and version. A client:
+started_at, version, and api_version. A client:
 
 1. reads `service.json`
 2. probes `GET /api/health`
 3. if healthy and the version matches, attaches
 4. if stale, removes the file and starts a daemon
 
-A live lock file prevents two daemons. The second one exits with a clear message rather than
-fighting for the database.
+The daemon also writes `daemon.token` in the state directory at startup, mode `0600`, and
+removes it on clean stop. `service stop` reads that token and authenticates the shutdown
+request. A live lock file prevents two daemons. The second one exits with a clear message
+rather than fighting for the database.
+
+## Platform boundary
+
+Paths, file permissions, locking, process liveness, and detached startup are isolated behind
+`runtime/paths.py`, `runtime/fs.py`, and `runtime/service/process.py`. The lifecycle code does
+not call `fcntl`, `msvcrt`, `os.fchmod`, or `O_DIRECTORY` directly.
+
+| Concern | POSIX | Windows |
+|---|---|---|
+| Config | `XDG_CONFIG_HOME/downcroc` or `~/.config/downcroc`; macOS uses `~/Library/Application Support/downcroc/config` | `%APPDATA%\\downcroc` |
+| Data | `XDG_DATA_HOME/downcroc` or `~/.local/share/downcroc`; macOS uses `.../downcroc/data` | `%LOCALAPPDATA%\\downcroc` |
+| State | `XDG_STATE_HOME/downcroc` or `~/.local/state/downcroc`; macOS uses `.../downcroc/state` | `%LOCALAPPDATA%\\downcroc\\state` |
+| Private files | `0700` directories and `0600` files | inherited user ACLs |
+| Instance lock | `fcntl.flock` on the lock file | `msvcrt.locking` on the lock file |
+| Liveness | `os.kill(pid, 0)` | `OpenProcess` and `GetExitCodeProcess` |
+| Detached start | `start_new_session=True` | `DETACHED_PROCESS`, `CREATE_NEW_PROCESS_GROUP`, and `CREATE_NO_WINDOW` |
+
+A `0600` mode is applied on Unix. Windows relies on the user profile ACL because Python's
+`chmod` only changes the read-only bit. Directory fsync is skipped on Windows, which does not
+provide the POSIX directory handle guarantee.
+
+The full test suite runs on Linux, macOS, and Windows in GitHub Actions. Local checks stay
+limited to focused tests and Ruff; packaging, binaries, installers, and release builds are
+CI-only.
 
 ## Loopback binding
 
 The API binds `127.0.0.1` only. Port selection: a fixed configured port when set, otherwise
 an ephemeral port recorded in `service.json`.
 
-There is no authentication on the API. This is a deliberate decision recorded in `04` and
-`11`. It means any process running as any local user can read your mail and queue sends
-within your configured allowance while the daemon is unlocked and running. The vault exists
-to protect credentials at rest, not to gate the live API.
+The daemon control path is authenticated with the per-run token from `daemon.token`. Release
+1 applies the same bearer token to every API route except `GET /api/health` and the OAuth
+callback, which is protected by its state nonce. The token is created at startup, mode `0600`,
+never logged, removed on clean stop, and rotated on the next start. This closes the local
+API exposure recorded in `04` and `11`; it does not defend against a process that can read
+the token file as the same user.
 
 ## Package layout
 

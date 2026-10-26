@@ -10,11 +10,11 @@ import threading
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from pathlib import Path
 from types import FrameType
 
 import httpx
 import uvicorn
-from fastapi import FastAPI
 
 from downcroc.api.app import create_app
 from downcroc.backup.restore import log_outcome, perform_pending
@@ -23,7 +23,14 @@ from downcroc.runtime.config.loader import ConfigError, load_or_create
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import setup_logging
 from downcroc.runtime.paths import Paths, ensure
+from downcroc.runtime.service import token as service_token
 from downcroc.runtime.service.lock import AlreadyRunning, InstanceLock, running
+from downcroc.runtime.service.process import (
+    detached_kwargs,
+    is_alive,
+    kill,
+    terminate,
+)
 from downcroc.runtime.service.registry import ServiceInfo, read, remove, write
 from downcroc.version import API_VERSION, __version__
 
@@ -33,19 +40,15 @@ class PortInUse(RuntimeError):
 
 
 class DaemonServer(uvicorn.Server):
-    def __init__(self, config: uvicorn.Config, app: FastAPI) -> None:
+    def __init__(self, config: uvicorn.Config) -> None:
         super().__init__(config)
-        self._app = app
         self.received: list[int] = []
+
+    def request_shutdown(self) -> None:
+        self.should_exit = True
 
     def handle_exit(self, sig: int, frame: FrameType | None) -> None:
         self.received.append(sig)
-        services = getattr(self._app.state, "services", None)
-        if services is not None:
-            services.inbound.stop_all("shutdown")
-            services.accounts.close_flows("daemon_stopped")
-            services.vault.lock("shutdown")
-            services.bus.close_all("shutdown")
         super().handle_exit(sig, frame)
 
     @contextlib.contextmanager
@@ -74,6 +77,13 @@ def _check_port(host: str, port: int) -> None:
             raise PortInUse(f"port {port} is not free: {error.strerror}") from error
 
 
+def _log_tail(path: Path, limit: int = 2000) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")[-limit:].strip()
+    except OSError:
+        return ""
+
+
 def _health(info: ServiceInfo, timeout: float = 1.0) -> dict | None:
     try:
         response = httpx.get(
@@ -87,6 +97,21 @@ def _health(info: ServiceInfo, timeout: float = 1.0) -> dict | None:
         return None
 
 
+def _request_stop(info: ServiceInfo, token: str | None) -> bool:
+    if not token:
+        return False
+    try:
+        response = httpx.post(
+            f"{info.base_url}/api/service/stop",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=2.0,
+            trust_env=False,
+        )
+    except httpx.HTTPError:
+        return False
+    return response.status_code < 400
+
+
 def _terminate(process: subprocess.Popen[bytes]) -> None:
     if process.poll() is not None:
         return
@@ -98,18 +123,32 @@ def _terminate(process: subprocess.Popen[bytes]) -> None:
         process.wait()
 
 
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+def _wait_dead(pid: int, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not is_alive(pid):
+            return True
+        time.sleep(0.1)
+    return not is_alive(pid)
+
+
+def _terminate_pid(pid: int, timeout: float = 5.0) -> None:
+    if not is_alive(pid):
+        return
+    terminate(pid)
+    if _wait_dead(pid, timeout):
+        return
+    kill(pid)
+    _wait_dead(pid, timeout)
 
 
 def _now() -> str:
     return datetime.now(tz=UTC).isoformat(timespec="seconds")
+
+
+def _cleanup(paths: Paths) -> None:
+    remove(paths.service_file)
+    service_token.clear(paths.token_file)
 
 
 def run_foreground(paths: Paths) -> None:
@@ -159,6 +198,7 @@ def run_foreground(paths: Paths) -> None:
             first_run=created,
             keys=list(settings.model_dump().keys()),
         )
+        token = service_token.issue(paths.token_file)
         info = ServiceInfo(
             pid=os.getpid(),
             host=settings.daemon.host,
@@ -171,6 +211,7 @@ def run_foreground(paths: Paths) -> None:
             _check_port(info.host, info.port)
         except PortInUse as error:
             log.error("daemon.start_failed", reason=str(error))
+            _cleanup(paths)
             raise SystemExit(str(error)) from error
         write(paths.service_file, info)
         log.info(
@@ -181,7 +222,7 @@ def run_foreground(paths: Paths) -> None:
             version=info.version,
             config=str(paths.config_file),
         )
-        app = create_app(settings, paths, log)
+        app = create_app(settings, paths, log, token=token)
         server = DaemonServer(
             uvicorn.Config(
                 app,
@@ -189,9 +230,9 @@ def run_foreground(paths: Paths) -> None:
                 port=info.port,
                 log_config=None,
                 access_log=False,
-            ),
-            app,
+            )
         )
+        app.state.request_shutdown = server.request_shutdown
         boot = time.monotonic()
         try:
             server.run()
@@ -204,7 +245,7 @@ def run_foreground(paths: Paths) -> None:
                 signal=stop_signal,
                 uptime_s=round(time.monotonic() - boot, 3),
             )
-            remove(paths.service_file)
+            _cleanup(paths)
     finally:
         lock.release()
 
@@ -213,51 +254,61 @@ def start(paths: Paths, settings: Settings) -> ServiceInfo:
     existing = running(paths.service_file)
     if existing is not None:
         raise AlreadyRunning(existing)
-    remove(paths.service_file)
+    _cleanup(paths)
     _check_port(settings.daemon.host, settings.daemon.port)
     process = subprocess.Popen(
         [sys.executable, "-m", "downcroc", "serve"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
+        **detached_kwargs(),
     )
+    service_pid: int | None = None
     try:
         deadline = time.monotonic() + settings.daemon.start_timeout_s
         while time.monotonic() < deadline:
-            if process.poll() is not None:
-                raise RuntimeError(f"daemon exited during start, see {paths.log_file}")
             info = read(paths.service_file)
-            if info is not None and info.pid == process.pid and _health(info):
-                return info
+            if info is not None:
+                service_pid = info.pid
+                if _health(info):
+                    return info
+            if process.poll() is not None and (info is None or not is_alive(info.pid)):
+                raise RuntimeError(f"daemon exited during start, see {paths.log_file}")
             time.sleep(0.1)
+        tail = _log_tail(paths.log_file)
+        detail = f"\n{tail}" if tail else ""
         raise TimeoutError(
-            f"daemon did not answer within {settings.daemon.start_timeout_s}s"
+            f"daemon did not answer within {settings.daemon.start_timeout_s}s "
+            f"(launcher pid {process.pid}, service pid {service_pid}); "
+            f"see {paths.log_file}{detail}"
         )
     except BaseException:
+        if service_pid is not None:
+            _terminate_pid(service_pid)
         _terminate(process)
-        remove(paths.service_file)
+        _cleanup(paths)
         raise
 
 
 def stop(paths: Paths, settings: Settings) -> bool:
     info = read(paths.service_file)
-    if info is None or not _alive(info.pid):
-        remove(paths.service_file)
+    if info is None or not is_alive(info.pid):
+        _cleanup(paths)
         return False
-    try:
-        os.kill(info.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        remove(paths.service_file)
-        return False
-    deadline = time.monotonic() + settings.daemon.stop_timeout_s
+    token = service_token.read(paths.token_file)
+    if _request_stop(info, token):
+        deadline = time.monotonic() + settings.daemon.stop_timeout_s
+    else:
+        terminate(info.pid)
+        deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        if not _alive(info.pid):
-            remove(paths.service_file)
+        if not is_alive(info.pid):
+            _cleanup(paths)
             return True
         time.sleep(0.1)
-    os.kill(info.pid, signal.SIGKILL)
-    remove(paths.service_file)
+    kill(info.pid)
+    _wait_dead(info.pid, 5.0)
+    _cleanup(paths)
     return True
 
 
@@ -265,7 +316,7 @@ def status(paths: Paths) -> dict:
     info = read(paths.service_file)
     if info is None:
         return {"state": "stopped"}
-    if not _alive(info.pid):
+    if not is_alive(info.pid):
         return {"state": "stale", "pid": info.pid, "port": info.port}
     health = _health(info)
     report = {

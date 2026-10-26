@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -25,6 +24,7 @@ from downcroc.domain.errors import (
     RestorePending,
     RestoreRefused,
 )
+from downcroc.runtime.fs import replace as replace_path
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
 
@@ -170,13 +170,13 @@ def perform_pending(paths: Paths, resumed: bool = True) -> RestoreOutcome | None
     write_marker(marker_path, staged)
     try:
         if paths.data.exists():
-            os.replace(paths.data, previous_data)
+            replace_path(paths.data, previous_data)
         if stage_data is None or not stage_data.exists():
             raise RestoreFailed(
                 "staged data is missing",
                 fields={"path": str(stage_data)},
             )
-        os.replace(stage_data, paths.data)
+        replace_path(stage_data, paths.data)
         sync_dir(paths.data.parent)
     except (OSError, RestoreFailed) as error:
         _rollback_data(paths, previous_data)
@@ -184,7 +184,7 @@ def perform_pending(paths: Paths, resumed: bool = True) -> RestoreOutcome | None
             raise
         raise RestoreFailed(
             "data swap failed",
-            fields={"path": str(paths.data)},
+            fields={"path": str(paths.data), "reason": str(error)},
         ) from error
 
     try:
@@ -260,7 +260,7 @@ def _rollback_data(paths: Paths, previous: Path | None) -> None:
     if previous is None or not previous.exists() or paths.data.exists():
         return
     try:
-        os.replace(previous, paths.data)
+        replace_path(previous, paths.data)
         sync_dir(paths.data.parent)
     except OSError:
         return
@@ -269,11 +269,11 @@ def _rollback_data(paths: Paths, previous: Path | None) -> None:
 def _recover_live(paths: Paths, marker: RestoreMarker) -> None:
     previous_data = _optional(marker.previous_data)
     if not paths.data.exists() and previous_data and previous_data.exists():
-        os.replace(previous_data, paths.data)
+        replace_path(previous_data, paths.data)
         sync_dir(paths.data.parent)
     previous_config = _optional(marker.previous_config)
     if not paths.config.exists() and previous_config and previous_config.exists():
-        os.replace(previous_config, paths.config)
+        replace_path(previous_config, paths.config)
         sync_dir(paths.config.parent)
     stage_data = _optional(marker.stage_data)
     stage_config = _optional(marker.stage_config)
@@ -297,11 +297,11 @@ def _swap_config(
                 chosen = _unique(
                     paths.config.with_name(f"{paths.config.name}.bak-{stamp}")
                 )
-            os.replace(paths.config, chosen)
+            replace_path(paths.config, chosen)
         else:
             chosen = previous_config
         paths.config.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(stage_config, paths.config)
+        replace_path(stage_config, paths.config)
         sync_dir(paths.config.parent)
         return chosen
     if (
@@ -309,7 +309,7 @@ def _swap_config(
         and previous_config is not None
         and previous_config.exists()
     ):
-        os.replace(previous_config, paths.config)
+        replace_path(previous_config, paths.config)
         sync_dir(paths.config.parent)
     return previous_config
 

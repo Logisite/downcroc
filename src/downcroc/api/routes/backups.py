@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import os
-import signal
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Request
@@ -22,9 +21,9 @@ def _services(request: Request) -> Services:
     return request.app.state.services
 
 
-def _stop_after_response() -> None:
+def _stop_after_response(callback: Callable[[], None]) -> None:
     time.sleep(0.5)
-    os.kill(os.getpid(), signal.SIGTERM)
+    callback()
 
 
 @router.post("/backups", response_model=BackupOut)
@@ -43,5 +42,8 @@ def request_restore(
     background: BackgroundTasks,
 ) -> RestorePendingOut:
     outcome = _services(request).restore.request(Path(body.path))
-    background.add_task(_stop_after_response)
+    background.add_task(
+        _stop_after_response,
+        request.app.state.request_shutdown,
+    )
     return RestorePendingOut.of(outcome)

@@ -165,6 +165,16 @@ Rules:
   its lease, then stops. Jobs left in `sending` follow the normal crash path in `03`.
 - Stopping the daemon locks. There is no separate step and no way to stop it unlocked.
 
+## Daemon control token
+
+The daemon writes a per-run control token to `daemon.token` in the state directory at startup.
+It is 32 random bytes encoded as URL-safe text, mode `0600` on Unix, and never appears in a log,
+event, API response, or error message. The token is removed on clean stop and rotated on every
+start. `downcroc service stop` reads it from the state directory and sends it as a bearer token
+to `POST /api/service/stop`. The endpoint sets the server shutdown flag, so shutdown runs the
+normal application lifespan. Release 1 applies the same token to every route except
+`GET /api/health` and the OAuth callback, which is protected by its state nonce.
+
 ## The token invariant
 
 **A credential never leaves the daemon.**
@@ -197,9 +207,16 @@ raises `vault_locked` otherwise, and no HTTP route imports it.
 | `~/.local/share/downcroc/` | `0700` |
 | `downcroc.db` | `0600` |
 | `logs/` | `0700` |
+| `~/.local/state/downcroc/` | `0700` |
+| `service.json` | `0600` |
+| `daemon.token` | `0600` |
+| `daemon.lock` | `0600` |
 
 The daemon checks these at startup and corrects a looser mode with a warning in the log rather
 than refusing to start. Refusing to start would lock a user out of their own tool over a `chmod`.
+macOS uses `~/Library/Application Support/downcroc/{config,data,state}` unless an XDG override
+is set. Windows uses `%APPDATA%\\downcroc` for config and `%LOCALAPPDATA%\\downcroc` for data and
+state, with the inherited user profile ACL rather than POSIX modes.
 
 ## Failure modes
 

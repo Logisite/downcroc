@@ -20,6 +20,7 @@ from downcroc.backup.db_snapshot import (
 )
 from downcroc.backup.manifest import MANIFEST_NAME, Manifest
 from downcroc.domain.errors import RestoreFailed
+from downcroc.runtime.fs import O_NOFOLLOW, restrict
 from downcroc.runtime.paths import Paths
 
 CHUNK = 1024 * 1024
@@ -97,10 +98,10 @@ def _write(
             fields={"file": member.name},
         )
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    destination.parent.chmod(0o700)
+    restrict(destination.parent, 0o700)
     handle = os.open(
         destination,
-        os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+        os.O_CREAT | os.O_EXCL | os.O_WRONLY | O_NOFOLLOW,
         0o600,
     )
     digest = hashlib.sha256()

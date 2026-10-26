@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import io
 import json
-import shutil
 import sqlite3
 import subprocess
 import sys
 import tarfile
+from contextlib import closing
 from pathlib import Path
 
 import zstandard
 
+from downcroc.runtime.fs import remove_tree
 from tests.conftest import Stack
 from tests.harness.campaigns import campaign_of, submit
 from tests.harness.daemon import ROOT
@@ -33,7 +34,7 @@ def _data(stack: Stack, root: Path | None = None) -> Path:
 
 
 def _counts(stack: Stack, root: Path | None = None) -> dict[str, int]:
-    with sqlite3.connect(_data(stack, root), timeout=10) as connection:
+    with closing(sqlite3.connect(_data(stack, root), timeout=10)) as connection:
         return {
             table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             for table in TABLES
@@ -160,8 +161,8 @@ def test_backup_wipe_restore_preserves_counts_and_queue(stack_factory) -> None:
     assert "stop it" in result.stderr
 
     stack.daemon.stop()
-    shutil.rmtree(stack.daemon.data_home / "downcroc")
-    shutil.rmtree(stack.daemon.config_home / "downcroc")
+    remove_tree(stack.daemon.data_home / "downcroc")
+    remove_tree(stack.daemon.config_home / "downcroc")
     result = _cli(stack, "restore", str(bundle))
     assert result.returncode == 0, result.stdout + result.stderr
     assert not list(stack.daemon.data_home.glob("downcroc.bak-*"))

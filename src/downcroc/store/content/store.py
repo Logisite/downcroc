@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from downcroc.domain.errors import ContentCorrupt, ContentMissing
+from downcroc.runtime.fs import O_NOFOLLOW, restrict, restrict_fd, sync_dir
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._ -]+")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
@@ -39,7 +40,7 @@ class ContentStore:
     def __init__(self, root: Path) -> None:
         self._root = root
         self._root.mkdir(parents=True, exist_ok=True)
-        self._root.chmod(0o700)
+        restrict(self._root, 0o700)
 
     def put_attachment(
         self,
@@ -55,7 +56,7 @@ class ContentStore:
         )
         target = self._root / Path(*relative.parts)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.parent.chmod(0o700)
+        restrict(target.parent, 0o700)
         self._write(target, payload)
         digest = hashlib.sha256(payload).hexdigest()
         return StoredContent(path=relative.as_posix(), hash=digest, size=len(payload))
@@ -64,7 +65,7 @@ class ContentStore:
         relative = PurePosixPath("batches", batch_id, "source.json")
         target = self._root / Path(*relative.parts)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.parent.chmod(0o700)
+        restrict(target.parent, 0o700)
         self._write(target, payload)
         digest = hashlib.sha256(payload).hexdigest()
         return StoredContent(path=relative.as_posix(), hash=digest, size=len(payload))
@@ -73,7 +74,7 @@ class ContentStore:
         relative = PurePosixPath("jobs", job_id, "message.eml")
         target = self._root / Path(*relative.parts)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.parent.chmod(0o700)
+        restrict(target.parent, 0o700)
         self._write(target, payload)
         digest = hashlib.sha256(payload).hexdigest()
         return StoredContent(path=relative.as_posix(), hash=digest, size=len(payload))
@@ -135,20 +136,16 @@ class ContentStore:
         try:
             descriptor = os.open(
                 temporary,
-                os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                os.O_WRONLY | os.O_CREAT | os.O_TRUNC | O_NOFOLLOW,
                 0o600,
             )
             with os.fdopen(descriptor, "wb") as handle:
-                os.fchmod(handle.fileno(), 0o600)
+                restrict_fd(handle.fileno(), 0o600)
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, target)
-            directory = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
-            try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
+            sync_dir(target.parent)
         finally:
             with contextlib.suppress(FileNotFoundError):
                 temporary.unlink()

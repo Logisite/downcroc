@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 
 from tests.conftest import Stack
@@ -146,11 +147,12 @@ def test_rebuild_matches_live_and_reports_planted_mismatch(stack_factory) -> Non
     assert _daily(stack) == before_daily
     assert _batches(stack) == before_batches
 
-    with _database(stack) as conn:
+    with closing(_database(stack)) as conn:
         conn.execute(
             "update activity_daily set sent = 99 where account_id = ? and day = ?",
             (account, _today()),
         )
+        conn.commit()
 
     again = stack.api.post("/api/stats/rebuild", {})
     assert again["rows"] >= 2
@@ -199,7 +201,7 @@ def test_pruning_expired_rows_keeps_stored_totals(stack_factory) -> None:
     old_mail = (datetime.now(UTC) - timedelta(days=100)).isoformat(
         timespec="milliseconds"
     )
-    with _database(stack) as conn:
+    with closing(_database(stack)) as conn:
         conn.execute(
             "update jobs set sent_at = ?, updated_at = ? where id = ?",
             (old_job, old_job, job["id"]),
@@ -220,6 +222,7 @@ def test_pruning_expired_rows_keeps_stored_totals(stack_factory) -> None:
                 "update activity_hourly set hour_start = ? where rowid = ?",
                 (stamp, rowid),
             )
+        conn.commit()
 
     until(
         lambda: (

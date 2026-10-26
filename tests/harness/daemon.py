@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
@@ -8,6 +9,8 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+from downcroc.runtime.service.process import is_alive, kill, terminate
 
 from .fakes import FakeMailServers
 
@@ -52,7 +55,7 @@ class Daemon:
             (self.config / "config.toml").write_text(
                 "[daemon]\n"
                 f"port = {self.port}\n"
-                "start_timeout_s = 10.0\n"
+                "start_timeout_s = 120.0\n"
                 "\n"
                 "[intake]\n"
                 "sample_count = 5\n"
@@ -84,7 +87,7 @@ class Daemon:
             "XDG_STATE_HOME": str(self.state_home),
         }
 
-    def wait_ready(self, timeout: float = 90.0) -> None:
+    def wait_ready(self, timeout: float = 180.0) -> None:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -100,15 +103,57 @@ class Daemon:
                 time.sleep(0.05)
         raise RuntimeError(f"daemon did not become ready: {self._tail()}")
 
-    def stop(self) -> None:
-        if self.process is None or self.process.poll() is not None:
-            return
-        self.process.terminate()
+    def _service_pid(self) -> int | None:
+        path = self.state_home / "downcroc" / "service.json"
         try:
-            self.process.wait(timeout=15)
-        except subprocess.TimeoutExpired:
-            self.process.kill()
-            self.process.wait(timeout=5)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return int(payload["pid"])
+        except OSError, KeyError, TypeError, ValueError:
+            return None
+
+    def _pids(self) -> list[int]:
+        pids: list[int] = []
+        if self.process is not None and self.process.poll() is None:
+            pids.append(self.process.pid)
+        service = self._service_pid()
+        if service is not None and service not in pids:
+            pids.append(service)
+        return pids
+
+    def _alive(self, pid: int) -> bool:
+        if self.process is not None and pid == self.process.pid:
+            return self.process.poll() is None
+        return is_alive(pid)
+
+    def _wait_pids(self, pids: list[int], timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if not any(self._alive(pid) for pid in pids):
+                return
+            time.sleep(0.05)
+
+    def stop(self) -> None:
+        pids = self._pids()
+        for pid in pids:
+            terminate(pid)
+        self._wait_pids(pids, 15.0)
+        for pid in pids:
+            if self._alive(pid):
+                kill(pid)
+        if self.process is not None:
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=5)
+
+    def kill(self) -> None:
+        pids = self._pids()
+        for pid in pids:
+            kill(pid)
+        self._wait_pids(pids, 10.0)
+        if self.process is not None:
+            self.process.wait(timeout=10)
 
     def wait_stopped(self, timeout: float = 20.0) -> int:
         if self.process is None:

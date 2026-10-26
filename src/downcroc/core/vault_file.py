@@ -168,6 +168,8 @@ class VaultFile:
         return candidate
 
     def fix_permissions(self) -> None:
+        if os.name == "nt":
+            return
         try:
             mode = self._path.stat().st_mode & 0o777
         except FileNotFoundError:

@@ -279,6 +279,20 @@ built by `imap-tools`; there is no second SASL implementation. Plaintext IMAP is
 loopback. A password account connects through `POST /api/accounts/{id}/connect`, stores its
 password under `<account>:app_password`, and never echoes it.
 
+**Q71 - Portable lifecycle and the control token.** Release 1 runs on Linux, macOS, and
+Windows. Paths resolve from XDG on Unix with macOS Application Support fallbacks and from
+`APPDATA` and `LOCALAPPDATA` on Windows. POSIX permission bits are applied on Unix; Windows
+uses the user profile ACL. The instance lock is `fcntl.flock` on POSIX and `msvcrt.locking` on
+Windows, and process liveness is `os.kill(pid, 0)` on POSIX and `OpenProcess` plus
+`GetExitCodeProcess` on Windows. Detached start uses `start_new_session` on POSIX and the
+Windows detached process flags. `downcroc service stop` does not signal the process: it
+authenticates `POST /api/service/stop` with a per-run token in `daemon.token` (32 random
+bytes, mode `0600`, removed on clean stop), and the endpoint sets Uvicorn's shutdown flag so
+the normal application lifespan locks the vault and releases resources. A hard kill drops the
+OS lock and the next start replaces the stale `service.json` and rotates the token. The full
+suite runs on a Linux, macOS, and Windows GitHub Actions matrix; packaging and binary builds
+stay in CI.
+
 ## Deliberately deferred
 
 | Deferred | Trigger to revisit |

@@ -4,6 +4,8 @@ import contextlib
 import os
 from pathlib import Path
 
+from downcroc.runtime.fs import O_NOFOLLOW, restrict_fd, sync_dir
+
 
 class StoreError(Exception):
     pass
@@ -21,20 +23,16 @@ def write_atomic(path: Path, payload: bytes) -> None:
     try:
         descriptor = os.open(
             temporary,
-            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | O_NOFOLLOW,
             0o600,
         )
         with os.fdopen(descriptor, "wb") as handle:
-            os.fchmod(handle.fileno(), 0o600)
+            restrict_fd(handle.fileno(), 0o600)
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
-        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        sync_dir(path.parent)
     except OSError as error:
         raise StoreError(str(error)) from error
     finally:

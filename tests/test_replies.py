@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import signal
 from datetime import datetime, timedelta
 
 from tests.conftest import Stack
@@ -155,8 +153,7 @@ def test_confirmed_replies_count_once_and_survive_restart(stack_factory) -> None
         }
     ]
 
-    os.kill(stack.daemon.process.pid, signal.SIGKILL)
-    stack.daemon.process.wait(timeout=10)
+    stack.daemon.kill()
     stack.daemon.start(stack.fakes, config)
     stack.api.unlock()
 
