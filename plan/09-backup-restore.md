@@ -117,7 +117,7 @@ client could retry.
 | 4 | run `PRAGMA integrity_check` on the staged database |
 | 5 | check that every content path referenced by the database exists |
 | 6 | stop watchers and the dispatcher; close the database |
-| 7 | rename the live data directory to `downcroc.db.bak-<timestamp>` style siblings |
+| 7 | rename the live data directory to `downcroc.bak-<timestamp>` beside it |
 | 8 | move staging into place, preserving permissions |
 | 9 | `alembic upgrade head` if the revision is behind |
 | 10 | reopen, reconcile, resume |

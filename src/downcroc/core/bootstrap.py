@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from downcroc.backup import BackupService, RestoreService
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.batches import BatchesService
 from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
@@ -55,6 +56,8 @@ class Services:
     retention: RetentionService
     failures: FailureService
     dispatcher: Dispatcher
+    backup: BackupService
+    restore: RestoreService
 
     def close(self) -> None:
         self.inbound.close()
@@ -198,6 +201,8 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         log,
         settings.followups.check_s,
     )
+    backup = BackupService(paths, log)
+    restore = RestoreService(paths, log)
     return Services(
         engine=engine,
         sessions=sessions,
@@ -216,4 +221,6 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         retention=retention,
         failures=failures,
         dispatcher=dispatcher,
+        backup=backup,
+        restore=restore,
     )

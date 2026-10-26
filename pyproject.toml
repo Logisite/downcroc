@@ -20,6 +20,7 @@ dependencies = [
     "sqlalchemy>=2.1.6",
     "tomli-w>=1.2.0",
     "uvicorn>=0.54.0",
+    "zstandard>=0.25.0",
 ]
 
 [project.scripts]

@@ -269,3 +269,33 @@ class FailureNotFound(DomainError):
 class JobNotFailed(DomainError):
     code = "job_not_failed"
     status = 409
+
+
+class BackupFailed(DomainError):
+    code = "backup_failed"
+    status = 500
+
+
+class BackupInvalid(DomainError):
+    code = "backup_invalid"
+    status = 422
+
+
+class RestoreRefused(DomainError):
+    code = "restore_refused"
+    status = 409
+
+
+class RestoreFailed(DomainError):
+    code = "restore_failed"
+    status = 500
+
+
+class RestorePending(DomainError):
+    code = "restore_pending"
+    status = 409
+
+
+class DaemonRunning(DomainError):
+    code = "daemon_running"
+    status = 409

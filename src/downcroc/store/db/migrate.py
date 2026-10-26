@@ -22,10 +22,27 @@ def project_root() -> Path:
     raise RuntimeError(f"cannot find {ALEMBIC_INI} above {__file__}")
 
 
-def run_migrations(engine: Engine, log: EventLogger) -> None:
+def alembic_config() -> Config:
     root = project_root()
     config = Config(str(root / ALEMBIC_INI))
     config.set_main_option("script_location", str(root / MIGRATIONS))
+    return config
+
+
+def script_directory() -> ScriptDirectory:
+    return ScriptDirectory.from_config(alembic_config())
+
+
+def current_head() -> str | None:
+    return script_directory().get_current_head()
+
+
+def known_revisions() -> set[str]:
+    return {script.revision for script in script_directory().walk_revisions()}
+
+
+def run_migrations(engine: Engine, log: EventLogger) -> None:
+    config = alembic_config()
     config.attributes["url"] = engine.url
 
     with engine.connect() as connection:

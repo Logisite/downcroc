@@ -5,6 +5,7 @@ import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from downcroc.core.maintenance import MAINTENANCE
 from downcroc.runtime.clock import utc_after
 from downcroc.runtime.config.schema import RetentionSettings
 from downcroc.runtime.logging.setup import EventLogger
@@ -78,7 +79,8 @@ class RetentionService:
         if not self._lock.acquire(blocking=False):
             return RetentionResult(tables={}, bytes=0)
         try:
-            return self._prune_locked()
+            with MAINTENANCE:
+                return self._prune_locked()
         finally:
             self._lock.release()
 

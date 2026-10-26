@@ -211,10 +211,8 @@ a no-op for activity and batch counters.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/backups` | create a bundle at a given path |
-| GET | `/api/backups` | existing bundles known to the daemon |
-| GET | `/api/backups/{id}` | progress and result |
-| POST | `/api/restore` | restore from a bundle, then restart |
+| POST | `/api/backups` | create a bundle at a given path, synchronously |
+| POST | `/api/restore` | verify a bundle, write `restore.pending`, respond, then stop |
 
 ### Events
 
@@ -340,7 +338,9 @@ quota.consumed        config.changed
 watcher.started       watcher.stopped        watcher.idle_wake
 imap.fetch            account.watcher
 stats.increment       stats.rebuilt          stats.invariant
-retention.pruned      backup.created         backup.failed          restore.pending
+retention.pruned      backup.created         backup.verified
+backup.verify_failed  restore.staged         restore.swapped
+restore.refused       restore.resumed
 ```
 
 **Resume semantics.** The daemon keeps a ring buffer of the last 10,000 events in SQLite. A

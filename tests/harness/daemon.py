@@ -34,7 +34,12 @@ class Daemon:
         self.stdout = root / "daemon.out"
         self.stderr = root / "daemon.err"
 
-    def start(self, fakes: FakeMailServers, config_extra: str = "") -> Daemon:
+    def start(
+        self,
+        fakes: FakeMailServers,
+        config_extra: str = "",
+        preserve_config: bool = False,
+    ) -> Daemon:
         for directory in (
             self.config,
             self.data_home,
@@ -42,23 +47,18 @@ class Daemon:
             self.home,
         ):
             directory.mkdir(parents=True, exist_ok=True)
-        (self.config / "providers.toml").write_text(fakes.providers_toml)
-        (self.config / "config.toml").write_text(
-            "[daemon]\n"
-            f"port = {self.port}\n"
-            "start_timeout_s = 10.0\n"
-            "\n"
-            "[intake]\n"
-            "sample_count = 5\n"
-            f"{config_extra}"
-        )
-        env = {
-            **os.environ,
-            "HOME": str(self.home),
-            "XDG_CONFIG_HOME": str(self.config_home),
-            "XDG_DATA_HOME": str(self.data_home),
-            "XDG_STATE_HOME": str(self.state_home),
-        }
+        if not preserve_config:
+            (self.config / "providers.toml").write_text(fakes.providers_toml)
+            (self.config / "config.toml").write_text(
+                "[daemon]\n"
+                f"port = {self.port}\n"
+                "start_timeout_s = 10.0\n"
+                "\n"
+                "[intake]\n"
+                "sample_count = 5\n"
+                f"{config_extra}"
+            )
+        env = self.environment()
         out = self.stdout.open("wb")
         err = self.stderr.open("wb")
         self.process = subprocess.Popen(
@@ -74,6 +74,15 @@ class Daemon:
             self.stop()
             raise
         return self
+
+    def environment(self) -> dict[str, str]:
+        return {
+            **os.environ,
+            "HOME": str(self.home),
+            "XDG_CONFIG_HOME": str(self.config_home),
+            "XDG_DATA_HOME": str(self.data_home),
+            "XDG_STATE_HOME": str(self.state_home),
+        }
 
     def wait_ready(self, timeout: float = 90.0) -> None:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -100,6 +109,11 @@ class Daemon:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait(timeout=5)
+
+    def wait_stopped(self, timeout: float = 20.0) -> int:
+        if self.process is None:
+            return 0
+        return self.process.wait(timeout=timeout)
 
     def _tail(self) -> str:
         parts = []

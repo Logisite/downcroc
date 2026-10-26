@@ -17,6 +17,9 @@ import uvicorn
 from fastapi import FastAPI
 
 from downcroc.api.app import create_app
+from downcroc.backup.restore import log_outcome, perform_pending
+from downcroc.domain.errors import RestoreFailed
+from downcroc.runtime.config.loader import ConfigError, load_or_create
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import setup_logging
 from downcroc.runtime.paths import Paths, ensure
@@ -94,70 +97,100 @@ def _now() -> str:
     return datetime.now(tz=UTC).isoformat(timespec="seconds")
 
 
-def run_foreground(paths: Paths, settings: Settings) -> None:
-    ensure(paths)
-    log = setup_logging(paths, settings, stream=sys.stderr)
+def run_foreground(paths: Paths) -> None:
     lock = InstanceLock(paths.lock_file)
     try:
         lock.acquire()
     except AlreadyRunning:
         existing = running(paths.service_file)
-        log.warning(
-            "lock.refused",
-            pid=existing.pid if existing else None,
-            port=existing.port if existing else None,
-        )
+        if paths.data.is_dir():
+            try:
+                log = setup_logging(paths, Settings(), stream=sys.stderr)
+                log.warning(
+                    "lock.refused",
+                    pid=existing.pid if existing else None,
+                    port=existing.port if existing else None,
+                )
+            except OSError:
+                pass
         detail = f" on pid {existing.pid}" if existing else ""
         raise SystemExit(f"downcroc is already running{detail}") from None
-    log.info("lock.acquired", path=str(paths.lock_file))
 
-    info = ServiceInfo(
-        pid=os.getpid(),
-        host=settings.daemon.host,
-        port=settings.daemon.port,
-        started_at=_now(),
-        version=__version__,
-        api_version=API_VERSION,
-    )
     try:
-        _check_port(info.host, info.port)
-    except PortInUse as error:
-        lock.release()
-        log.error("daemon.start_failed", reason=str(error))
-        raise SystemExit(str(error)) from error
-    write(paths.service_file, info)
-    log.info(
-        "daemon.start",
-        pid=info.pid,
-        host=info.host,
-        port=info.port,
-        version=info.version,
-        config=str(paths.config_file),
-    )
-    app = create_app(settings, paths, log)
-    server = DaemonServer(
-        uvicorn.Config(
-            app,
+        try:
+            outcome = perform_pending(paths)
+        except (RestoreFailed, OSError) as error:
+            print(f"restore failed: {error}", file=sys.stderr)
+            raise SystemExit(1) from error
+
+        ensure(paths)
+        early = setup_logging(paths, Settings(), stream=sys.stderr)
+        early.info("lock.acquired", path=str(paths.lock_file))
+        if outcome is not None:
+            log_outcome(early, outcome)
+
+        try:
+            settings, created = load_or_create(paths.config_file)
+        except ConfigError as error:
+            detail = f"{error.field}: {error}" if error.field else str(error)
+            early.error("config.invalid", field=error.field, reason=str(error))
+            print(f"config error: {detail}", file=sys.stderr)
+            raise SystemExit(1) from error
+
+        log = setup_logging(paths, settings, stream=sys.stderr)
+        log.info(
+            "config.loaded",
+            path=str(paths.config_file),
+            first_run=created,
+            keys=",".join(settings.model_dump().keys()),
+        )
+        info = ServiceInfo(
+            pid=os.getpid(),
+            host=settings.daemon.host,
+            port=settings.daemon.port,
+            started_at=_now(),
+            version=__version__,
+            api_version=API_VERSION,
+        )
+        try:
+            _check_port(info.host, info.port)
+        except PortInUse as error:
+            log.error("daemon.start_failed", reason=str(error))
+            raise SystemExit(str(error)) from error
+        write(paths.service_file, info)
+        log.info(
+            "daemon.start",
+            pid=info.pid,
             host=info.host,
             port=info.port,
-            log_config=None,
-            access_log=False,
-        ),
-        app,
-    )
-    boot = time.monotonic()
-    try:
-        server.run()
+            version=info.version,
+            config=str(paths.config_file),
+        )
+        app = create_app(settings, paths, log)
+        server = DaemonServer(
+            uvicorn.Config(
+                app,
+                host=info.host,
+                port=info.port,
+                log_config=None,
+                access_log=False,
+            ),
+            app,
+        )
+        boot = time.monotonic()
+        try:
+            server.run()
+        finally:
+            stop_signal = (
+                signal.Signals(server.received[0]).name if server.received else "none"
+            )
+            log.info(
+                "daemon.stopping",
+                signal=stop_signal,
+                uptime_s=round(time.monotonic() - boot, 3),
+            )
+            remove(paths.service_file)
     finally:
-        stop_signal = (
-            signal.Signals(server.received[0]).name if server.received else "none"
-        )
-        log.info(
-            "daemon.stopping",
-            signal=stop_signal,
-            uptime_s=round(time.monotonic() - boot, 3),
-        )
-        remove(paths.service_file)
         lock.release()
 
 

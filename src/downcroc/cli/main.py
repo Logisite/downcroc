@@ -27,6 +27,13 @@ def build_parser() -> argparse.ArgumentParser:
     openapi = commands.add_parser("openapi", help="write the OpenAPI document")
     openapi.add_argument("-o", "--output", type=Path)
 
+    backup = commands.add_parser("backup", help="write a backup bundle")
+    backup.add_argument("path", type=Path)
+    backup.add_argument("--include-logs", action="store_true")
+
+    restore = commands.add_parser("restore", help="restore a backup bundle")
+    restore.add_argument("path", type=Path)
+
     stats = commands.add_parser("stats", help="rebuild stored activity")
     stats_commands = stats.add_subparsers(dest="stats_command", metavar="action")
     stats_rebuild = stats_commands.add_parser("rebuild", help="rebuild activity rows")
@@ -61,6 +68,14 @@ def main(argv: list[str] | None = None) -> int:
         from downcroc.cli.commands import openapi
 
         return openapi.run(args.output)
+    if args.command == "backup":
+        from downcroc.cli.commands import backup
+
+        return backup.run(args.path, args.include_logs)
+    if args.command == "restore":
+        from downcroc.cli.commands import restore
+
+        return restore.run(args.path)
     if args.command == "logs":
         from downcroc.cli.commands import logs
 

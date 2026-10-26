@@ -38,6 +38,10 @@ class Paths:
     def lock_file(self) -> Path:
         return self.state / "daemon.lock"
 
+    @property
+    def restore_marker(self) -> Path:
+        return self.state / "restore.pending"
+
 
 def resolve(env: Mapping[str, str] | None = None) -> Paths:
     values = os.environ if env is None else env
