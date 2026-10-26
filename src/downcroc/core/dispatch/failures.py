@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from downcroc.core.events import EventBus
+from downcroc.core.stats import StatsService
 from downcroc.domain.batches import BatchState
 from downcroc.domain.errors import BatchInvalid, JobNotFailed, JobNotFound
 from downcroc.domain.failures import FailedJob
@@ -91,6 +92,7 @@ class FailureService:
         log_file: FailureLog,
         jobs: JobRepo,
         batches: BatchRepo,
+        stats: StatsService,
         bus: EventBus,
         log: EventLogger,
     ) -> None:
@@ -98,6 +100,7 @@ class FailureService:
         self._log_file = log_file
         self._jobs = jobs
         self._batches = batches
+        self._stats = stats
         self._bus = bus
         self._log = log
 
@@ -117,6 +120,7 @@ class FailureService:
             return failure
         self._log_file.append(failure)
         self._failures.add(failure)
+        self._stats.record_failed(job)
         self._log.warning(
             "job.failed",
             job=job.id,
@@ -151,6 +155,7 @@ class FailureService:
         self._failures.remove(job_id)
         if batch.state is BatchState.DONE:
             self._batches.set_state(batch.id, BatchState.SENDING)
+        self._stats.touch_batch(failure.batch_id)
         self._log.info("failure.retried", job=job_id, attempt=failure.attempts)
         self._bus.publish(
             "job.retried",

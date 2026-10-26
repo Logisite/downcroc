@@ -12,6 +12,8 @@ from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
 from downcroc.core.inbound import InboundService
 from downcroc.core.outbound import OutboundService
+from downcroc.core.retention import RetentionService
+from downcroc.core.stats import StatsService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import SendPolicy
 from downcroc.providers.registry import ProviderRegistry
@@ -23,7 +25,9 @@ from downcroc.store.content import ContentStore
 from downcroc.store.db.engine import open_database, sessions_for
 from downcroc.store.db.migrate import run_migrations
 from downcroc.store.repositories.accounts import AccountRepo
+from downcroc.store.repositories.activity import ActivityRepo
 from downcroc.store.repositories.attempts import AttemptRepo
+from downcroc.store.repositories.batch_counters import BatchCounterRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.events import EventRepo
 from downcroc.store.repositories.failures import FailureRepo
@@ -47,6 +51,8 @@ class Services:
     outbound: OutboundService
     batches: BatchesService
     followups: FollowUpService
+    stats: StatsService
+    retention: RetentionService
     failures: FailureService
     dispatcher: Dispatcher
 
@@ -79,10 +85,25 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     message_repo = MessageRepo(sessions)
     job_repo = JobRepo(sessions)
     batch_repo = BatchRepo(sessions)
+    quota_repo = QuotaRepo(sessions)
+    activity_repo = ActivityRepo(sessions)
+    counter_repo = BatchCounterRepo(sessions)
     content = ContentStore(paths.data / "content")
+    stats = StatsService(
+        settings,
+        activity_repo,
+        counter_repo,
+        batch_repo,
+        job_repo,
+        message_repo,
+        account_repo,
+        quota_repo,
+        log,
+    )
     inbound = InboundService(
         account_repo,
         message_repo,
+        stats,
         providers,
         vault,
         tokens,
@@ -111,6 +132,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         vault,
         tokens,
         content,
+        stats,
         bus,
         log,
         settings.outbound,
@@ -126,6 +148,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         message_repo,
         content,
         outbound,
+        stats,
         bus,
         log,
     )
@@ -138,17 +161,26 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         message_repo,
         content,
         inbound,
+        stats,
         bus,
         log,
     )
     failure_repo = FailureRepo(sessions)
-    quota_repo = QuotaRepo(sessions)
     failures = FailureService(
         failure_repo,
         FailureLog(paths.data / "failed.jsonl"),
         job_repo,
         batch_repo,
+        stats,
         bus,
+        log,
+    )
+    retention = RetentionService(
+        settings.retention,
+        job_repo,
+        message_repo,
+        activity_repo,
+        content,
         log,
     )
     dispatcher = Dispatcher(
@@ -180,6 +212,8 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         outbound=outbound,
         batches=batches,
         followups=followups,
+        stats=stats,
+        retention=retention,
         failures=failures,
         dispatcher=dispatcher,
     )

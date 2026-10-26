@@ -10,8 +10,10 @@ from downcroc.core.followups.model import Candidate, Content, Skip, StepEvaluati
 from downcroc.core.followups.planner import Anchor, AnchorResult, Planner
 from downcroc.core.followups.snapshot import ParentDeclaration, read_parent
 from downcroc.core.followups.stop import FollowUpStopper
+from downcroc.core.followups.suppression import record_suppressed
 from downcroc.core.inbound import InboundService
 from downcroc.core.inputs.limits import IntakeLimits
+from downcroc.core.stats import StatsService
 from downcroc.domain.batches import Batch, BatchKind, BatchState
 from downcroc.domain.campaign import SCHEMA
 from downcroc.domain.errors import BatchInvalid, FollowUpSyncFailed
@@ -36,6 +38,7 @@ class FollowUpService:
         messages: MessageRepo,
         content: ContentStore,
         inbound: InboundService,
+        stats: StatsService,
         bus: EventBus,
         log: EventLogger,
     ) -> None:
@@ -50,6 +53,7 @@ class FollowUpService:
             max_attachment_bytes=settings.intake.max_attachment_bytes,
         )
         self._inbound = inbound
+        self._stats = stats
         self._bus = bus
         self._log = log
         self._reader = CampaignReader(settings, paths, log)
@@ -149,6 +153,7 @@ class FollowUpService:
                 pending=first.pending,
             )
             batch = self._create(source)
+            record_suppressed(self._stats, self._jobs, batch.id, anchors.skipped)
             self._log_skip_many(first.skipped)
             return batch.id
 
@@ -191,6 +196,7 @@ class FollowUpService:
                 producer={"source_batch": parent.id, "step": step.key},
             )
             batch = self._create(source)
+            record_suppressed(self._stats, self._jobs, batch.id, evaluation.skipped)
             self._log.info(
                 "followup.created",
                 batch=batch.id,
@@ -210,7 +216,9 @@ class FollowUpService:
             context = self._planner.context(initial)
 
     def _create(self, source: DerivedInput) -> Batch:
-        return self._builder.create(source)
+        batch = self._builder.create(source)
+        self._stats.touch_batch(batch.id)
+        return batch
 
     def _campaigns(self) -> list[Batch]:
         return [

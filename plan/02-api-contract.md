@@ -168,8 +168,9 @@ scheduler. A one-off job uses `batch_id = "manual"` until it is attached to a re
 
 ### Statistics
 
-Every endpoint takes `from`, `to`, and an optional `account_id`, and reads stored aggregates, never
-a scan of the job table.
+Summary, hourly, daily, and account endpoints take `from`, `to`, and an optional `account_id`,
+and read stored aggregates, never a scan of the job table. Batch counters are per batch because
+one batch can route across accounts.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -179,10 +180,15 @@ a scan of the job table.
 | GET | `/api/stats/batches` | per batch: sent, failed, inbound, replies, late replies, bounces, reply rate |
 | GET | `/api/stats/accounts` | per account: volume, replies, remaining allowance today |
 | POST | `/api/stats/rebuild` | recompute aggregates from `jobs` and `messages`, optionally since a date |
+| POST | `/api/stats/prune` | run retention once and return the per-table counts and bytes removed |
 
 The hourly and daily endpoints report activity, not limits. The only quota in the system is the
 per-account daily allowance, exposed as `remaining_allowance` on `/api/stats/accounts` and in the
 account object itself. Nothing in this section can throttle a send.
+
+A rebuild with no `since` starts at the oldest day still covered by raw job or message rows, so
+daily history older than raw retention is left alone. A rebuild after all raw rows are pruned is
+a no-op for activity and batch counters.
 
 ### Failures
 
@@ -333,7 +339,8 @@ message.ingested      attachment.stored      reply.matched          bounce.recei
 quota.consumed        config.changed
 watcher.started       watcher.stopped        watcher.idle_wake
 imap.fetch            account.watcher
-stats.pruned          backup.created         backup.failed          restore.pending
+stats.increment       stats.rebuilt          stats.invariant
+retention.pruned      backup.created         backup.failed          restore.pending
 ```
 
 **Resume semantics.** The daemon keeps a ring buffer of the last 10,000 events in SQLite. A

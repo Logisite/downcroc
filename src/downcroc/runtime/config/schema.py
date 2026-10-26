@@ -84,6 +84,17 @@ class FollowUpSettings(BaseModel):
     defer_s: float = Field(default=300.0, ge=1, le=86_400)
 
 
+class RetentionSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    check_s: float = Field(default=3600.0, ge=0.05, le=86_400)
+    jobs_days: int = Field(default=30, ge=1, le=3650)
+    jobs_max: int = Field(default=10_000, ge=1, le=1_000_000)
+    mail_days: int = Field(default=90, ge=1, le=3650)
+    hourly_days: int = Field(default=90, ge=1, le=3650)
+    daily_days: int = Field(default=730, ge=1, le=3650)
+
+
 class EventsSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -177,6 +188,7 @@ class Settings(BaseModel):
     sending: SendingSettings = Field(default_factory=SendingSettings)
     dispatch: DispatchSettings = Field(default_factory=DispatchSettings)
     followups: FollowUpSettings = Field(default_factory=FollowUpSettings)
+    retention: RetentionSettings = Field(default_factory=RetentionSettings)
     events: EventsSettings = Field(default_factory=EventsSettings)
     vault: VaultSettings = Field(default_factory=VaultSettings)
     connect: ConnectSettings = Field(default_factory=ConnectSettings)

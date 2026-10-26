@@ -15,6 +15,7 @@ from downcroc.core.events import EventBus
 from downcroc.core.inputs import routing
 from downcroc.core.inputs.routing import RoutingPlan
 from downcroc.core.outbound import OutboundService
+from downcroc.core.stats import StatsService
 from downcroc.domain.batches import Batch, BatchKind, BatchState, NewBatch
 from downcroc.domain.campaign import Campaign
 from downcroc.domain.errors import (
@@ -48,6 +49,7 @@ class BatchesService:
         messages: MessageRepo,
         content: ContentStore,
         outbound: OutboundService,
+        stats: StatsService,
         bus: EventBus,
         log: EventLogger,
     ) -> None:
@@ -58,6 +60,7 @@ class BatchesService:
         self._messages = messages
         self._content = content
         self._outbound = outbound
+        self._stats = stats
         self._bus = bus
         self._log = log
         self._reader = CampaignReader(settings, paths, log)
@@ -99,6 +102,7 @@ class BatchesService:
             )
         )
         self._jobs.create_many(built)
+        self._stats.touch_batch(batch.id)
 
         self._log.info(
             "input.parsed",
@@ -265,6 +269,7 @@ class BatchesService:
             to_state=JobState.CANCELLED,
         )
         self._batches.set_state(batch_id, BatchState.CANCELLED)
+        self._stats.touch_batch(batch_id)
         self._log.info("batch.cancelled", batch=batch.id, sent_so_far=sent)
         self._bus.publish(
             "batch.cancelled", {"batch_id": batch.id, "sent_so_far": sent}

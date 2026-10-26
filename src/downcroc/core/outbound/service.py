@@ -6,6 +6,7 @@ import uuid
 from downcroc.core.events import EventBus
 from downcroc.core.outbound.credentials import CredentialResolver
 from downcroc.core.outbound.reconcile import SentReconciler
+from downcroc.core.stats import StatsService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.errors import (
@@ -44,6 +45,7 @@ class OutboundService:
         vault: VaultService,
         tokens: TokenManager,
         content: ContentStore,
+        stats: StatsService,
         bus: EventBus,
         log: EventLogger,
         settings: OutboundSettings,
@@ -53,6 +55,7 @@ class OutboundService:
         self._accounts = accounts
         self._providers = providers
         self._content = content
+        self._stats = stats
         self._bus = bus
         self._log = log
         self._settings = settings
@@ -62,6 +65,7 @@ class OutboundService:
             accounts,
             providers,
             self._credentials,
+            stats,
             bus,
             log,
             settings,
@@ -286,6 +290,7 @@ class OutboundService:
             duration_ms=result.accepted_ms,
         )
         sent = self._jobs.mark_sent(claimed.id, utc_now())
+        self._stats.record_sent(sent)
         self._bus.publish(
             "job.sent",
             {"id": sent.id, "batch": sent.batch_id, "message_id": sent.message_id},

@@ -4,6 +4,7 @@ import asyncio
 
 from downcroc.core.events import EventBus
 from downcroc.core.outbound.credentials import CredentialResolver
+from downcroc.core.stats import StatsService
 from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (
     AccountNeedsReauth,
@@ -38,6 +39,7 @@ class SentReconciler:
         accounts: AccountRepo,
         providers: ProviderRegistry,
         credentials: CredentialResolver,
+        stats: StatsService,
         bus: EventBus,
         log: EventLogger,
         settings: OutboundSettings,
@@ -47,6 +49,7 @@ class SentReconciler:
         self._accounts = accounts
         self._providers = providers
         self._credentials = credentials
+        self._stats = stats
         self._bus = bus
         self._log = log
         self._settings = settings
@@ -122,6 +125,7 @@ class SentReconciler:
 
     def _mark_found(self, job: Job) -> None:
         sent = self._jobs.mark_reconciled(job.id, utc_now())
+        self._stats.record_sent(sent)
         self._bus.publish(
             "job.sent",
             {

@@ -18,6 +18,7 @@ from downcroc.api.routes import (
     jobs,
     messages,
     providers,
+    stats,
     vault,
 )
 from downcroc.core.bootstrap import build
@@ -37,6 +38,7 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
         app.state.services = services
         services.bus.start(asyncio.get_running_loop())
         services.dispatcher.start()
+        services.retention.start()
         log.info(
             "daemon.ready",
             port=settings.daemon.port,
@@ -45,6 +47,7 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
         try:
             yield
         finally:
+            await services.retention.stop()
             await services.dispatcher.stop()
             services.inbound.stop_all("shutdown")
             services.accounts.close_flows("daemon_stopped")
@@ -74,5 +77,6 @@ def create_app(settings: Settings, paths: Paths, log: EventLogger) -> FastAPI:
     app.include_router(jobs.router)
     app.include_router(batches.router)
     app.include_router(failed.router)
+    app.include_router(stats.router)
     app.include_router(events.router)
     return app

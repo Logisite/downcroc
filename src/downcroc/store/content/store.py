@@ -90,6 +90,18 @@ class ContentStore:
         except OSError as error:
             raise ContentMissing("the stored content cannot be read") from error
 
+    def discard(self, path: str) -> int:
+        target = self.resolve(path)
+        try:
+            size = target.stat().st_size
+        except FileNotFoundError:
+            return 0
+        try:
+            target.unlink()
+        except FileNotFoundError:
+            return 0
+        return int(size)
+
     def read(self, path: str, expected_hash: str) -> bytes:
         target = self.resolve(path)
         try:

@@ -253,9 +253,10 @@ accounts is one scan.
 | suppressed | int | |
 | quota_limit | int | allowance in force that day, so burn can be charted against it |
 
-Primary key `(account_id, day)`. Maintained live alongside the hourly row, and reconciled by a
-midnight rollup that recomputes the day from `activity_hourly` before the day is closed. Kept far
-longer than the hourly rows, because daily history is what people actually look at.
+Primary key `(account_id, day)`. Written on every increment alongside the hourly row, so no
+midnight rollup is needed. A rebuild recomputes the days still covered by raw job and message
+rows; days older than raw retention are left untouched. Kept far longer than the hourly rows,
+because daily history is what people actually look at.
 
 ### `batch_counters`
 
@@ -273,9 +274,18 @@ longer than the hourly rows, because daily history is what people actually look 
 | bounces | int | |
 | updated_at | text | |
 
-Incremented in the same transaction as the event that causes it: a job reaching `sent` bumps
-`sent`, an ingested message bumps `inbound` and, when confirmed, `replies`. There is no
-background aggregation job whose failure would leave the numbers wrong.
+Refreshed from `jobs` and `messages` on every transition: a job reaching `sent` bumps `sent`, an
+ingested message bumps `inbound` and, when confirmed, `replies`. A rebuild refreshes only batches
+that still have job rows, so counters survive job pruning. Suppressed counts are carried forward
+because they cannot be reconstructed from job rows.
+
+### Retention
+
+`[retention]` controls four independent schedules: terminal jobs (`jobs_days`, `jobs_max`),
+received mail (`mail_days`), hourly activity (`hourly_days`), and daily activity (`daily_days`).
+The retention loop runs every `check_s` seconds. Pruning job and mail rows never changes a
+stored total; the daily rows remain the long-lived history. Every prune logs
+`retention.pruned` with the table, row count, and bytes removed.
 
 ### `events`
 

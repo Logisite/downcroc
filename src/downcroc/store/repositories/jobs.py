@@ -1,76 +1,15 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.errors import JobNotFound
 from downcroc.domain.jobs import Job, JobState, NewJob
 from downcroc.runtime.clock import utc_now
 from downcroc.store.db.models import JobRow
+from downcroc.store.repositories.job_mapping import to_job, to_row
 
 _SENDABLE = (JobState.QUEUED.value, JobState.RETRY_WAIT.value)
-
-
-def _to_job(row: JobRow) -> Job:
-    return Job(
-        id=row.id,
-        batch_id=row.batch_id,
-        account_id=row.account_id,
-        recipient=row.recipient,
-        recipient_name=row.recipient_name,
-        source_kind=row.source_kind,
-        source_key=row.source_key,
-        source_index=row.source_index,
-        step_key=row.step_key,
-        parent_job_id=row.parent_job_id,
-        thread_root_job_id=row.thread_root_job_id,
-        vars_json=row.vars_json,
-        subject=row.subject,
-        body_ref=row.body_ref,
-        state=JobState(row.state),
-        attempts=row.attempts,
-        next_attempt_at=row.next_attempt_at,
-        lease_owner=row.lease_owner,
-        lease_expires_at=row.lease_expires_at,
-        message_id=row.message_id,
-        last_error_code=row.last_error_code,
-        last_error_message=row.last_error_message,
-        retryable=row.retryable,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-        sent_at=row.sent_at,
-    )
-
-
-def _to_row(job: NewJob) -> JobRow:
-    return JobRow(
-        id=job.id,
-        batch_id=job.batch_id,
-        account_id=job.account_id,
-        recipient=job.recipient,
-        recipient_name=job.recipient_name,
-        source_kind=job.source_kind,
-        source_key=job.source_key,
-        source_index=job.source_index,
-        step_key=job.step_key,
-        parent_job_id=job.parent_job_id,
-        thread_root_job_id=job.thread_root_job_id,
-        vars_json=job.vars_json,
-        subject=job.subject,
-        body_ref=job.body_ref,
-        state=job.state.value if hasattr(job.state, "value") else job.state,
-        attempts=0,
-        next_attempt_at=None,
-        lease_owner=None,
-        lease_expires_at=None,
-        message_id=job.message_id,
-        last_error_code=None,
-        last_error_message=None,
-        retryable=None,
-        created_at=job.created_at,
-        updated_at=job.created_at,
-        sent_at=None,
-    )
 
 
 class JobRepo:
@@ -79,21 +18,21 @@ class JobRepo:
 
     def create(self, job: NewJob) -> Job:
         with self._sessions.begin() as session:
-            session.add(_to_row(job))
+            session.add(to_row(job))
         return self.get(job.id)
 
     def create_many(self, jobs: list[NewJob]) -> None:
         if not jobs:
             return
         with self._sessions.begin() as session:
-            session.add_all([_to_row(job) for job in jobs])
+            session.add_all([to_row(job) for job in jobs])
 
     def get(self, job_id: str) -> Job:
         with self._sessions() as session:
             row = session.get(JobRow, job_id)
             if row is None:
                 raise JobNotFound(f"no job {job_id}")
-            return _to_job(row)
+            return to_job(row)
 
     def list(
         self,
@@ -112,7 +51,7 @@ class JobRepo:
             query = query.where(JobRow.state == state)
         query = query.order_by(JobRow.created_at, JobRow.id).limit(limit)
         with self._sessions() as session:
-            return [_to_job(row) for row in session.scalars(query)]
+            return [to_job(row) for row in session.scalars(query)]
 
     def thread_jobs(self, thread_root_job_id: str) -> list[Job]:
         return self.thread_jobs_many([thread_root_job_id]).get(thread_root_job_id, [])
@@ -128,9 +67,7 @@ class JobRepo:
             )
             grouped: dict[str, list[Job]] = {}
             for row in rows:
-                grouped.setdefault(row.thread_root_job_id or "", []).append(
-                    _to_job(row)
-                )
+                grouped.setdefault(row.thread_root_job_id or "", []).append(to_job(row))
             return grouped
 
     def pending_followups(self, limit: int = 1000) -> list[Job]:
@@ -146,7 +83,7 @@ class JobRepo:
                 .order_by(JobRow.created_at, JobRow.id)
                 .limit(limit)
             )
-            return [_to_job(row) for row in rows]
+            return [to_job(row) for row in rows]
 
     def message_id_exists(self, message_id: str) -> bool:
         with self._sessions() as session:
@@ -271,7 +208,7 @@ class JobRepo:
             rows = session.scalars(
                 select(JobRow).where(JobRow.state == JobState.SENDING.value)
             )
-            return [_to_job(row) for row in rows]
+            return [to_job(row) for row in rows]
 
     def due(self, account_id: str, now: str, limit: int = 50) -> list[Job]:
         sendable = JobRow.state.in_(_SENDABLE) & (
@@ -291,7 +228,7 @@ class JobRepo:
             .limit(limit)
         )
         with self._sessions() as session:
-            return [_to_job(row) for row in session.scalars(query)]
+            return [to_job(row) for row in session.scalars(query)]
 
     def reset_for_retry(self, job_id: str) -> Job:
         with self._sessions.begin() as session:
@@ -332,6 +269,51 @@ class JobRepo:
                 .group_by(JobRow.state)
             )
             return {state: count for state, count in rows}
+
+    def activity_rows(self) -> list[tuple[str, str | None, str | None, str]]:
+        with self._sessions() as session:
+            rows = session.execute(
+                select(
+                    JobRow.account_id,
+                    JobRow.sent_at,
+                    JobRow.updated_at,
+                    JobRow.state,
+                )
+            )
+            return [(row[0], row[1], row[2], row[3]) for row in rows]
+
+    def prunable(self, cutoff: str, keep: int) -> list[Job]:
+        terminal = (
+            JobState.SENT.value,
+            JobState.SENT_UNCONFIRMED.value,
+            JobState.FAILED.value,
+            JobState.CANCELLED.value,
+        )
+        with self._sessions() as session:
+            rows = list(
+                session.scalars(
+                    select(JobRow)
+                    .where(JobRow.state.in_(terminal))
+                    .order_by(
+                        func.coalesce(JobRow.sent_at, JobRow.updated_at),
+                        JobRow.id,
+                    )
+                )
+            )
+            total = len(rows)
+            chosen = [
+                to_job(row)
+                for index, row in enumerate(rows)
+                if total - index > keep or (row.sent_at or row.updated_at) < cutoff
+            ]
+            return chosen
+
+    def delete_many(self, job_ids: list[str]) -> int:
+        if not job_ids:
+            return 0
+        with self._sessions.begin() as session:
+            result = session.execute(delete(JobRow).where(JobRow.id.in_(job_ids)))
+            return int(result.rowcount or 0)
 
     def ids_in_states(self, batch_id: str, states: tuple[JobState, ...]) -> list[str]:
         wanted = tuple(state.value for state in states)

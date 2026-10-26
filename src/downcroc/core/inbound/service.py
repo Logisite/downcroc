@@ -15,6 +15,7 @@ from downcroc.core.inbound.signals import (
 )
 from downcroc.core.inbound.watcher import WatcherRunner
 from downcroc.core.inbound.worker import QueueWorker
+from downcroc.core.stats import StatsService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import AccountStatus
 from downcroc.providers.registry import ProviderRegistry
@@ -31,6 +32,7 @@ class InboundService:
         self,
         accounts: AccountRepo,
         messages: MessageRepo,
+        stats: StatsService,
         registry: ProviderRegistry,
         vault: VaultService,
         tokens: TokenManager,
@@ -41,6 +43,7 @@ class InboundService:
         connect: ConnectSettings,
     ) -> None:
         self._accounts = accounts
+        self._stats = stats
         self._log = log
         self._settings = settings
         self._queue: queue.Queue[object] = queue.Queue()
@@ -65,6 +68,7 @@ class InboundService:
             accounts,
             messages,
             content,
+            stats,
             bus,
             log,
         )

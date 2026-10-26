@@ -3,6 +3,7 @@ from __future__ import annotations
 from downcroc.runtime.config.schema import (
     DispatchSettings,
     FollowUpSettings,
+    RetentionSettings,
     SendingSettings,
 )
 
@@ -28,12 +29,26 @@ def dispatch_config(
     followup_check_s: float = 0.05,
     followup_sync_timeout_s: float = 5.0,
     followup_defer_s: float = 1.0,
+    retention_check_s: float = 3600.0,
+    jobs_days: int = 30,
+    jobs_max: int = 10_000,
+    mail_days: int = 90,
+    hourly_days: int = 90,
+    daily_days: int = 730,
 ) -> str:
     defaults = DispatchSettings()
     followups = FollowUpSettings(
         check_s=followup_check_s,
         sync_timeout_s=followup_sync_timeout_s,
         defer_s=followup_defer_s,
+    )
+    retention = RetentionSettings(
+        check_s=retention_check_s,
+        jobs_days=jobs_days,
+        jobs_max=jobs_max,
+        mail_days=mail_days,
+        hourly_days=hourly_days,
+        daily_days=daily_days,
     )
     sending = SendingSettings(
         daily_allowance=daily_allowance,
@@ -68,4 +83,11 @@ def dispatch_config(
         f"check_s = {followups.check_s}\n"
         f"sync_timeout_s = {followups.sync_timeout_s}\n"
         f"defer_s = {followups.defer_s}\n"
+        "\n[retention]\n"
+        f"check_s = {retention.check_s}\n"
+        f"jobs_days = {retention.jobs_days}\n"
+        f"jobs_max = {retention.jobs_max}\n"
+        f"mail_days = {retention.mail_days}\n"
+        f"hourly_days = {retention.hourly_days}\n"
+        f"daily_days = {retention.daily_days}\n"
     )

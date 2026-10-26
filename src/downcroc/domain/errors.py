@@ -246,6 +246,11 @@ class SampleAlreadySent(DomainError):
     status = 409
 
 
+class InvalidRange(DomainError):
+    code = "invalid_range"
+    status = 422
+
+
 class UnsupportedSchema(DomainError):
     code = "unsupported_schema"
     status = 422

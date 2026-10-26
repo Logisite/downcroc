@@ -27,6 +27,11 @@ def build_parser() -> argparse.ArgumentParser:
     openapi = commands.add_parser("openapi", help="write the OpenAPI document")
     openapi.add_argument("-o", "--output", type=Path)
 
+    stats = commands.add_parser("stats", help="rebuild stored activity")
+    stats_commands = stats.add_subparsers(dest="stats_command", metavar="action")
+    stats_rebuild = stats_commands.add_parser("rebuild", help="rebuild activity rows")
+    stats_rebuild.add_argument("--since", help="first date to rebuild, YYYY-MM-DD")
+
     logs = commands.add_parser("logs", help="query the daemon log")
     logs.add_argument("--event", help="event name prefix, for example job.")
     logs.add_argument("--level", choices=LEVELS)
@@ -60,6 +65,13 @@ def main(argv: list[str] | None = None) -> int:
         from downcroc.cli.commands import logs
 
         return logs.run(args)
+    if args.command == "stats":
+        from downcroc.cli.commands import stats
+
+        if args.stats_command == "rebuild":
+            return stats.rebuild(args.since)
+        build_parser().parse_args(["stats", "--help"])
+        return 2
 
     from downcroc.cli.commands import service
 

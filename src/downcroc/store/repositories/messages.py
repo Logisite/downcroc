@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.errors import (
@@ -26,7 +27,22 @@ from downcroc.store.repositories.message_inbound import (
     IngestResult,
 )
 
-__all__ = ["IngestResult", "MessageRepo"]
+__all__ = ["IngestResult", "MessageRepo", "PrunableMail"]
+
+
+@dataclass(frozen=True)
+class PrunableMail:
+    message_id: str
+    thread_id: str | None
+    bytes: int
+    attachment_paths: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass
+class _MailAccumulator:
+    thread_id: str | None
+    bytes: int
+    attachment_paths: list[str] = field(default_factory=list)
 
 
 def _summary(row: MessageRow, attachment_count: int) -> MessageSummary:
@@ -203,3 +219,78 @@ class MessageRepo(InboundMixin):
                 .order_by(MessageRow.date, MessageRow.id)
             ).all()
             return _thread(row), [_summary(item, total) for item, total in messages]
+
+    def activity_rows(self) -> list[tuple[str, str, bool, str, str | None]]:
+        with self._sessions() as session:
+            rows = session.execute(
+                select(
+                    MessageRow.account_id,
+                    MessageRow.ingested_at,
+                    MessageRow.is_dsn,
+                    MessageRow.reply_state,
+                    MessageRow.job_id,
+                )
+            )
+            return [(row[0], row[1], bool(row[2]), row[3], row[4]) for row in rows]
+
+    def prunable_mail(self, cutoff: str) -> list[PrunableMail]:
+        found: dict[str, _MailAccumulator] = {}
+        with self._sessions() as session:
+            rows = session.execute(
+                select(MessageRow, AttachmentRow)
+                .outerjoin(AttachmentRow, AttachmentRow.message_id == MessageRow.id)
+                .where(MessageRow.ingested_at < cutoff)
+            ).all()
+            for message, attachment in rows:
+                item = found.setdefault(
+                    message.id,
+                    _MailAccumulator(
+                        thread_id=message.thread_id,
+                        bytes=len(message.body_text or "")
+                        + len(message.body_html or ""),
+                    ),
+                )
+                if attachment is not None:
+                    item.bytes += attachment.size
+                    item.attachment_paths.append(attachment.path)
+        return [
+            PrunableMail(
+                message_id=message_id,
+                thread_id=item.thread_id,
+                bytes=item.bytes,
+                attachment_paths=tuple(item.attachment_paths),
+            )
+            for message_id, item in found.items()
+        ]
+
+    def delete_mail(self, message_ids: list[str]) -> int:
+        if not message_ids:
+            return 0
+        with self._sessions.begin() as session:
+            thread_ids = set(
+                session.scalars(
+                    select(MessageRow.thread_id)
+                    .where(MessageRow.id.in_(message_ids))
+                    .where(MessageRow.thread_id.is_not(None))
+                )
+            )
+            result = session.execute(
+                delete(MessageRow).where(MessageRow.id.in_(message_ids))
+            )
+            for thread_id in thread_ids:
+                thread = session.get(ThreadRow, thread_id)
+                if thread is None:
+                    continue
+                remaining = session.execute(
+                    select(MessageRow.is_dsn, MessageRow.reply_state).where(
+                        MessageRow.thread_id == thread_id
+                    )
+                ).all()
+                if not remaining:
+                    session.delete(thread)
+                    continue
+                thread.message_count = len(remaining)
+                thread.reply_count = sum(
+                    1 for _, state in remaining if state == "confirmed"
+                )
+            return int(result.rowcount or 0)

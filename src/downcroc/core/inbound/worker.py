@@ -11,6 +11,7 @@ from downcroc.core.inbound.signals import (
     WatcherEvent,
     WatcherState,
 )
+from downcroc.core.stats import StatsService
 from downcroc.domain.errors import AccountNotFound
 from downcroc.domain.messages import IncomingMessage, PreparedAttachment
 from downcroc.runtime.clock import utc_now
@@ -28,6 +29,7 @@ class QueueWorker:
         accounts: AccountRepo,
         messages: MessageRepo,
         content: ContentStore,
+        stats: StatsService,
         bus: EventBus,
         log: EventLogger,
     ) -> None:
@@ -35,6 +37,7 @@ class QueueWorker:
         self._accounts = accounts
         self._messages = messages
         self._content = content
+        self._stats = stats
         self._bus = bus
         self._log = log
 
@@ -113,6 +116,13 @@ class QueueWorker:
             message_id=message_id,
         )
         job.result = result
+        self._stats.record_inbound(
+            job.account_id,
+            confirmed=result.confirmed,
+            is_dsn=incoming.is_dsn,
+            attributed=result.job_id is not None,
+            batch_id=result.batch_id,
+        )
         self._log.info(
             "message.ingested",
             message_id=result.message_id,
