@@ -76,11 +76,26 @@ def _check_port(host: str, port: int) -> None:
 
 def _health(info: ServiceInfo, timeout: float = 1.0) -> dict | None:
     try:
-        response = httpx.get(f"{info.base_url}/api/health", timeout=timeout)
+        response = httpx.get(
+            f"{info.base_url}/api/health",
+            timeout=timeout,
+            trust_env=False,
+        )
         response.raise_for_status()
         return response.json()
     except httpx.HTTPError:
         return None
+
+
+def _terminate(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 def _alive(pid: int) -> bool:
@@ -207,17 +222,22 @@ def start(paths: Paths, settings: Settings) -> ServiceInfo:
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    deadline = time.monotonic() + settings.daemon.start_timeout_s
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            raise RuntimeError(f"daemon exited during start, see {paths.log_file}")
-        info = read(paths.service_file)
-        if info is not None and info.pid == process.pid and _health(info):
-            return info
-        time.sleep(0.1)
-    raise TimeoutError(
-        f"daemon did not answer within {settings.daemon.start_timeout_s}s"
-    )
+    try:
+        deadline = time.monotonic() + settings.daemon.start_timeout_s
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError(f"daemon exited during start, see {paths.log_file}")
+            info = read(paths.service_file)
+            if info is not None and info.pid == process.pid and _health(info):
+                return info
+            time.sleep(0.1)
+        raise TimeoutError(
+            f"daemon did not answer within {settings.daemon.start_timeout_s}s"
+        )
+    except BaseException:
+        _terminate(process)
+        remove(paths.service_file)
+        raise
 
 
 def stop(paths: Paths, settings: Settings) -> bool:
