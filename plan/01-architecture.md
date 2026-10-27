@@ -117,6 +117,8 @@ only have meaning if the process is up.
 | `downcroc service start` | start detached |
 | `downcroc service status` | pid, address, uptime, vault state, queue counts |
 | `downcroc service stop` | stop. This locks the vault |
+| `downcroc service install` | install a systemd user unit, launchd agent, or logon task |
+| `downcroc service uninstall` | remove the native service and keep config, data, and state |
 | `downcroc serve` | run in the foreground, for systemd or containers |
 | `downcroc vault status` | show whether the vault is locked |
 | `downcroc vault unlock` | unlock and start inbound workers |
@@ -158,6 +160,15 @@ Lifecycle rules:
    is released. It does not signal the process directly.
 9. A hard kill skips all of that; the operating system drops the lock and the next start
    replaces the stale `service.json` and rotates the bearer token.
+10. `downcroc service install` writes a native user service that runs `serve` in the
+    foreground under the platform supervisor: a systemd user unit, a launchd agent, or a
+    Windows logon task. The definition uses the absolute launcher path and the current
+    `HOME` and XDG overrides, so the supervised daemon reads the same config, data, and
+    state as the CLI. Install stops a detached daemon first, then reloads and starts the
+    unit. Reinstalling overwrites the one definition, so it never creates a duplicate.
+    `--print` renders the definition and command plan without touching the system.
+    Uninstall stops the service and removes only its definition, leaving config, data,
+    and state intact. Nothing in install or uninstall needs root or administrator rights.
 
 ## Discovery
 

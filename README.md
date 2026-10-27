@@ -16,6 +16,15 @@ From a checkout, use uv:
     uv run downcroc logs --follow
     uv run downcroc service stop
 
+To run the daemon at login through the native user service manager:
+
+    downcroc service install
+    downcroc service status
+    downcroc service uninstall
+
+`service install --print` writes the generated systemd unit, launchd plist, or Windows task
+definition to stdout without installing it. Uninstall leaves config, data, and state in place.
+
 ## Common commands
 
     uv run downcroc account providers

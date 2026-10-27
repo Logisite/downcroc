@@ -227,6 +227,8 @@ downcroc/
       token.py          per-run bearer token
       lock.py           single instance lock on POSIX and Windows
       lifecycle.py      start, stop, status, foreground serve
+      units.py          systemd, launchd, and scheduled task definitions
+      install.py        native user service install and uninstall
 
   cli/
     main.py             dispatch, error reporting, exit codes

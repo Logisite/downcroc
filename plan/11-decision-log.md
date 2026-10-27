@@ -316,6 +316,21 @@ puts them in both artifacts and in the installed distribution metadata. Wheels a
 smoke-tested only in the Linux, macOS, and Windows CI matrix; the developer workflow stays on
 `uv run` and never builds a wheel locally.
 
+**Q74 - Native user services.** `downcroc service install` writes a systemd user unit under
+`XDG_CONFIG_HOME/systemd/user` (or `~/.config/systemd/user`), a launchd agent at
+`~/Library/LaunchAgents/com.downcroc.daemon.plist`, or a Windows scheduled task XML in the
+state directory registered with `schtasks /Create /XML`. The definition runs the absolute
+launcher path with `serve`, keeps `HOME` and any XDG overrides in the service environment,
+uses the home directory as the working directory, and supervises at user level only:
+`systemctl --user`, the `gui/<uid>` launchd domain, or `InteractiveToken` with
+`LeastPrivilege`. Install stops a detached daemon first, then reloads and starts through the
+manager. Reinstall overwrites the same definition, so no duplicate service appears.
+Uninstall stops the service and removes only its definition; config, data, and state stay.
+`service install --print` emits the definition and command plan for inspection. CI checks
+the generated systemd unit, plist, and task XML on their own operating systems. Actual
+registration is a manual release smoke check because hosted runners do not provide a
+reliable per-user service manager.
+
 ## Deliberately deferred
 
 | Deferred | Trigger to revisit |

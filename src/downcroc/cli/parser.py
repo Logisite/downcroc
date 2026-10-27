@@ -301,7 +301,16 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("serve", help="run the daemon in the foreground")
 
     service = commands.add_parser("service", help="control the running daemon")
-    service.add_argument("action", choices=["start", "stop", "status"])
+    service.add_argument(
+        "action",
+        choices=["start", "stop", "status", "install", "uninstall"],
+    )
+    service.add_argument(
+        "--print",
+        dest="print_only",
+        action="store_true",
+        help="print the service definition without installing it",
+    )
     _json(service)
 
     openapi = commands.add_parser("openapi", help="write the OpenAPI document")
