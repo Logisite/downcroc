@@ -256,7 +256,7 @@ def start(
     settings: Settings,
     *,
     timeout: float | None = None,
-    progress: Callable[[str], None] | None = None,
+    progress: Callable[[str, float | None], None] | None = None,
 ) -> ServiceInfo:
     existing = running(paths.service_file)
     if existing is not None:
@@ -264,7 +264,10 @@ def start(
     _cleanup(paths)
     _check_port(settings.daemon.host, settings.daemon.port)
     if progress is not None:
-        progress(f"starting on {settings.daemon.host}:{settings.daemon.port} ...")
+        progress(
+            f"starting on {settings.daemon.host}:{settings.daemon.port} ...",
+            0.0,
+        )
     process = subprocess.Popen(
         [*launcher(), "serve"],
         stdin=subprocess.DEVNULL,
@@ -285,7 +288,8 @@ def start(
                     if progress is not None:
                         progress(
                             f"ready after {time.monotonic() - started:.1f}s "
-                            f"on {info.base_url}"
+                            f"on {info.base_url}",
+                            1.0,
                         )
                     return info
             if process.poll() is not None and (info is None or not is_alive(info.pid)):
@@ -293,7 +297,8 @@ def start(
             if progress is not None:
                 progress(
                     f"waiting for health ... {time.monotonic() - started:.1f}s"
-                    f" of {limit:.0f}s"
+                    f" of {limit:.0f}s",
+                    None,
                 )
             time.sleep(0.1)
         tail = _log_tail(paths.log_file)

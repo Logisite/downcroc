@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 
 from downcroc.core.batches import samples, snapshot
 from downcroc.core.batches.builder import JobBuilder
@@ -9,10 +10,14 @@ from downcroc.core.batches.source import CampaignReader
 from downcroc.core.batches.views import (
     BatchDetail,
     Preview,
+    PreviewAttachments,
+    PreviewFollowUp,
     PreviewMessage,
+    PreviewRouting,
 )
 from downcroc.core.events import EventBus
 from downcroc.core.inputs import routing
+from downcroc.core.inputs.override import fixed_account
 from downcroc.core.inputs.routing import RoutingPlan
 from downcroc.core.outbound import OutboundService
 from downcroc.core.stats import StatsService
@@ -66,10 +71,14 @@ class BatchesService:
         self._reader = CampaignReader(settings, paths, log)
         self._builder = JobBuilder(settings, accounts, jobs, content)
 
-    def submit(self, path: str, template: str | None) -> BatchDetail:
+    def submit(
+        self, path: str, template: str | None, account: str | None = None
+    ) -> BatchDetail:
         started_at = utc_now()
         started = time.monotonic()
         campaign = self._reader.read(path, template)
+        if account:
+            campaign = fixed_account(campaign, account)
         elapsed_ms = round((time.monotonic() - started) * 1000, 2)
         self._log_detected(path, campaign)
         for item in campaign.ignored:
@@ -134,13 +143,22 @@ class BatchesService:
         )
         return self.detail(batch.id)
 
-    def preview(self, path: str, template: str | None, key: str | None) -> Preview:
+    def preview(
+        self,
+        path: str,
+        template: str | None,
+        key: str | None,
+        account: str | None = None,
+    ) -> Preview:
         campaign = self._reader.read(path, template)
-        assignments: dict[str, str] = {}
+        if account:
+            campaign = fixed_account(campaign, account)
+        plan: RoutingPlan | None = None
         try:
-            assignments = routing.resolve(campaign, self._accounts.list()).assignments
+            plan = routing.resolve(campaign, self._accounts.list())
         except AccountUnavailable:
-            assignments = {}
+            plan = None
+        assignments = plan.assignments if plan else {}
         chosen = campaign.messages
         if key is not None:
             chosen = tuple(
@@ -175,10 +193,31 @@ class BatchesService:
                 for message in chosen
             ),
             ignored=tuple(item.field for item in campaign.ignored),
+            total=len(campaign.messages),
+            valid=len(campaign.messages),
+            sampled=len(chosen),
+            sample_limit=self._settings.intake.sample_count,
+            routing=_routing_view(campaign, plan),
+            followups=tuple(
+                PreviewFollowUp(
+                    key=step.key,
+                    after_days=step.after_days,
+                    when=step.when,
+                    require_approval=step.require_approval,
+                )
+                for step in campaign.followups
+            ),
+            duplicates=campaign.duplicates,
+            attachments=_attachments(campaign),
         )
 
-    def list(self, *, state: str | None = None, limit: int = 100) -> list[Batch]:
-        return self._batches.list(state=state, limit=limit)
+    def list(
+        self, *, state: str | None = None, limit: int = 100, offset: int = 0
+    ) -> list[Batch]:
+        return self._batches.list(state=state, limit=limit, offset=offset)
+
+    def count(self, *, state: str | None = None) -> int:
+        return self._batches.count(state=state)
 
     def counts(self, batch_id: str) -> dict[str, int]:
         batch = self._batches.get(batch_id)
@@ -352,3 +391,36 @@ def _reply_window(options_json: str) -> int:
     if isinstance(value, int) and value >= 0:
         return value
     return DEFAULT_REPLY_WINDOW_DAYS
+
+
+def _routing_view(campaign: Campaign, plan: RoutingPlan | None) -> PreviewRouting:
+    if plan is None:
+        return PreviewRouting(
+            mode=campaign.routing.mode,
+            account_id=campaign.routing.account,
+            counts={},
+            unresolved=True,
+        )
+    counts: dict[str, int] = {}
+    for account_id in plan.assignments.values():
+        counts[account_id] = counts.get(account_id, 0) + 1
+    return PreviewRouting(
+        mode=plan.mode,
+        account_id=plan.account_id,
+        counts=counts,
+    )
+
+
+def _attachments(campaign: Campaign) -> PreviewAttachments:
+    names = [name for message in campaign.messages for name in message.attachments]
+    total = 0
+    root = Path(campaign.source_dir) if campaign.source_dir else None
+    for name in names:
+        candidate = Path(name)
+        if not candidate.is_absolute() and root is not None:
+            candidate = root / candidate
+        try:
+            total += candidate.stat().st_size
+        except OSError:
+            continue
+    return PreviewAttachments(count=len(names), bytes=total)

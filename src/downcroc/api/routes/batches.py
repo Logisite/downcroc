@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 
 from downcroc.api.schemas.batches import (
     ApproveRequest,
@@ -22,7 +22,7 @@ def _services(request: Request) -> Services:
 
 @router.post("", response_model=BatchDetailOut, status_code=201)
 def submit_batch(body: BatchSubmit, request: Request) -> BatchDetailOut:
-    detail = _services(request).batches.submit(body.path, body.template)
+    detail = _services(request).batches.submit(body.path, body.template, body.account)
     return BatchDetailOut.from_detail(detail)
 
 
@@ -30,20 +30,25 @@ def submit_batch(body: BatchSubmit, request: Request) -> BatchDetailOut:
 def preview_batch(
     body: BatchSubmit, request: Request, key: str | None = None
 ) -> PreviewOut:
-    preview = _services(request).batches.preview(body.path, body.template, key)
+    preview = _services(request).batches.preview(
+        body.path, body.template, key, body.account
+    )
     return PreviewOut.of(preview)
 
 
 @router.get("", response_model=list[BatchOut])
 def list_batches(
     request: Request,
+    response: Response,
     state: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[BatchOut]:
     service = _services(request).batches
+    response.headers["X-Total-Count"] = str(service.count(state=state))
     return [
         BatchOut.of(batch, service.counts(batch.id))
-        for batch in service.list(state=state, limit=limit)
+        for batch in service.list(state=state, limit=limit, offset=offset)
     ]
 
 

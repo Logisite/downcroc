@@ -5,6 +5,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from downcroc.core.vault_service import VaultStatus
 
 
+class VaultInit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1, max_length=1024)
+
+
 class VaultUnlock(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

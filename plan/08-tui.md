@@ -1,5 +1,8 @@
 # 08 - TUI
 
+Status: deferred for release 1. Release 1 is CLI only; the human interface is described in
+`13-interactive-cli.md`. This document stays as the design for a later graphical client.
+
 ## What the client is
 
 A Textual application that speaks HTTP and SSE to the daemon. It renders state and sends intent.

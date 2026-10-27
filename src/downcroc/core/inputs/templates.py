@@ -23,10 +23,25 @@ class Template:
     attachments: tuple[Path, ...] = ()
 
 
+def resolve(root: Path, value: str) -> Path:
+    looks_like_path = (
+        "/" in value
+        or "\\" in value
+        or value.startswith("~")
+        or Path(value).expanduser().is_dir()
+    )
+    if looks_like_path:
+        return Path(value).expanduser().absolute()
+    if not _NAME.match(value):
+        raise InputUnreadable(f"invalid template name {value!r}")
+    return root / value
+
+
 def load(root: Path, name: str) -> Template:
+    directory = resolve(root, name)
+    name = directory.name
     if not _NAME.match(name):
         raise InputUnreadable(f"invalid template name {name!r}")
-    directory = root / name
     manifest = directory / "template.toml"
     body_text = directory / "body.txt"
     if not manifest.is_file() or not body_text.is_file():

@@ -134,8 +134,8 @@ class FailureService:
         )
         return failure
 
-    def list(self, limit: int = 100) -> list[FailedJob]:
-        return self._failures.list(limit)
+    def list(self, limit: int = 100, offset: int = 0) -> list[FailedJob]:
+        return self._failures.list(limit, offset)
 
     def count(self) -> int:
         return self._failures.count()

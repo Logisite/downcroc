@@ -12,6 +12,7 @@ from downcroc.runtime.config.sections_mail import (
     VaultSettings,
 )
 from downcroc.runtime.config.sections_runtime import (
+    CliSettings,
     DaemonSettings,
     DispatchSettings,
     FollowUpSettings,
@@ -21,6 +22,7 @@ from downcroc.runtime.config.sections_runtime import (
 )
 
 __all__ = [
+    "CliSettings",
     "ConfigSettings",
     "ConnectSettings",
     "DaemonSettings",
@@ -92,4 +94,8 @@ class Settings(BaseModel):
     config: ConfigSettings = Field(
         default_factory=ConfigSettings,
         description="Configuration reload settings.",
+    )
+    cli: CliSettings = Field(
+        default_factory=CliSettings,
+        description="Command line client behaviour.",
     )

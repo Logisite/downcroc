@@ -41,7 +41,31 @@ class JobRepo:
         account_id: str | None = None,
         state: str | None = None,
         limit: int = 100,
+        offset: int = 0,
     ) -> list[Job]:
+        query = self._filtered(batch_id, account_id, state)
+        query = query.order_by(JobRow.created_at, JobRow.id).offset(offset).limit(limit)
+        with self._sessions() as session:
+            return [to_job(row) for row in session.scalars(query)]
+
+    def count(
+        self,
+        *,
+        batch_id: str | None = None,
+        account_id: str | None = None,
+        state: str | None = None,
+    ) -> int:
+        query = self._filtered(batch_id, account_id, state)
+        count = select(func.count()).select_from(query.subquery())
+        with self._sessions() as session:
+            return int(session.scalar(count) or 0)
+
+    @staticmethod
+    def _filtered(
+        batch_id: str | None,
+        account_id: str | None,
+        state: str | None,
+    ):
         query = select(JobRow)
         if batch_id is not None:
             query = query.where(JobRow.batch_id == batch_id)
@@ -49,9 +73,7 @@ class JobRepo:
             query = query.where(JobRow.account_id == account_id)
         if state is not None:
             query = query.where(JobRow.state == state)
-        query = query.order_by(JobRow.created_at, JobRow.id).limit(limit)
-        with self._sessions() as session:
-            return [to_job(row) for row in session.scalars(query)]
+        return query
 
     def thread_jobs(self, thread_root_job_id: str) -> list[Job]:
         return self.thread_jobs_many([thread_root_job_id]).get(thread_root_job_id, [])

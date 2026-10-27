@@ -117,7 +117,7 @@ only have meaning if the process is up.
 | `downcroc service start` | start detached |
 | `downcroc service status` | pid, address, uptime, vault state, queue counts |
 | `downcroc service stop` | stop. This locks the vault |
-| `downcroc service install` | install a systemd user unit, launchd agent, or logon task |
+| `downcroc service install` | install a systemd user unit or a logon task |
 | `downcroc service uninstall` | remove the native service and keep config, data, and state |
 | `downcroc serve` | run in the foreground, for systemd or containers |
 | `downcroc vault status` | show whether the vault is locked |
@@ -141,9 +141,10 @@ Lifecycle rules:
 
 1. The daemon starts **locked**. It needs no password to start, so it can start from systemd
    at boot and wait.
-2. Unlock is an explicit, separate event: the TUI asks for the master password and posts it
-   once, or the CLI does the same. The daemon derives the key, keeps it in memory, and
-   discards the password.
+2. Unlock is an explicit, separate event: the CLI obtains the master password, either from a
+   prompt, from `--password-file`, or from the system credential store when the user opted in,
+   and posts it once. The daemon derives the key, keeps it in memory, and discards the
+   password. The daemon itself never reads the credential store (`13`, Q-L).
 3. Stopping the daemon locks the vault by definition. There is no idle timer and no
    auto-lock while running, because the process dying is the lock.
 4. A daemon that is running but locked does everything that does not need a credential:
@@ -161,8 +162,8 @@ Lifecycle rules:
 9. A hard kill skips all of that; the operating system drops the lock and the next start
    replaces the stale `service.json` and rotates the bearer token.
 10. `downcroc service install` writes a native user service that runs `serve` in the
-    foreground under the platform supervisor: a systemd user unit, a launchd agent, or a
-    Windows logon task. The definition uses the absolute launcher path and the current
+    foreground under the platform supervisor: a systemd user unit or a Windows logon task.
+    The definition uses the absolute launcher path and the current
     `HOME` and XDG overrides, so the supervised daemon reads the same config, data, and
     state as the CLI. Install stops a detached daemon first, then reloads and starts the
     unit. Reinstalling overwrites the one definition, so it never creates a duplicate.
@@ -194,9 +195,9 @@ not call `fcntl`, `msvcrt`, `os.fchmod`, or `O_DIRECTORY` directly.
 
 | Concern | POSIX | Windows |
 |---|---|---|
-| Config | `XDG_CONFIG_HOME/downcroc` or `~/.config/downcroc`; macOS uses `~/Library/Application Support/downcroc/config` | `%APPDATA%\\downcroc` |
-| Data | `XDG_DATA_HOME/downcroc` or `~/.local/share/downcroc`; macOS uses `.../downcroc/data` | `%LOCALAPPDATA%\\downcroc` |
-| State | `XDG_STATE_HOME/downcroc` or `~/.local/state/downcroc`; macOS uses `.../downcroc/state` | `%LOCALAPPDATA%\\downcroc\\state` |
+| Config | `XDG_CONFIG_HOME/downcroc` or `~/.config/downcroc` | `%APPDATA%\\downcroc` |
+| Data | `XDG_DATA_HOME/downcroc` or `~/.local/share/downcroc` | `%LOCALAPPDATA%\\downcroc` |
+| State | `XDG_STATE_HOME/downcroc` or `~/.local/state/downcroc` | `%LOCALAPPDATA%\\downcroc\\state` |
 | Private files | `0700` directories and `0600` files | inherited user ACLs |
 | Instance lock | `fcntl.flock` on the lock file | `msvcrt.locking` on the lock file |
 | Liveness | `os.kill(pid, 0)` | `OpenProcess` and `GetExitCodeProcess` |
@@ -206,9 +207,11 @@ A `0600` mode is applied on Unix. Windows relies on the user profile ACL because
 `chmod` only changes the read-only bit. Directory fsync is skipped on Windows, which does not
 provide the POSIX directory handle guarantee.
 
-The full test suite runs on Linux, macOS, and Windows in GitHub Actions. Local checks stay
-limited to focused tests and Ruff; packaging, binaries, installers, and release builds are
-CI-only.
+The full test suite runs on Linux and Windows in GitHub Actions. macOS is out of scope for
+release 1: it is not tested, packaged, installed, or supported. The darwin path and service
+fallbacks remain in the code but carry no support commitment, and CI does not exercise them.
+Local checks stay limited to focused tests and Ruff; packaging, binaries, installers, and
+release builds are CI-only.
 
 ## Loopback binding
 

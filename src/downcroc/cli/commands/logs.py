@@ -8,11 +8,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import FrameType
 
+from downcroc.cli.context import load
+from downcroc.cli.errors import CliError, UsageError, render
 from downcroc.cli.output import colour_enabled
-from downcroc.runtime.logging.format import render
-from downcroc.runtime.paths import Paths, resolve
+from downcroc.cli.ui.session import Ui, build
+from downcroc.runtime.logging.format import render as render_entry
+from downcroc.runtime.paths import Paths
+from downcroc.runtime.service.lock import running
 
 UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+ACCEPTED = "15m, 2h, 3d, or an ISO 8601 timestamp"
 
 
 def parse_since(text: str) -> datetime:
@@ -58,7 +63,7 @@ def _print(entry: dict, raw: bool) -> None:
     if raw:
         print(json.dumps(entry, ensure_ascii=False), flush=True)
     else:
-        print(render(entry, colour=colour_enabled()), flush=True)
+        print(render_entry(entry, colour=colour_enabled()), flush=True)
 
 
 def _entries(path: Path) -> list[dict]:
@@ -75,31 +80,72 @@ def _entries(path: Path) -> list[dict]:
     return found
 
 
-def run(args: object) -> int:
-    paths = resolve()
-    try:
-        cutoff = parse_since(args.since) if args.since else None
-    except ValueError:
-        print(f"cannot read --since {args.since}", file=sys.stderr)
-        return 1
+def _missing(paths: Paths, ui: Ui) -> int:
+    error = CliError(
+        f"no log file at {paths.log_file}",
+        code="no_log_file",
+        fields={"path": str(paths.log_file)},
+    )
+    if running(paths.service_file) is None:
+        error.hint = "start the daemon with: downcroc service start"
+    if ui.json_mode:
+        render(error, json_mode=True)
+    else:
+        print(error.message, file=sys.stderr)
+        if error.hint:
+            print(f"  hint: {error.hint}", file=sys.stderr)
+    return 1
 
+
+def _cutoff(args: object) -> datetime | None:
+    if not args.since:
+        return None
+    try:
+        return parse_since(args.since)
+    except ValueError as error:
+        raise UsageError(
+            f"--since must be {ACCEPTED}",
+            hint="downcroc logs -h",
+        ) from error
+
+
+def run(args: object) -> int:
+    ui = build(args)
+    paths, _, _ = load()
+    cutoff = _cutoff(args)
+    if not paths.log_file.exists():
+        return _missing(paths, ui)
     if args.follow:
-        return _follow(paths, args, cutoff)
+        return _follow(paths, args, cutoff, ui)
 
     found: list[dict] = []
     for path in oldest_first(paths):
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
-    for entry in found[-args.limit :]:
-        _print(entry, args.json)
+    shown = found[-args.limit :]
+    for entry in shown:
+        _print(entry, ui.json_mode)
+    if not found:
+        print("no events match", file=sys.stderr)
+    elif len(found) > len(shown) and not ui.json_mode:
+        print(
+            f"showing {len(shown)} of {len(found)}, use --since or --limit",
+            file=sys.stderr,
+        )
     return 0
 
 
-def _follow(paths: Paths, args: object, cutoff: datetime | None) -> int:
+def _follow(paths: Paths, args: object, cutoff: datetime | None, ui: Ui) -> int:
     found: list[dict] = []
     for path in oldest_first(paths):
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
-    for entry in found[-args.limit :]:
-        _print(entry, args.json)
+    shown = found[-args.limit :]
+    for entry in shown:
+        _print(entry, ui.json_mode)
+    if len(found) > len(shown) and not ui.json_mode:
+        print(
+            f"showing {len(shown)} of {len(found)}, use --since or --limit",
+            file=sys.stderr,
+        )
 
     stop = False
 
@@ -130,6 +176,11 @@ def _follow(paths: Paths, args: object, cutoff: datetime | None) -> int:
                 handle = paths.log_file.open(encoding="utf-8", errors="replace")
                 if fresh:
                     handle.seek(0, 2)
+                elif not ui.json_mode:
+                    print(
+                        f"log rotated, following {paths.log_file}",
+                        file=sys.stderr,
+                    )
             line = handle.readline()
             if not line:
                 time.sleep(0.2)
@@ -139,7 +190,7 @@ def _follow(paths: Paths, args: object, cutoff: datetime | None) -> int:
             except json.JSONDecodeError:
                 continue
             if matches(entry, args, cutoff):
-                _print(entry, args.json)
+                _print(entry, ui.json_mode)
     except KeyboardInterrupt:
         return 0
     finally:

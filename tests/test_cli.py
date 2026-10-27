@@ -131,7 +131,7 @@ def test_cli_previews_submits_and_cancels_batch(stack_factory) -> None:
     jobs = _json(stack, "job", "list", "--batch", batch["id"], "--json")
     assert len(jobs) == 2
 
-    cancelled = _json(stack, "batch", "cancel", batch["id"], "--json")
+    cancelled = _json(stack, "batch", "cancel", batch["id"], "--json", "--yes")
     assert cancelled["state"] == "cancelled"
 
 

@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from downcroc.api.schemas.vault import VaultAccount, VaultOut, VaultUnlock
+from downcroc.api.schemas.vault import (
+    VaultAccount,
+    VaultInit,
+    VaultOut,
+    VaultUnlock,
+)
 from downcroc.core.vault_service import VaultService
 
 router = APIRouter(prefix="/api/vault", tags=["vault"])
@@ -22,6 +27,14 @@ def _out(request: Request) -> VaultOut:
 
 @router.get("", response_model=VaultOut)
 def read_vault(request: Request) -> VaultOut:
+    return _out(request)
+
+
+@router.post("/init", response_model=VaultOut, status_code=201)
+async def init(body: VaultInit, request: Request) -> VaultOut:
+    _service(request).initialize(body.password)
+    request.app.state.services.inbound.start_all()
+    await request.app.state.services.outbound.reconcile()
     return _out(request)
 
 

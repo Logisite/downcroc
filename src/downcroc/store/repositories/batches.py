@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.batches import Batch, BatchKind, BatchState, NewBatch
@@ -77,13 +77,30 @@ class BatchRepo:
                 raise BatchNotFound(f"no batch {batch_id}")
             return _to_batch(row)
 
-    def list(self, *, state: str | None = None, limit: int = 100) -> list[Batch]:
+    def list(
+        self,
+        *,
+        state: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Batch]:
         query = select(BatchRow)
         if state is not None:
             query = query.where(BatchRow.state == state)
-        query = query.order_by(BatchRow.created_at.desc(), BatchRow.id).limit(limit)
+        query = (
+            query.order_by(BatchRow.created_at.desc(), BatchRow.id)
+            .offset(offset)
+            .limit(limit)
+        )
         with self._sessions() as session:
             return [_to_batch(row) for row in session.scalars(query)]
+
+    def count(self, *, state: str | None = None) -> int:
+        query = select(func.count()).select_from(BatchRow)
+        if state is not None:
+            query = query.where(BatchRow.state == state)
+        with self._sessions() as session:
+            return int(session.scalar(query) or 0)
 
     def set_state(
         self,

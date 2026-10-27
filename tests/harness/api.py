@@ -69,7 +69,11 @@ class Api:
         return payload
 
     def unlock(self, password: str = "test-password") -> dict[str, Any]:
-        return self.post("/api/vault/unlock", {"password": password})
+        status, payload = self.raw("POST", "/api/vault/unlock", {"password": password})
+        if status == 423 and payload.get("message") == "the vault does not exist":
+            return self.post("/api/vault/init", {"password": password})
+        _raise(status, payload)
+        return payload
 
     def create_account(
         self, address: str, provider: str = "generic", label: str = ""

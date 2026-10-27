@@ -76,6 +76,10 @@ def install(paths: Paths, settings: Settings, print_only: bool = False) -> dict:
     }
 
 
+def installed(paths: Paths) -> bool:
+    return units.build_plan(paths).path.exists()
+
+
 def uninstall(paths: Paths, settings: Settings) -> dict:
     plan = units.build_plan(paths)
     for step in plan.uninstall_steps:

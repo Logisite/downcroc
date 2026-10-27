@@ -81,6 +81,11 @@ class VaultCorrupt(DomainError):
     status = 409
 
 
+class VaultExists(DomainError):
+    code = "vault_exists"
+    status = 409
+
+
 class VaultAlreadyUnlocked(DomainError):
     code = "vault_already_unlocked"
     status = 409
@@ -99,6 +104,16 @@ class VaultUnavailable(DomainError):
 class VaultSecretMissing(DomainError):
     code = "vault_secret_missing"
     status = 404
+
+
+class ProviderInvalid(DomainError):
+    code = "provider_invalid"
+    status = 400
+
+
+class ProviderInUse(DomainError):
+    code = "provider_in_use"
+    status = 409
 
 
 class ProviderUnknown(DomainError):

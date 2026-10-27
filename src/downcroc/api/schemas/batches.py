@@ -5,7 +5,15 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from downcroc.core.batches import BatchDetail, Preview, PreviewMessage, Sample
+from downcroc.core.batches import (
+    BatchDetail,
+    Preview,
+    PreviewAttachments,
+    PreviewFollowUp,
+    PreviewMessage,
+    PreviewRouting,
+    Sample,
+)
 from downcroc.domain.batches import Batch
 
 from .jobs import JobOut
@@ -16,6 +24,7 @@ class BatchSubmit(BaseModel):
 
     path: str = Field(min_length=1, max_length=4096)
     template: str | None = Field(default=None, max_length=64)
+    account: str | None = Field(default=None, max_length=64)
 
 
 class ApproveRequest(BaseModel):
@@ -29,6 +38,7 @@ class FollowUpRequest(BaseModel):
 
     path: str = Field(min_length=1, max_length=4096)
     template: str | None = Field(default=None, max_length=64)
+    account: str | None = Field(default=None, max_length=64)
     step: str = Field(min_length=1, max_length=64)
     require_approval: bool = False
 
@@ -155,6 +165,47 @@ class PreviewMessageOut(BaseModel):
         )
 
 
+class PreviewRoutingOut(BaseModel):
+    mode: str
+    account_id: str | None
+    counts: dict[str, int]
+    unresolved: bool
+
+    @classmethod
+    def of(cls, routing: PreviewRouting) -> PreviewRoutingOut:
+        return cls(
+            mode=routing.mode,
+            account_id=routing.account_id,
+            counts=dict(routing.counts),
+            unresolved=routing.unresolved,
+        )
+
+
+class PreviewFollowUpOut(BaseModel):
+    key: str
+    after_days: int
+    when: str
+    require_approval: bool
+
+    @classmethod
+    def of(cls, step: PreviewFollowUp) -> PreviewFollowUpOut:
+        return cls(
+            key=step.key,
+            after_days=step.after_days,
+            when=step.when,
+            require_approval=step.require_approval,
+        )
+
+
+class PreviewAttachmentsOut(BaseModel):
+    count: int
+    bytes: int
+
+    @classmethod
+    def of(cls, value: PreviewAttachments) -> PreviewAttachmentsOut:
+        return cls(count=value.count, bytes=value.bytes)
+
+
 class PreviewOut(BaseModel):
     source_kind: str
     campaign_key: str
@@ -162,6 +213,15 @@ class PreviewOut(BaseModel):
     routing_mode: str
     messages: list[PreviewMessageOut]
     ignored: list[str]
+    total: int
+    valid: int
+    sampled: int
+    sample_limit: int
+    warnings: list[str]
+    routing: PreviewRoutingOut | None
+    followups: list[PreviewFollowUpOut]
+    duplicates: int
+    attachments: PreviewAttachmentsOut | None
 
     @classmethod
     def of(cls, preview: Preview) -> PreviewOut:
@@ -172,4 +232,19 @@ class PreviewOut(BaseModel):
             routing_mode=preview.routing_mode,
             messages=[PreviewMessageOut.of(message) for message in preview.messages],
             ignored=list(preview.ignored),
+            total=preview.total,
+            valid=preview.valid,
+            sampled=preview.sampled,
+            sample_limit=preview.sample_limit,
+            warnings=list(preview.warnings),
+            routing=(
+                PreviewRoutingOut.of(preview.routing) if preview.routing else None
+            ),
+            followups=[PreviewFollowUpOut.of(step) for step in preview.followups],
+            duplicates=preview.duplicates,
+            attachments=(
+                PreviewAttachmentsOut.of(preview.attachments)
+                if preview.attachments
+                else None
+            ),
         )

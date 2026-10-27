@@ -211,7 +211,8 @@ downcroc/
     clock.py            Clock, SystemClock, FakeClock
     ids.py              prefixed id generation
     fs.py               permission, directory sync, atomic write helpers
-    paths.py            XDG, macOS, and Windows directories and permissions
+    paths.py            XDG and Windows directories and permissions
+    keyring.py          optional OS credential store adapter for the vault password
     logging/
       setup.py          sinks, rotation, level from config
       format.py         the JSONL formatter and the pretty one
@@ -227,7 +228,7 @@ downcroc/
       token.py          per-run bearer token
       lock.py           single instance lock on POSIX and Windows
       lifecycle.py      start, stop, status, foreground serve
-      units.py          systemd, launchd, and scheduled task definitions
+      units.py          systemd and scheduled task definitions
       install.py        native user service install and uninstall
 
   cli/

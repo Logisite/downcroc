@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from downcroc.domain.accounts import Account
 from downcroc.domain.attempts import ConnectAttempt
 from downcroc.domain.providers import ProviderSpec
+from downcroc.providers.registry import readiness
 
 
 class AccountCreate(BaseModel):
@@ -115,6 +116,25 @@ class AttemptOut(BaseModel):
         )
 
 
+class ProviderIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = None
+    imap_host: str | None = None
+    imap_port: int | None = Field(default=None, ge=1, le=65535)
+    imap_tls: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_tls: str | None = None
+    auth_kind: str | None = None
+    smtp_auth_mechanism: str | None = None
+    sent_folder: str | None = None
+    notes: str | None = None
+    oauth_client_id: str | None = None
+    oauth_client_secret: str | None = None
+    oauth_tenant: str | None = None
+
+
 class ProviderOut(BaseModel):
     id: str
     label: str
@@ -125,16 +145,19 @@ class ProviderOut(BaseModel):
     smtp_host: str
     smtp_port: int
     smtp_tls: str
-    smtp_auth_mechanism: str
     sent_folder: str
     supports_idle: bool
     requires_user_agent: bool
     attachment_max_bytes: int
     notes: str
     oauth_configured: bool
+    ready: bool = False
+    missing: list[str] = Field(default_factory=list)
+    source: str | None = None
 
     @classmethod
-    def of(cls, spec: ProviderSpec) -> ProviderOut:
+    def of(cls, spec: ProviderSpec, *, source: str | None = None) -> ProviderOut:
+        ready, missing = readiness(spec)
         return cls(
             id=spec.id,
             label=spec.label,
@@ -145,11 +168,13 @@ class ProviderOut(BaseModel):
             smtp_host=spec.smtp_host,
             smtp_port=spec.smtp_port,
             smtp_tls=spec.smtp_tls.value,
-            smtp_auth_mechanism=spec.smtp_auth_mechanism,
             sent_folder=spec.sent_folder,
             supports_idle=spec.supports_idle,
             requires_user_agent=spec.requires_user_agent,
             attachment_max_bytes=spec.attachment_max_bytes,
             notes=spec.notes,
             oauth_configured=spec.oauth_configured,
+            ready=ready,
+            missing=missing,
+            source=source,
         )

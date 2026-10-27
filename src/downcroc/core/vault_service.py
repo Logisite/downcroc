@@ -11,8 +11,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from downcroc.core.events import EventBus
 from downcroc.core.vault_file import VaultFile
 from downcroc.domain.errors import (
-    VaultAlreadyUnlocked,
     VaultBadPassword,
+    VaultExists,
     VaultLocked,
     VaultSecretMissing,
     VaultThrottled,
@@ -67,26 +67,47 @@ class VaultService:
                 retry_after_s=max(0.0, round(remaining, 1)),
             )
 
+    def exists(self) -> bool:
+        return self._path.exists()
+
+    def initialize(self, password: str) -> VaultStatus:
+        with self._lock:
+            if self._path.exists():
+                raise VaultExists(
+                    "a vault already exists",
+                    hint="run downcroc vault unlock instead",
+                )
+            started = time.monotonic()
+            header, key, payload = self._file.create(password)
+            self._install(header, key, payload)
+            self._failures = 0
+            self._next_attempt = 0.0
+            self._unlocked_at = utc_now()
+            duration = round((time.monotonic() - started) * 1000)
+            self._log.info("vault.created", duration_ms=duration)
+            self._publish("vault.created", {"state": "unlocked"})
+            return self.status()
+
     def unlock(self, password: str) -> VaultStatus:
         with self._lock:
             if self._key is not None:
-                raise VaultAlreadyUnlocked(
-                    "the vault is already unlocked",
-                    hint="lock the vault first",
-                )
+                return self.status()
             remaining = self._next_attempt - time.monotonic()
             if remaining > 0:
                 seconds = max(0.1, round(remaining, 1))
                 raise VaultThrottled(
                     f"too many failed attempts, try again in {seconds} seconds",
                     hint=f"retry after {seconds} seconds",
+                    details=[{"retry_after_s": seconds}],
                 )
             started = time.monotonic()
+            if not self._path.exists():
+                raise VaultLocked(
+                    "the vault does not exist",
+                    hint="run downcroc vault init first",
+                )
             try:
-                if self._path.exists():
-                    header, key, payload = self._file.open(password)
-                else:
-                    header, key, payload = self._file.create(password)
+                header, key, payload = self._file.open(password)
             except VaultBadPassword:
                 self._record_failure()
                 raise

@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from downcroc.domain.errors import ProviderConfigError, ProviderUnknown
 from downcroc.domain.providers import AuthKind, ProviderSpec, TlsMode
+from downcroc.providers import writer
 from downcroc.runtime.logging.setup import EventLogger
 
 REQUIRED = frozenset({"id", "label", "imap_host", "imap_port", "imap_tls", "auth_kind"})
@@ -37,8 +38,32 @@ MODE = 0o600
 
 
 class ProviderRegistry:
-    def __init__(self, specs: dict[str, ProviderSpec]) -> None:
+    def __init__(
+        self,
+        specs: dict[str, ProviderSpec],
+        config_dir: Path | None = None,
+        sources: dict[str, Path] | None = None,
+        log: EventLogger | None = None,
+    ) -> None:
         self._specs = specs
+        self._config_dir = config_dir
+        self._sources = sources or {}
+        self._log = log
+
+    def reload(self) -> None:
+        if self._config_dir is None or self._log is None:
+            return
+        fresh = type(self).load(self._config_dir, self._log)
+        self._specs = fresh._specs
+        self._sources = fresh._sources
+
+    @property
+    def config_file(self) -> Path:
+        root = self._config_dir or Path()
+        return root / "providers.toml"
+
+    def source_of(self, provider_id: str) -> Path | None:
+        return self._sources.get(provider_id)
 
     @classmethod
     def load(cls, config_dir: Path, log: EventLogger) -> ProviderRegistry:
@@ -74,7 +99,7 @@ class ProviderRegistry:
             declarations=sorted(specs),
             count=len(specs),
         )
-        return cls(specs)
+        return cls(specs, config_dir, sources, log)
 
     def get(self, provider_id: str) -> ProviderSpec:
         spec = self._specs.get(provider_id)
@@ -90,6 +115,43 @@ class ProviderRegistry:
 
     def list(self) -> list[ProviderSpec]:
         return [self._specs[key] for key in sorted(self._specs)]
+
+    def readiness(self, spec: ProviderSpec) -> tuple[bool, list[str]]:
+        return readiness(spec)
+
+    def save(self, provider_id: str, values: dict[str, Any]) -> ProviderSpec:
+        current = writer.read(self.config_file)
+        merged = dict(current.get(provider_id, {}))
+        merged.update({key: item for key, item in values.items() if item is not None})
+        merged.pop("id", None)
+        current[provider_id] = merged
+        self._rewrite(current)
+        return self.get(provider_id)
+
+    def remove(self, provider_id: str) -> bool:
+        current = writer.read(self.config_file)
+        if provider_id not in current:
+            return False
+        del current[provider_id]
+        self._rewrite(current)
+        return True
+
+    def _rewrite(self, providers: dict[str, dict[str, Any]]) -> None:
+        previous = (
+            self.config_file.read_text(encoding="utf-8")
+            if self.config_file.is_file()
+            else None
+        )
+        writer.write(self.config_file, providers)
+        try:
+            self.reload()
+        except ProviderConfigError:
+            if previous is None:
+                self.config_file.unlink(missing_ok=True)
+            else:
+                self.config_file.write_text(previous, encoding="utf-8")
+            self.reload()
+            raise
 
     @classmethod
     def _read(cls, path: Any) -> dict[str, Any]:
@@ -330,6 +392,22 @@ class ProviderRegistry:
             mode=oct(mode),
             fixed=True,
         )
+
+
+def readiness(spec: ProviderSpec) -> tuple[bool, list[str]]:
+    missing: list[str] = []
+    if not spec.imap_host:
+        missing.append("imap_host")
+    if not spec.smtp_host:
+        missing.append("smtp_host")
+    if spec.auth_kind is AuthKind.OAUTH2:
+        if not spec.oauth_client_id:
+            missing.append("oauth_client_id")
+        if not spec.oauth_client_secret:
+            missing.append("oauth_client_secret")
+        if spec.oauth_tenant == "" and "microsoft" in spec.id:
+            missing.append("oauth_tenant")
+    return (not missing, missing)
 
 
 def _loopback(host: str) -> bool:

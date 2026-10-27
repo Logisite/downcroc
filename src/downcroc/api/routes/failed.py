@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 
 from downcroc.api.schemas.failures import FailureOut, FailureRetryAll
 from downcroc.api.schemas.jobs import JobOut
@@ -16,12 +16,14 @@ def _services(request: Request) -> Services:
 @router.get("", response_model=list[FailureOut])
 def list_failures(
     request: Request,
+    response: Response,
     limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
 ) -> list[FailureOut]:
-    return [
-        FailureOut.of(failure)
-        for failure in _services(request).failures.list(limit=limit)
-    ]
+    service = _services(request).failures
+    failures = service.list(limit=limit, offset=offset)
+    response.headers["X-Total-Count"] = str(service.count())
+    return [FailureOut.of(failure) for failure in failures]
 
 
 @router.post("/retry", response_model=FailureRetryAll)

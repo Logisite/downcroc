@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-from downcroc.cli.client import api, get, post
+from downcroc.cli import paths as path_tools
+from downcroc.cli.client import api, get, get_page, post
 from downcroc.cli.context import load
-from downcroc.cli.output import json_out, record, table
+from downcroc.cli.errors import CliError
+from downcroc.cli.output import json_out, page_footer, record, table
+from downcroc.cli.ui import prompts
+from downcroc.cli.ui.menu import open_menu
+from downcroc.cli.ui.session import Ui, build
 
 
 def _list(rows: list[dict]) -> None:
@@ -52,60 +55,129 @@ def _contents(parser: object) -> tuple[str, str | None]:
     html = getattr(parser, "html", None)
     html_file = getattr(parser, "html_file", None)
     if text_file is not None:
-        text = Path(text_file).read_text(encoding="utf-8")
+        text = path_tools.read_text(text_file, field="text_file")
     if html_file is not None:
-        html = Path(html_file).read_text(encoding="utf-8")
+        html = path_tools.read_text(html_file, field="html_file")
     return text or "", html
 
 
+def _listing(client, args: object, ui: Ui) -> int:
+    rows, total = get_page(
+        client,
+        "/api/jobs",
+        batch=getattr(args, "batch", None),
+        account=getattr(args, "account", None),
+        state=getattr(args, "state", None),
+        limit=getattr(args, "limit", None) or 100,
+        offset=getattr(args, "offset", 0) or 0,
+    )
+    if ui.json_mode:
+        json_out(rows)
+        return 0
+    _list(rows)
+    page_footer(
+        len(rows),
+        total,
+        limit=getattr(args, "limit", None) or 100,
+        offset=getattr(args, "offset", 0) or 0,
+    )
+    return 0
+
+
+def _account(client, account_id: str) -> dict:
+    return get(client, f"/api/accounts/{account_id}")
+
+
+def _preflight(client, account_id: str, force: bool, ui: Ui) -> None:
+    account = _account(client, account_id)
+    if account["status"] == "connected":
+        return
+    message = (
+        f"{account['address']} is {account['status']}, "
+        "so the send will wait until it connects"
+    )
+    if force:
+        if not ui.json_mode:
+            print(f"warning: {message}")
+        return
+    raise CliError(
+        message,
+        code="account_not_connected",
+        fields={"account": account_id, "status": account["status"]},
+        hint=f"run `downcroc account connect {account_id}`, or pass --force",
+    )
+
+
+def _confirm_send(job: dict, args: object, ui: Ui) -> None:
+    if not ui.interactive:
+        prompts.confirm(
+            "send this job now?",
+            ui=ui,
+            yes_flag=bool(getattr(args, "yes", False)),
+        )
+        return
+    print(f"  to      {job['recipient']}")
+    print(f"  subject {job['subject']}")
+    print(f"  account {job['account_id']}")
+    prompts.confirm(
+        "send this job now?",
+        ui=ui,
+        yes_flag=bool(getattr(args, "yes", False)),
+    )
+
+
+def _create(client, args: object, ui: Ui) -> int:
+    _preflight(client, args.account_id, bool(args.force), ui)
+    text, html = _contents(args)
+    job = post(
+        client,
+        "/api/jobs",
+        {
+            "account_id": args.account_id,
+            "recipient": args.recipient,
+            "recipient_name": args.recipient_name,
+            "subject": args.subject,
+            "text": text,
+            "html": html,
+            "batch_id": args.batch,
+        },
+    )
+    if args.send:
+        _confirm_send(job, args, ui)
+        job = post(client, f"/api/jobs/{job['id']}/send")
+    if ui.json_mode:
+        json_out(job)
+    else:
+        print(f"created {job['id']} ({job['state']})")
+    return 0
+
+
+def _send(client, args: object, ui: Ui) -> int:
+    job = get(client, f"/api/jobs/{args.job_id}")
+    _confirm_send(job, args, ui)
+    sent = post(client, f"/api/jobs/{args.job_id}/send")
+    if ui.json_mode:
+        json_out(sent)
+    else:
+        print(f"{sent['id']} {sent['state']}")
+    return 0
+
+
 def run(args: object) -> int:
+    ui = build(args)
     paths, _, _ = load()
+    action = getattr(args, "action", None)
+    if action is None and open_menu(ui, "job_menu"):
+        return 0
     with api(paths) as client:
-        if args.action == "list":
-            rows = get(
-                client,
-                "/api/jobs",
-                batch=getattr(args, "batch", None),
-                account=getattr(args, "account", None),
-                state=getattr(args, "state", None),
-                limit=getattr(args, "limit", None),
-            )
-            if args.json:
-                json_out(rows)
-            else:
-                _list(rows)
-            return 0
-        if args.action == "create":
-            text, html = _contents(args)
-            job = post(
-                client,
-                "/api/jobs",
-                {
-                    "account_id": args.account_id,
-                    "recipient": args.recipient,
-                    "recipient_name": args.recipient_name,
-                    "subject": args.subject,
-                    "text": text,
-                    "html": html,
-                    "batch_id": args.batch,
-                },
-            )
-            if args.send:
-                job = post(client, f"/api/jobs/{job['id']}/send")
-            if args.json:
-                json_out(job)
-            else:
-                print(f"created {job['id']} ({job['state']})")
-            return 0
-        if args.action == "send":
-            job = post(client, f"/api/jobs/{args.job_id}/send")
-            if args.json:
-                json_out(job)
-            else:
-                print(f"{job['id']} {job['state']}")
-            return 0
+        if action in {None, "list"}:
+            return _listing(client, args, ui)
+        if action == "create":
+            return _create(client, args, ui)
+        if action == "send":
+            return _send(client, args, ui)
         job = get(client, f"/api/jobs/{args.job_id}")
-        if args.json:
+        if ui.json_mode:
             json_out(job)
         else:
             _show(job)

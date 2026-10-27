@@ -23,6 +23,7 @@ def _services(request: Request) -> Services:
 @router.get("/api/messages", response_model=list[MessageSummaryOut])
 def list_messages(
     request: Request,
+    response: Response,
     account: str | None = None,
     folder: str | None = None,
     thread: str | None = None,
@@ -32,7 +33,8 @@ def list_messages(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[MessageSummaryOut]:
-    messages = _services(request).messages.list_messages(
+    repo = _services(request).messages
+    messages = repo.list_messages(
         account_id=account,
         folder=folder,
         thread_id=thread,
@@ -41,6 +43,16 @@ def list_messages(
         until=until,
         limit=limit,
         offset=offset,
+    )
+    response.headers["X-Total-Count"] = str(
+        repo.count_messages(
+            account_id=account,
+            folder=folder,
+            thread_id=thread,
+            reply_state=reply_state,
+            since=since,
+            until=until,
+        )
     )
     return [MessageSummaryOut.of(message) for message in messages]
 
@@ -72,16 +84,21 @@ def download_attachment(
 @router.get("/api/threads", response_model=list[ThreadOut])
 def list_threads(
     request: Request,
+    response: Response,
     account: str | None = None,
     batch: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[ThreadOut]:
-    threads = _services(request).messages.list_threads(
+    repo = _services(request).messages
+    threads = repo.list_threads(
         account_id=account,
         batch_id=batch,
         limit=limit,
         offset=offset,
+    )
+    response.headers["X-Total-Count"] = str(
+        repo.count_threads(account_id=account, batch_id=batch)
     )
     return [ThreadOut.of(thread) for thread in threads]
 

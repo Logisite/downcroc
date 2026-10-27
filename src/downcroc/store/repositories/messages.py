@@ -134,6 +134,32 @@ class MessageRepo(InboundMixin):
             rows = session.execute(query).all()
             return [_summary(row, count) for row, count in rows]
 
+    def count_messages(
+        self,
+        *,
+        account_id: str | None = None,
+        folder: str | None = None,
+        thread_id: str | None = None,
+        reply_state: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> int:
+        query = select(func.count()).select_from(MessageRow)
+        if account_id is not None:
+            query = query.where(MessageRow.account_id == account_id)
+        if folder is not None:
+            query = query.where(MessageRow.folder == folder)
+        if thread_id is not None:
+            query = query.where(MessageRow.thread_id == thread_id)
+        if reply_state is not None:
+            query = query.where(MessageRow.reply_state == reply_state)
+        if since is not None:
+            query = query.where(MessageRow.date >= since)
+        if until is not None:
+            query = query.where(MessageRow.date <= until)
+        with self._sessions() as session:
+            return int(session.scalar(query) or 0)
+
     def get_message(self, message_id: str) -> Message:
         with self._sessions() as session:
             row = session.get(MessageRow, message_id)
@@ -201,6 +227,27 @@ class MessageRepo(InboundMixin):
         query = query.limit(limit).offset(offset)
         with self._sessions() as session:
             return [_thread(row) for row in session.execute(query).scalars()]
+
+    def count_threads(
+        self,
+        *,
+        account_id: str | None = None,
+        batch_id: str | None = None,
+    ) -> int:
+        query = select(func.count()).select_from(ThreadRow)
+        if account_id is not None:
+            query = query.where(
+                ThreadRow.id.in_(
+                    select(MessageRow.thread_id).where(
+                        MessageRow.account_id == account_id,
+                        MessageRow.thread_id.is_not(None),
+                    )
+                )
+            )
+        if batch_id is not None:
+            query = query.where(ThreadRow.batch_id == batch_id)
+        with self._sessions() as session:
+            return int(session.scalar(query) or 0)
 
     def get_thread(self, thread_id: str) -> tuple[Thread, list[MessageSummary]]:
         count = (

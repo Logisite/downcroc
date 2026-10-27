@@ -245,3 +245,24 @@ class RetentionSettings(BaseModel):
         le=3650,
         description="Days to keep daily activity rows.",
     )
+
+
+class CliSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    timeout_s: float = Field(
+        default=10.0,
+        gt=0,
+        le=60,
+        description="Seconds a CLI request waits for the daemon.",
+    )
+    page_lines: int = Field(
+        default=40,
+        ge=0,
+        le=10_000,
+        description="Lines before interactive output is paged; 0 disables paging.",
+    )
+    glyphs: Literal["auto", "nerd", "ascii"] = Field(
+        default="auto",
+        description="Glyph set: auto, nerd, or ascii.",
+    )

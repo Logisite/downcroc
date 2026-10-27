@@ -163,7 +163,7 @@ def test_backup_wipe_restore_preserves_counts_and_queue(stack_factory) -> None:
     stack.daemon.stop()
     remove_tree(stack.daemon.data_home / "downcroc")
     remove_tree(stack.daemon.config_home / "downcroc")
-    result = _cli(stack, "restore", str(bundle))
+    result = _cli(stack, "restore", str(bundle), "--yes")
     assert result.returncode == 0, result.stdout + result.stderr
     assert not list(stack.daemon.data_home.glob("downcroc.bak-*"))
 

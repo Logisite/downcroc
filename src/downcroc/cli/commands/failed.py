@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from downcroc.cli.client import api, get, post
+from downcroc.cli.client import api, get, get_page, post
 from downcroc.cli.context import load
-from downcroc.cli.output import json_out, record, table
+from downcroc.cli.output import json_out, page_footer, record, table
+from downcroc.cli.ui import prompts
+from downcroc.cli.ui.menu import open_menu
+from downcroc.cli.ui.session import Ui, build
 
 
 def _list(rows: list[dict]) -> None:
@@ -38,36 +41,75 @@ def _show(item: dict) -> None:
     )
 
 
+def _listing(client, args: object, ui: Ui) -> int:
+    rows, total = get_page(
+        client,
+        "/api/failed",
+        limit=getattr(args, "limit", None) or 100,
+        offset=getattr(args, "offset", 0) or 0,
+    )
+    if ui.json_mode:
+        json_out(rows)
+        return 0
+    _list(rows)
+    page_footer(
+        len(rows),
+        total,
+        limit=getattr(args, "limit", None) or 100,
+        offset=getattr(args, "offset", 0) or 0,
+    )
+    return 0
+
+
+def _retry_all(client, args: object, ui: Ui) -> int:
+    rows, total = get_page(client, "/api/failed", limit=500, offset=0)
+    count = total if total is not None else len(rows)
+    if count == 0:
+        if ui.json_mode:
+            json_out({"retried": 0})
+        else:
+            print("no failures to retry")
+        return 0
+    accounts = sorted({item["account_id"] for item in rows})
+    retryable = sum(1 for item in rows if item["retryable"])
+    if not ui.json_mode:
+        print(f"{count} failures on {len(accounts)} accounts")
+        for account in accounts:
+            print(f"  {account}")
+        print(f"  {retryable} of the shown failures are retryable")
+    prompts.confirm(
+        f"retry {count} failures?",
+        ui=ui,
+        yes_flag=bool(getattr(args, "yes", False)),
+    )
+    result = post(client, "/api/failed/retry")
+    if ui.json_mode:
+        json_out(result)
+    else:
+        print(f"retried {result['retried']} failures")
+    return 0
+
+
 def run(args: object) -> int:
+    ui = build(args)
     paths, _, _ = load()
+    action = getattr(args, "action", None)
+    if action is None and open_menu(ui, "failed_menu"):
+        return 0
     with api(paths) as client:
-        if args.action == "list":
-            rows = get(
-                client,
-                "/api/failed",
-                limit=getattr(args, "limit", None),
-            )
-            if args.json:
-                json_out(rows)
-            else:
-                _list(rows)
-            return 0
-        if args.action == "retry-all":
-            result = post(client, "/api/failed/retry")
-            if args.json:
-                json_out(result)
-            else:
-                print(f"retried {result['retried']} failures")
-            return 0
-        if args.action == "retry":
+        if action in {None, "list"}:
+            return _listing(client, args, ui)
+        if action == "retry-all":
+            return _retry_all(client, args, ui)
+        if action == "retry":
             job = post(client, f"/api/failed/{args.job_id}/retry")
-            if args.json:
+            if ui.json_mode:
                 json_out(job)
             else:
                 print(f"retried {job['id']} ({job['state']})")
             return 0
         item = get(client, f"/api/failed/{args.job_id}")
-        if args.json:
+        if ui.json_mode:
             json_out(item)
         else:
             _show(item)

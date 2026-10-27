@@ -51,15 +51,16 @@ class RestoreService:
         self._paths = paths
         self._log = log
 
-    def request(self, bundle: Path) -> RestoreOutcome:
+    def request(self, bundle: Path, manifest: Manifest | None = None) -> RestoreOutcome:
         if self._paths.restore_marker.exists():
             raise RestorePending("a restore is already pending")
         source = bundle.expanduser().absolute()
-        try:
-            manifest = verify_bundle(source, self._log)
-        except RestoreRefused as error:
-            _log_refused(self._log, error)
-            raise
+        if manifest is None:
+            try:
+                manifest = verify_bundle(source, self._log)
+            except RestoreRefused as error:
+                _log_refused(self._log, error)
+                raise
         write_marker(self._paths.restore_marker, request_marker(source))
         return RestoreOutcome(
             status="pending",

@@ -1,0 +1,11 @@
+{
+  "messages": [
+    {
+      "to": {
+        "email": "divinechinemeremeke@gmail.com"
+      },
+      "subject": "Re: Naked JSON",
+      "text": "Hey, I saw you replied! This is a manual follow-up sent via the CLI to test threading."
+    }
+  ]
+}

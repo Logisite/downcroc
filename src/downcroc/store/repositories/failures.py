@@ -63,10 +63,11 @@ class FailureRepo:
                 raise FailureNotFound(f"no failure for job {job_id}")
             return _to_failure(row)
 
-    def list(self, limit: int = 100) -> list[FailedJob]:
+    def list(self, limit: int = 100, offset: int = 0) -> list[FailedJob]:
         query = (
             select(FailedJobRow)
             .order_by(FailedJobRow.failed_at.desc(), FailedJobRow.job_id)
+            .offset(offset)
             .limit(limit)
         )
         with self._sessions() as session:

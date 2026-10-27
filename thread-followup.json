@@ -1,0 +1,21 @@
+{
+  "campaign": {
+    "key": "thread-bump",
+    "routing": {
+      "mode": "fixed",
+      "account": "acct_e9a9a20ee03723dd"
+    },
+    "options": {
+      "suppress_replies": false
+    }
+  },
+  "messages": [
+    {
+      "to": {
+        "email": "divinechinemeremeke+threading@gmail.com"
+      },
+      "subject": "Re: Threading Test",
+      "text": "This is the manual follow-up, threaded via the CLI."
+    }
+  ]
+}

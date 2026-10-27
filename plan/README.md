@@ -7,8 +7,9 @@ It is not a mail client. You draft elsewhere and hand downcroc a file. downcroc 
 it, schedules it, sends it, tracks it, and reports who answered.
 
 The whole system is one background daemon that owns all state, and one or more clients
-that attach to it and render what it says. Today the client is the command line. The TUI
-described in `08-tui.md` and a later browser UI use the same API.
+that attach to it and render what it says. Release 1 has one client: the command line, with
+an interactive layer for people and flags for agents. The TUI described in `08-tui.md` and a
+later browser UI use the same API.
 
 ## Status of these documents
 
@@ -54,11 +55,12 @@ CLI / TUI / web client  ->  loopback HTTP + event stream  ->  daemon  ->  IMAP +
 | `05-providers.md` | provider interface, Gmail, Outlook, generic IMAP, OAuth and XOAUTH2 |
 | `06-send-pipeline.md` | inputs, validation, dry run, dispatch, quota, jitter, retries, suppression, follow-ups |
 | `07-inbound.md` | watchers, IDLE, storage, DSN classification, threading, reply counting |
-| `08-tui.md` | Textual client, screens, approval flow, config editing, design law |
+| `08-tui.md` | Textual client, screens, approval flow, config editing, design law (deferred for release 1) |
 | `09-backup-restore.md` | bundle format, versioning, forward migration, restore |
 | `10-build-order.md` | phases and gates, live testing, code conventions, acceptance run |
 | `11-decision-log.md` | every decision, its answer, and its rationale |
 | `12-module-map.md` | module tree three levels deep, the seams, library homes, where new things go |
+| `13-interactive-cli.md` | human flows, prompts, help, the input contract, and every CLI truth defect |
 
 Reading order for a new contributor: `README` -> `01` -> `12` -> `03` -> `06` -> `07` -> `10`.
 

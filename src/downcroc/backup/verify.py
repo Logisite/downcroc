@@ -98,6 +98,7 @@ def verify_bundle(
 ) -> Manifest:
     hashes: dict[str, str] = {}
     manifest: Manifest | None = None
+    path = path.expanduser().absolute()
     try:
         with path.open("rb") as raw:
             reader = zstandard.ZstdDecompressor().stream_reader(raw)
@@ -134,10 +135,10 @@ def verify_bundle(
         raise
     except (OSError, EOFError, tarfile.TarError, zstandard.ZstdError) as error:
         if log is not None:
-            log.warning("backup.verify_failed", file=path.name)
+            log.warning("backup.verify_failed", file=str(path))
         raise BackupInvalid(
             "bundle cannot be read",
-            fields={"file": path.name},
+            fields={"file": str(path)},
         ) from error
 
     try:

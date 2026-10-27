@@ -1,0 +1,18 @@
+{
+  "campaign": {
+    "key": "thread-test",
+    "routing": {
+      "mode": "fixed",
+      "account": "acct_e9a9a20ee03723dd"
+    }
+  },
+  "messages": [
+    {
+      "to": {
+        "email": "divinechinemeremeke+threading@gmail.com"
+      },
+      "subject": "Threading Test",
+      "text": "This is the start of the thread."
+    }
+  ]
+}

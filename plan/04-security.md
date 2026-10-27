@@ -152,7 +152,8 @@ Rules:
 
 - The password is received once, held only long enough to derive, then dropped. It is never
   written, logged, or returned.
-- The derived key lives in the process only. No key file, no keyring integration.
+- The derived key lives in the process only. No key file. The optional system credential store
+  holds the master password, never the key (see below).
 - Failed unlock attempts are counted and rate limited in memory: five free attempts, then an
   exponentially increasing delay from one second, capped at five minutes. The free count, base
   delay, and ceiling are in `[vault]`. This is not a defence against an attacker with the file
@@ -167,6 +168,41 @@ Rules:
 - Locking while sends are in flight: the sender finishes the current message if it can within
   its lease, then stops. Jobs left in `sending` follow the normal crash path in `03`.
 - Stopping the daemon locks. There is no separate step and no way to stop it unlocked.
+
+## The system credential store (optional)
+
+By default the master password is typed at every unlock. A user may instead let downcroc keep it
+in the operating system credential store, so the only password they remember is the one they use
+to log in to the computer. The decision is `Q81` in `11-decision-log.md` and the CLI behaviour is
+the vault password sources subsection of section 6.1 in `13-interactive-cli.md`.
+
+| Rule | Detail |
+|---|---|
+| Default | off. `vault init` offers it, `--no-keyring` refuses it, and `--no-input` never enables it |
+| Store | Secret Service over D-Bus on Linux, Windows Credential Manager on Windows. Nothing else is accepted |
+| Item | service `downcroc`, account `<absolute vault path>`, so two installations do not collide |
+| Value | the master password exactly as entered. Never the derived key, never a mailbox password |
+| Reader | the CLI only. The daemon still starts locked and receives the password through `/api/vault/unlock` |
+| Write | after the vault is created and verified. A store failure leaves the vault usable and prints a warning |
+| Removal | `vault keyring disable`, or `vault lock --forget`, deletes the item. The vault password does not change |
+| Backend absent | `keyring unavailable`, one line, then the normal prompt. Headless Linux has no Secret Service, so this is the common server case |
+| Backend refused | a file or plaintext backend is refused with `keyring_backend_unsupported` and treated as absent. `keyrings.alt` is not a dependency |
+| Frozen binary | ticket 06 must include the backend imports, or the binary reports the store as unavailable instead of crashing |
+
+The threat model changes while this is on. Any process running as the same user in the same
+logged-in session can ask the store for the item and unlock the vault without knowing anything.
+The vault still protects a stolen disk, a stolen backup, and a copied data directory, because
+none of those include the OS session. It does not protect against code already running as the
+user, and neither did the typed password: that password passed through the CLI's memory, and the
+derived key sits in the daemon while it runs. The prompt states the trade in one line, the
+`vault` help topic states it in full, and the choice is per installation.
+
+Windows note: the Credential Manager item belongs to the user's logon. A scheduled task that runs
+whether or not the user is logged on cannot read it, so the vault stays locked there. The logon
+task used by `service install` runs in the interactive session and can.
+
+Linux note: Secret Service needs a session bus and an unlocked login keyring. A server reached
+over SSH usually has neither, so the store reports unavailable and the prompt remains the path.
 
 ## Daemon bearer token
 
@@ -224,16 +260,18 @@ the provider-secret invariant is still structural: secrets live in a single obje
 
 The daemon checks these at startup and corrects a looser mode with a warning in the log rather
 than refusing to start. Refusing to start would lock a user out of their own tool over a `chmod`.
-macOS uses `~/Library/Application Support/downcroc/{config,data,state}` unless an XDG override
-is set. Windows uses `%APPDATA%\\downcroc` for config and `%LOCALAPPDATA%\\downcroc` for data and
-state. POSIX modes do not apply there; credential files such as `daemon.token` and `vault.enc`
-get an owner-only ACL with inheritance removed.
+Windows uses `%APPDATA%\\downcroc` for config and `%LOCALAPPDATA%\\downcroc` for data and state.
+POSIX modes do not apply there; credential files such as `daemon.token` and `vault.enc` get an
+owner-only ACL with inheritance removed.
 
 ## Failure modes
 
 | Situation | Behaviour |
 |---|---|
 | Wrong password | `vault_bad_password`, no detail, attempts rate limited |
+| Credential store item missing | `keyring_empty`, then the normal password prompt |
+| Credential store unreachable | `keyring_unavailable`, then the prompt; the vault is unaffected |
+| Credential store holds a stale password | the item is deleted, the prompt appears with a one-line note, and a successful typed unlock offers to store the new password |
 | Vault truncated or corrupt | `vault_corrupt` with instructions to restore from backup; the daemon stays up, locked |
 | Disk full during vault write | old vault intact, operation fails, error surfaced |
 | Provider revokes the refresh token | account to `needs_reauth`, jobs on that account pause, no failures recorded |

@@ -22,8 +22,8 @@ To run the daemon at login through the native user service manager:
     downcroc service status
     downcroc service uninstall
 
-`service install --print` writes the generated systemd unit, launchd plist, or Windows task
-definition to stdout without installing it. Uninstall leaves config, data, and state in place.
+`service install --print` writes the generated systemd unit or Windows task definition to
+stdout without installing it. Uninstall leaves config, data, and state in place.
 
 ## Common commands
 

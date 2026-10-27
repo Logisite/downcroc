@@ -20,6 +20,28 @@ class PreviewMessage:
 
 
 @dataclass(frozen=True)
+class PreviewRouting:
+    mode: str
+    account_id: str | None
+    counts: dict[str, int]
+    unresolved: bool = False
+
+
+@dataclass(frozen=True)
+class PreviewFollowUp:
+    key: str
+    after_days: int
+    when: str
+    require_approval: bool
+
+
+@dataclass(frozen=True)
+class PreviewAttachments:
+    count: int
+    bytes: int
+
+
+@dataclass(frozen=True)
 class Preview:
     source_kind: str
     campaign_key: str
@@ -27,6 +49,15 @@ class Preview:
     routing_mode: str
     messages: tuple[PreviewMessage, ...]
     ignored: tuple[str, ...]
+    total: int = 0
+    valid: int = 0
+    sampled: int = 0
+    sample_limit: int = 0
+    warnings: tuple[str, ...] = ()
+    routing: PreviewRouting | None = None
+    followups: tuple[PreviewFollowUp, ...] = ()
+    duplicates: int = 0
+    attachments: PreviewAttachments | None = None
 
 
 @dataclass(frozen=True)

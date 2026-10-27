@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 
 from downcroc.api.schemas.jobs import JobCreate, JobOut
 from downcroc.core.bootstrap import Services
@@ -15,16 +15,23 @@ def _services(request: Request) -> Services:
 @router.get("", response_model=list[JobOut])
 def list_jobs(
     request: Request,
+    response: Response,
     batch: str | None = None,
     account: str | None = None,
     state: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[JobOut]:
-    jobs = _services(request).outbound.list(
+    service = _services(request).outbound
+    jobs = service.list(
         batch_id=batch,
         account_id=account,
         state=state,
         limit=limit,
+        offset=offset,
+    )
+    response.headers["X-Total-Count"] = str(
+        service.count(batch_id=batch, account_id=account, state=state)
     )
     return [JobOut.of(job) for job in jobs]
 

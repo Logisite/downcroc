@@ -1,0 +1,25 @@
+[build]
+entry = "src/downcroc/cli/main.py"
+# entry_hint = "tabs.py"   # uncomment if folder has multiple .py files
+output_dir = "dist_th1"
+output_name = "downcroc"
+output_format = "auto"   # auto | exe | bin
+
+onefile = true
+follow_imports = true
+enable_anti_bloat = true
+lto = true
+jobs = 0
+
+upx = false
+show_progress = true
+assume_yes = false
+
+# icon = "assets/icon.png"   # .png auto-converted per platform
+
+include_packages = []
+include_data_files = []
+include_data_dirs = []
+plugins = []
+disable_plugins = []
+extra_nuitka_args = []

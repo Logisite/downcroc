@@ -56,6 +56,17 @@ BAD = {
     "corrupt",
 }
 
+_CONTEXT = {"wide": False, "full": False}
+
+
+def configure(*, wide: bool = False, full: bool = False) -> None:
+    _CONTEXT["wide"] = wide
+    _CONTEXT["full"] = full
+
+
+def is_full() -> bool:
+    return bool(_CONTEXT["full"])
+
 
 def colour_enabled() -> bool:
     if os.environ.get("NO_COLOR"):
@@ -94,9 +105,12 @@ def cell(value: Any) -> str:
     if isinstance(value, dict):
         value = json.dumps(value, ensure_ascii=False)
     text = " ".join(str(value).split())
-    if len(text) > MAX_CELL:
-        text = text[: MAX_CELL - 3].rstrip() + "..."
-    return text
+    if len(text) <= MAX_CELL or _CONTEXT["full"] or _CONTEXT["wide"]:
+        return text
+    if not any(character.isspace() for character in text):
+        return text
+    keep = max(8, MAX_CELL - 18)
+    return f"{text[:keep].rstrip()}... (+{len(text) - keep} chars)"
 
 
 def table(headers: list[str], rows: list[list[Any]]) -> None:
@@ -128,6 +142,40 @@ def record(values: dict[str, Any]) -> None:
     for key, value in values.items():
         text = cell(value)
         print(f"{_paint(key.ljust(width), BOLD)}  {_paint(text, _value_colour(text))}")
+
+
+def section(title: str, values: dict[str, Any]) -> None:
+    print()
+    print(_paint(title, BOLD))
+    record(values)
+
+
+def empty(message: str) -> None:
+    print(message)
+
+
+def footer(text: str) -> None:
+    print()
+    print(text)
+
+
+def page_footer(
+    shown: int,
+    total: int | None,
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+) -> None:
+    if total is None or total <= shown and offset == 0:
+        return
+    first = offset + 1 if shown else 0
+    last = offset + shown
+    print()
+    line = f"showing {first:,}-{last:,} of {total:,}"
+    following = offset + (limit or shown)
+    if following < total:
+        line += f"  next: --offset {following}"
+    print(line)
 
 
 def flatten(document: dict[str, Any], prefix: str = "") -> dict[str, Any]:

@@ -1,0 +1,31 @@
+{
+    "schema": "downcroc.campaign/v1",
+    "producer": {
+        "name": "manual-test",
+        "version": "1"
+    },
+    "campaign": {
+        "key": "test-outbound-1",
+        "name": "Outbound Pipeline Test",
+        "routing": {
+            "mode": "fixed",
+            "account": "acct_e9a9a20ee03723dd"
+        },
+        "options": {
+            "approval": "review",
+            "suppress_replies": true
+        }
+    },
+    "messages": [
+        {
+            "key": "msg-1",
+            "to": {
+                "email": "divinechinemeremeke@gmail.com",
+                "name": "Divine"
+            },
+            "subject": "Testing downcroc outbound",
+            "text": "Hey Divine,\n\nThis is a live test of the downcroc outbound pipeline. If you get this, the SMTP dispatcher is working.\n\nReply to this email so we can test the reply-matching logic!\n"
+        }
+    ],
+    "followups": []
+}
