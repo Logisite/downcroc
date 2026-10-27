@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from types import FrameType
@@ -32,6 +32,7 @@ from downcroc.runtime.service.process import (
     terminate,
 )
 from downcroc.runtime.service.registry import ServiceInfo, read, remove, write
+from downcroc.runtime.service.units import launcher
 from downcroc.version import API_VERSION, __version__
 
 
@@ -250,35 +251,55 @@ def run_foreground(paths: Paths) -> None:
         lock.release()
 
 
-def start(paths: Paths, settings: Settings) -> ServiceInfo:
+def start(
+    paths: Paths,
+    settings: Settings,
+    *,
+    timeout: float | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> ServiceInfo:
     existing = running(paths.service_file)
     if existing is not None:
         raise AlreadyRunning(existing)
     _cleanup(paths)
     _check_port(settings.daemon.host, settings.daemon.port)
+    if progress is not None:
+        progress(f"starting on {settings.daemon.host}:{settings.daemon.port} ...")
     process = subprocess.Popen(
-        [sys.executable, "-m", "downcroc", "serve"],
+        [*launcher(), "serve"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         **detached_kwargs(),
     )
     service_pid: int | None = None
+    limit = settings.daemon.start_timeout_s if timeout is None else timeout
+    started = time.monotonic()
     try:
-        deadline = time.monotonic() + settings.daemon.start_timeout_s
+        deadline = started + limit
         while time.monotonic() < deadline:
             info = read(paths.service_file)
             if info is not None:
                 service_pid = info.pid
                 if _health(info):
+                    if progress is not None:
+                        progress(
+                            f"ready after {time.monotonic() - started:.1f}s "
+                            f"on {info.base_url}"
+                        )
                     return info
             if process.poll() is not None and (info is None or not is_alive(info.pid)):
                 raise RuntimeError(f"daemon exited during start, see {paths.log_file}")
+            if progress is not None:
+                progress(
+                    f"waiting for health ... {time.monotonic() - started:.1f}s"
+                    f" of {limit:.0f}s"
+                )
             time.sleep(0.1)
         tail = _log_tail(paths.log_file)
         detail = f"\n{tail}" if tail else ""
         raise TimeoutError(
-            f"daemon did not answer within {settings.daemon.start_timeout_s}s "
+            f"daemon did not answer within {limit:.0f}s "
             f"(launcher pid {process.pid}, service pid {service_pid}); "
             f"see {paths.log_file}{detail}"
         )
