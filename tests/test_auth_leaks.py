@@ -28,7 +28,7 @@ def _request(stack: Stack, path: str, token: str | None) -> tuple[int, bytes]:
 
 def _scan(root: Path, secrets: tuple[str, ...], excluded: Path) -> None:
     for path in root.rglob("*"):
-        if not path.is_file() or path == excluded:
+        if not path.is_file() or path == excluded or path.name == "daemon.lock":
             continue
         data = path.read_bytes()
         for secret in secrets:

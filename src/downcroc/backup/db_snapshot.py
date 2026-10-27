@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from downcroc.runtime.fs import restrict
@@ -27,13 +28,14 @@ def _table_names(connection: sqlite3.Connection) -> set[str]:
 def snapshot_database(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.unlink(missing_ok=True)
-    with _connect(source) as reader, _connect(target) as writer:
+    with closing(_connect(source)) as reader, closing(_connect(target)) as writer:
         reader.backup(writer)
+        writer.commit()
     restrict(target, 0o600)
 
 
 def schema_revision(path: Path) -> str | None:
-    with _connect(path) as connection:
+    with closing(_connect(path)) as connection:
         if "alembic_version" not in _table_names(connection):
             return None
         row = connection.execute(
@@ -44,7 +46,7 @@ def schema_revision(path: Path) -> str | None:
 
 def table_counts(path: Path) -> dict[str, int]:
     found: dict[str, int] = {}
-    with _connect(path) as connection:
+    with closing(_connect(path)) as connection:
         names = _table_names(connection)
         for table in TABLES:
             if table not in names:
@@ -56,20 +58,20 @@ def table_counts(path: Path) -> dict[str, int]:
 
 
 def integrity_problems(path: Path) -> list[str]:
-    with _connect(path) as connection:
+    with closing(_connect(path)) as connection:
         rows = connection.execute("PRAGMA integrity_check").fetchall()
     return [str(row[0]) for row in rows if str(row[0]) != "ok"]
 
 
 def foreign_key_problems(path: Path) -> list[str]:
-    with _connect(path) as connection:
+    with closing(_connect(path)) as connection:
         rows = connection.execute("PRAGMA foreign_key_check").fetchall()
     return [":".join(str(part) for part in row) for row in rows]
 
 
 def content_refs(path: Path) -> set[str]:
     refs: set[str] = set()
-    with _connect(path) as connection:
+    with closing(_connect(path)) as connection:
         names = _table_names(connection)
         for table, column in CONTENT_REFS:
             if table not in names:
