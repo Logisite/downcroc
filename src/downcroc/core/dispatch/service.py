@@ -95,14 +95,22 @@ class Dispatcher:
         while not self._stop.is_set():
             try:
                 await self._cycle()
+            except asyncio.CancelledError:
+                raise
             except (
                 DomainError,
                 OSError,
                 RuntimeError,
                 SQLAlchemyError,
+                KeyError,
+                TypeError,
                 ValueError,
             ) as error:
-                self._log.error("dispatch.error", error=error.__class__.__name__)
+                self._log.error(
+                    "dispatch.error",
+                    error=error.__class__.__name__,
+                    detail=str(error)[:200],
+                )
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._dispatch.tick_s)
             except TimeoutError:
