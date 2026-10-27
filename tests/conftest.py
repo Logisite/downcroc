@@ -7,6 +7,7 @@ import pytest
 
 from tests.harness.api import Api
 from tests.harness.daemon import Daemon
+from tests.harness.diagnostics import describe
 from tests.harness.fakes import FakeMailServers
 from tests.harness.seed import connect_accounts
 
@@ -20,9 +21,23 @@ class Stack:
     accounts: list[str]
 
 
+_CREATED: list[Stack] = []
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
+    report = yield
+    if report.failed and report.when == "call" and _CREATED:
+        report.sections.append(
+            ("downcroc diagnostics", "\n\n".join(describe(stack) for stack in _CREATED))
+        )
+    return report
+
+
 @pytest.fixture
 def stack_factory(tmp_path: Path):
     created: list[Stack] = []
+    _CREATED.clear()
 
     def make(
         *,
@@ -47,12 +62,14 @@ def stack_factory(tmp_path: Path):
             accounts=connected,
         )
         created.append(stack)
+        _CREATED.append(stack)
         return stack
 
     yield make
     for stack in created:
         stack.daemon.stop()
         stack.fakes.stop()
+    _CREATED.clear()
 
 
 @pytest.fixture

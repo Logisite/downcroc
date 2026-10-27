@@ -93,7 +93,7 @@ class Daemon:
         while time.monotonic() < deadline:
             if self.process is not None and self.process.poll() is not None:
                 raise RuntimeError(
-                    f"daemon exited with {self.process.returncode}: {self._tail()}"
+                    f"daemon exited with {self.process.returncode}: {self.tail()}"
                 )
             try:
                 with opener.open(f"{self.base_url}/api/health", timeout=1) as response:
@@ -101,7 +101,7 @@ class Daemon:
                         return
             except urllib.error.URLError, TimeoutError, ConnectionError:
                 time.sleep(0.05)
-        raise RuntimeError(f"daemon did not become ready: {self._tail()}")
+        raise RuntimeError(f"daemon did not become ready: {self.tail()}")
 
     def _service_pid(self) -> int | None:
         path = self.state_home / "downcroc" / "service.json"
@@ -160,7 +160,7 @@ class Daemon:
             return 0
         return self.process.wait(timeout=timeout)
 
-    def _tail(self) -> str:
+    def tail(self) -> str:
         parts = []
         for path in (self.stderr, self.stdout):
             if path.exists():
