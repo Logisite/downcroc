@@ -25,6 +25,20 @@ To run the daemon at login through the native user service manager:
 `service install --print` writes the generated systemd unit or Windows task definition to
 stdout without installing it. Uninstall leaves config, data, and state in place.
 
+## Build a standalone binary
+
+Both packagers are supported, and each carries the Alembic migrations, provider
+declarations, licence files, and package metadata the daemon needs at runtime.
+Pick one:
+
+    uv sync --group build
+    uv run python scripts/build_binary.py pyinstaller
+    uv run python scripts/build_binary.py nuitka
+
+Each produces one onedir artifact and prints its path. Pass `--out DIR` for
+another location. The script finds the repository from its own path, so it
+works from any working directory.
+
 ## Common commands
 
     uv run downcroc account providers

@@ -51,11 +51,12 @@ build-backend = "uv_build"
 
 [dependency-groups]
 build = [
+    "nuitka>=4.3.1",
     "pyinstaller>=6.22.3",
 ]
 dev = [
+    "nuitka>=4.3.1",
     "pyinstaller>=6.22.3",
     "pytest>=9.1.1",
     "ruff>=0.17.1",
-    "thonpress>=1.1.2",
 ]
