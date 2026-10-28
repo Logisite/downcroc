@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from downcroc.cli import paths as path_tools
-from downcroc.cli.client import api, get, get_page, post
+from downcroc.cli.client import api, delete, get, get_page, post
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, page_footer, record, table
@@ -163,6 +163,73 @@ def _send(client, args: object, ui: Ui) -> int:
     return 0
 
 
+def _cancel(client, args: object, ui: Ui) -> int:
+    job = post(client, f"/api/jobs/{args.job_id}/cancel")
+    if ui.json_mode:
+        json_out(job)
+    else:
+        print(f"{job['id']} {job['state']}")
+    return 0
+
+
+def _delete(client, args: object, ui: Ui) -> int:
+    dry_run = bool(args.dry_run)
+    if not dry_run:
+        prompts.confirm(
+            f"delete job {args.job_id}?",
+            ui=ui,
+            yes_flag=bool(getattr(args, "yes", False)),
+        )
+    result = delete(
+        client,
+        f"/api/jobs/{args.job_id}",
+        confirm="true" if not dry_run else None,
+        force="true" if args.force else None,
+        dry_run="true" if dry_run else None,
+    )
+    if ui.json_mode:
+        json_out(result)
+    elif result.get("dry_run"):
+        print(f"would delete {result['job_id']} ({result['state']})")
+    else:
+        print(f"deleted {result['job_id']} ({result['state']})")
+    return 0
+
+
+def _reassign(client, args: object, ui: Ui) -> int:
+    dry_run = bool(args.dry_run)
+    if not dry_run:
+        prompts.confirm(
+            f"move jobs to {args.to_account_id}?",
+            ui=ui,
+            yes_flag=bool(getattr(args, "yes", False)),
+        )
+    result = post(
+        client,
+        "/api/jobs/reassign",
+        {
+            "from_account_id": args.from_account_id,
+            "to_account_id": args.to_account_id,
+            "job_ids": args.job_ids,
+            "batch_ids": args.batch_ids,
+            "states": args.states,
+            "created_since": args.since,
+            "created_until": args.until,
+            "include_failed": args.include_failed,
+            "dry_run": dry_run,
+            "confirm": not dry_run,
+        },
+    )
+    if ui.json_mode:
+        json_out(result)
+        return 0
+    verb = "would move" if result["dry_run"] else "moved"
+    print(f"{verb} {result['jobs']} jobs in {result['batches']} batches")
+    for item in result["skipped"]:
+        print(f"  skipped {item['id']}: {item['reason']}")
+    return 0
+
+
 def run(args: object) -> int:
     ui = build(args)
     paths, _, _ = load()
@@ -176,6 +243,12 @@ def run(args: object) -> int:
             return _create(client, args, ui)
         if action == "send":
             return _send(client, args, ui)
+        if action == "cancel":
+            return _cancel(client, args, ui)
+        if action == "delete":
+            return _delete(client, args, ui)
+        if action == "reassign":
+            return _reassign(client, args, ui)
         job = get(client, f"/api/jobs/{args.job_id}")
         if ui.json_mode:
             json_out(job)

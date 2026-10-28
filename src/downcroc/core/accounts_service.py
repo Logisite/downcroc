@@ -4,6 +4,7 @@ import time
 
 from downcroc.core.events import EventBus
 from downcroc.core.inbound import InboundService
+from downcroc.core.stats import StatsService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus, SendPolicy
 from downcroc.domain.attempts import ConnectAttempt
@@ -38,6 +39,7 @@ from downcroc.runtime.clock import utc_after, utc_now
 from downcroc.runtime.config.schema import ConnectSettings
 from downcroc.runtime.ids import new_id
 from downcroc.runtime.logging.setup import EventLogger
+from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.attempts import AttemptRepo
 
@@ -55,6 +57,8 @@ class AccountsService:
         attempts: AttemptRepo,
         settings: ConnectSettings,
         inbound: InboundService,
+        content: ContentStore,
+        stats: StatsService,
     ) -> None:
         self._accounts = accounts
         self._bus = bus
@@ -65,6 +69,8 @@ class AccountsService:
         self._tokens = tokens
         self._settings = settings
         self._inbound = inbound
+        self._content = content
+        self._stats = stats
         self._flow = OAuthFlow(attempts, settings, log, self._complete_oauth)
 
     def create(self, provider: str, address: str, label: str) -> Account:
@@ -102,16 +108,73 @@ class AccountsService:
     def get(self, account_id: str) -> Account:
         return self._accounts.get(account_id)
 
-    def delete(self, account_id: str) -> None:
+    def delete(
+        self,
+        account_id: str,
+        *,
+        reassign_to: str | None = None,
+        force_jobs: bool = False,
+        force_history: bool = False,
+    ) -> dict:
+        result = self._accounts.delete(
+            account_id,
+            reassign_to=reassign_to,
+            force_jobs=force_jobs,
+            force_history=force_history,
+        )
         self._flow.stop_for_account(account_id)
         self._inbound.account_removed(account_id)
-        self._accounts.delete(account_id)
+        for path in result.bodies:
+            self._content.discard(path)
+        for batch_id in result.batches:
+            self._stats.touch_batch(batch_id)
         try:
             self._vault.delete_account_secrets(account_id)
         except VaultLocked:
             pass
         self._bus.publish("account.removed", {"id": account_id})
-        self._log.info("account.deleted", account=account_id)
+        self._log.info(
+            "account.deleted",
+            account=account_id,
+            reassigned=result.reassigned,
+            jobs=result.deleted_jobs,
+        )
+        return {
+            "account_id": account_id,
+            "reassigned": result.reassigned,
+            "deleted_jobs": result.deleted_jobs,
+        }
+
+    def archive(self, account_id: str) -> Account:
+        account = self._accounts.get(account_id)
+        if account.archived_at is not None:
+            return account
+        updated = self._accounts.archive(account_id, utc_now())
+        self._flow.stop_for_account(account_id)
+        self._inbound.account_changed(account_id, False)
+        self._bus.publish("account.archived", {"id": account_id})
+        self._log.info("account.archived", account=account_id)
+        return updated
+
+    def unarchive(self, account_id: str) -> Account:
+        account = self._accounts.get(account_id)
+        if account.archived_at is None:
+            return account
+        updated = self._accounts.unarchive(account_id)
+        self._bus.publish("account.unarchived", {"id": account_id})
+        self._log.info("account.unarchived", account=account_id)
+        return updated
+
+    def deletion_preview(self, account_id: str) -> dict:
+        counts = self._accounts.deletion_counts(account_id)
+        blockers: list[str] = []
+        if counts.get("sending"):
+            blockers.append("job_in_flight")
+        if counts.get("jobs"):
+            blockers.append("account_in_use")
+        if counts.get("sent"):
+            blockers.append("history_requires_force_history")
+        return {"account_id": account_id, "counts": counts, "blockers": blockers}
 
     def start_attempt(self, account_id: str) -> ConnectAttempt:
         account = self._accounts.get(account_id)

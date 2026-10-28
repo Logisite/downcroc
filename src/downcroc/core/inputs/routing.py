@@ -74,6 +74,8 @@ def resolve(campaign: Campaign, accounts: list[Account]) -> RoutingPlan:
 def _eligible(policy: RoutingPolicy, accounts: list[Account]) -> list[Account]:
     result = []
     for account in accounts:
+        if account.archived_at is not None:
+            continue
         if account.status is not AccountStatus.CONNECTED or not account.policy.enabled:
             continue
         if policy.include and not _matches(policy.include, account):

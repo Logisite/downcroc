@@ -55,6 +55,7 @@ class AccountOut(BaseModel):
     credential_present: bool
     created_at: str
     last_verified_at: str | None
+    archived_at: str | None
     last_error: str | None
     watcher_enabled: bool
     sync: SyncOut
@@ -71,6 +72,7 @@ class AccountOut(BaseModel):
             credential_present=account.credential_present,
             created_at=account.created_at,
             last_verified_at=account.last_verified_at,
+            archived_at=account.archived_at,
             last_error=account.last_error,
             watcher_enabled=account.watcher_enabled,
             sync=SyncOut(
@@ -90,6 +92,34 @@ class AccountOut(BaseModel):
                 enabled=account.policy.enabled,
             ),
         )
+
+
+class AccountDeletionCounts(BaseModel):
+    jobs: int = 0
+    queued: int = 0
+    awaiting_approval: int = 0
+    retry_wait: int = 0
+    sending: int = 0
+    sent: int = 0
+    failed: int = 0
+    cancelled: int = 0
+    batches: int = 0
+    messages: int = 0
+    attempts: int = 0
+    activity: int = 0
+    quota: int = 0
+
+
+class AccountDeletionOut(BaseModel):
+    account_id: str
+    counts: AccountDeletionCounts
+    blockers: list[str]
+
+
+class AccountDeleteOut(BaseModel):
+    account_id: str
+    reassigned: int
+    deleted_jobs: int
 
 
 class AttemptOut(BaseModel):

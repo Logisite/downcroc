@@ -197,7 +197,35 @@ def account(commands: argparse._SubParsersAction) -> None:
 
     remove = actions.add_parser("delete", help="delete an account")
     remove.add_argument("account_id", nargs="?")
+    remove.add_argument(
+        "--reassign-to", metavar="ID", help="move queued jobs to this account"
+    )
+    remove.add_argument("--force-jobs", action="store_true", help="delete unsent jobs")
+    remove.add_argument(
+        "--force-history",
+        action="store_true",
+        help="delete sent history as well",
+    )
+    remove.add_argument(
+        "--dry-run", action="store_true", help="show what would be deleted"
+    )
     common(remove, yes=True)
+
+    deletion = actions.add_parser(
+        "deletion", help="preview what deleting an account removes"
+    )
+    deletion.add_argument("account_id", nargs="?")
+    common(deletion)
+
+    archive = actions.add_parser(
+        "archive", help="archive an account and stop its watcher"
+    )
+    archive.add_argument("account_id", nargs="?")
+    common(archive, yes=True)
+
+    unarchive = actions.add_parser("unarchive", help="restore an archived account")
+    unarchive.add_argument("account_id", nargs="?")
+    common(unarchive, yes=True)
 
     providers = actions.add_parser("providers", help="alias of provider list")
     common(providers)

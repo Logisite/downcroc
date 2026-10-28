@@ -219,6 +219,7 @@ class Dispatcher:
             account.status is AccountStatus.CONNECTED
             and account.policy.enabled
             and account.credential_present
+            and account.archived_at is None
         )
 
     def _batch_ready(

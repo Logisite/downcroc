@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request, Response
 
+from downcroc.api.confirm import require
 from downcroc.api.schemas.batches import (
     ApproveRequest,
+    BatchDeleteOut,
     BatchDetailOut,
     BatchOut,
+    BatchReassignOut,
+    BatchReassignRequest,
     BatchSubmit,
     FollowUpRequest,
     PreviewOut,
@@ -77,6 +81,39 @@ async def approve_batch(
 @router.post("/{batch_id}/cancel", response_model=BatchDetailOut)
 def cancel_batch(batch_id: str, request: Request) -> BatchDetailOut:
     return BatchDetailOut.from_detail(_services(request).batches.cancel(batch_id))
+
+
+@router.post("/{batch_id}/reassign", response_model=BatchReassignOut)
+def reassign_batch(
+    batch_id: str,
+    body: BatchReassignRequest,
+    request: Request,
+    confirm: bool = Query(default=False),
+) -> BatchReassignOut:
+    if not body.dry_run:
+        require(confirm or body.confirm)
+    result = _services(request).portability.reassign_batch(
+        batch_id,
+        to_account_id=body.to_account_id,
+        states=body.states or None,
+        include_failed=body.include_failed,
+        force=body.force,
+        dry_run=body.dry_run,
+    )
+    return BatchReassignOut(**result)
+
+
+@router.delete("/{batch_id}", response_model=BatchDeleteOut)
+def delete_batch(
+    batch_id: str,
+    request: Request,
+    confirm: bool = Query(default=False),
+    dry_run: bool = False,
+) -> BatchDeleteOut:
+    if not dry_run:
+        require(confirm)
+    result = _services(request).portability.delete_batch(batch_id, dry_run=dry_run)
+    return BatchDeleteOut(**result)
 
 
 @router.post("/{batch_id}/followups", response_model=BatchDetailOut, status_code=201)

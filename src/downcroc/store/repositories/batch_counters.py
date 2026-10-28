@@ -74,3 +74,11 @@ class BatchCounterRepo:
                 .limit(limit)
             )
             return [_to_counters(row) for row in rows]
+
+    def remove(self, batch_id: str) -> bool:
+        with self._sessions.begin() as session:
+            row = session.get(BatchCounterRow, batch_id)
+            if row is None:
+                return False
+            session.delete(row)
+            return True

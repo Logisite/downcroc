@@ -11,7 +11,7 @@ from downcroc.domain.batches import BatchState
 from downcroc.domain.errors import BatchInvalid, JobNotFailed, JobNotFound
 from downcroc.domain.failures import FailedJob
 from downcroc.domain.jobs import Job, JobState
-from downcroc.runtime.clock import utc_now
+from downcroc.runtime.clock import utc_after, utc_now
 from downcroc.runtime.fs import restrict_fd
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.batches import BatchRepo
@@ -173,6 +173,37 @@ class FailureService:
                 continue
             count += 1
         return count
+
+    def forget(self, job_id: str) -> dict:
+        failure = self._failures.get(job_id)
+        self._failures.remove(job_id)
+        self._log_file.remove(job_id)
+        self._log.info("failure.forgotten", job=job_id, batch=failure.batch_id)
+        return {"job_id": job_id, "forgotten": True}
+
+    def purge(
+        self,
+        *,
+        states: list[str] | None,
+        older_than_days: int | None,
+        dry_run: bool,
+    ) -> dict:
+        cutoff = (
+            None if older_than_days is None else utc_after(-older_than_days * 86_400)
+        )
+        matched = self._failures.matching(states=states, older_than=cutoff)
+        if dry_run:
+            return {"failures": len(matched), "dry_run": True}
+        removed = self._failures.remove_many([item.job_id for item in matched])
+        for item in matched:
+            self._log_file.remove(item.job_id)
+        self._log.info(
+            "failures.purged",
+            count=removed,
+            states=states,
+            older_than_days=older_than_days,
+        )
+        return {"failures": removed, "dry_run": False}
 
     def reconcile(self) -> int:
         added = 0

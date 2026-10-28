@@ -17,6 +17,60 @@ class JobCreate(BaseModel):
     batch_id: str = Field(default="manual", min_length=1, max_length=64)
 
 
+class JobDeleteOut(BaseModel):
+    job_id: str
+    batch_id: str
+    state: str
+    bytes: int = 0
+    dry_run: bool = False
+
+
+class JobDeletionCounts(BaseModel):
+    jobs: int = 0
+    queued: int = 0
+    awaiting_approval: int = 0
+    retry_wait: int = 0
+    sending: int = 0
+    sent: int = 0
+    failed: int = 0
+    cancelled: int = 0
+
+
+class JobDeletionOut(BaseModel):
+    account_id: str | None
+    state: str | None
+    counts: JobDeletionCounts
+    blockers: list[str]
+
+
+class ReassignRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    from_account_id: str | None = Field(default=None, max_length=64)
+    to_account_id: str = Field(min_length=1, max_length=64)
+    job_ids: list[str] = Field(default_factory=list, max_length=10_000)
+    batch_ids: list[str] = Field(default_factory=list, max_length=10_000)
+    states: list[str] = Field(default_factory=list, max_length=16)
+    created_since: str | None = None
+    created_until: str | None = None
+    include_failed: bool = False
+    force: bool = False
+    dry_run: bool = False
+    confirm: bool = False
+
+
+class ReassignSkipped(BaseModel):
+    id: str
+    reason: str
+
+
+class ReassignOut(BaseModel):
+    jobs: int
+    batches: int
+    skipped: list[ReassignSkipped]
+    dry_run: bool
+
+
 class JobErrorOut(BaseModel):
     code: str
     message: str

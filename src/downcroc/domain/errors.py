@@ -14,12 +14,14 @@ class DomainError(Exception):
         hint: str | None = None,
         fields: dict[str, str] | None = None,
         details: list[dict[str, object]] | None = None,
+        extra: dict[str, object] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.hint = hint
         self.fields = fields
         self.details = details
+        self.extra = extra
 
 
 class ProviderConfigError(Exception):
@@ -319,3 +321,115 @@ class DaemonRunning(DomainError):
 class ConfigRejected(DomainError):
     code = "config_rejected"
     status = 422
+
+
+class ConfirmationRequired(DomainError):
+    code = "confirmation_required"
+    status = 409
+
+
+class JobInFlight(DomainError):
+    code = "job_in_flight"
+    status = 409
+
+
+class JobNotTerminal(DomainError):
+    code = "job_not_terminal"
+    status = 409
+
+
+class JobStateConflict(DomainError):
+    code = "job_state_conflict"
+    status = 409
+
+
+class BatchStateConflict(DomainError):
+    code = "batch_state_conflict"
+    status = 409
+
+
+class ImportInvalid(DomainError):
+    code = "import_invalid"
+    status = 422
+
+
+class ImportChecksumMismatch(DomainError):
+    code = "import_checksum_mismatch"
+    status = 422
+
+
+class ImportDuplicate(DomainError):
+    code = "import_duplicate"
+    status = 409
+
+
+class ImportJobInFlight(DomainError):
+    code = "import_job_in_flight"
+    status = 409
+
+
+class VanillaInvalid(DomainError):
+    code = "vanilla_invalid"
+    status = 422
+
+
+class AttachmentMissing(DomainError):
+    code = "attachment_missing"
+    status = 409
+
+
+class DuplicateAckRequired(DomainError):
+    code = "duplicate_ack_required"
+    status = 409
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        sent: int,
+        total: int,
+        recipients: list[str],
+        hint: str | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            hint=hint,
+            extra={
+                "sent": sent,
+                "total": total,
+                "recipients": recipients[:10],
+            },
+        )
+        self.sent = sent
+        self.total = total
+        self.recipients = recipients
+
+
+class ReassignSameAccount(DomainError):
+    code = "reassign_same_account"
+    status = 422
+
+
+class ReassignTargetInvalid(DomainError):
+    code = "reassign_target_invalid"
+    status = 422
+
+
+class AccountPending(DomainError):
+    code = "account_pending"
+    status = 409
+
+
+class AccountArchived(DomainError):
+    code = "account_archived"
+    status = 409
+
+
+class BackupNotFound(DomainError):
+    code = "backup_not_found"
+    status = 404
+
+
+class TemplateNotFound(DomainError):
+    code = "template_not_found"
+    status = 404

@@ -14,6 +14,7 @@ from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
 from downcroc.core.inbound import InboundService
 from downcroc.core.outbound import OutboundService
+from downcroc.core.portability import PortabilityService
 from downcroc.core.retention import RetentionService
 from downcroc.core.stats import StatsService
 from downcroc.core.vault_service import VaultService
@@ -52,6 +53,7 @@ class Services:
     inbound: InboundService
     outbound: OutboundService
     batches: BatchesService
+    portability: PortabilityService
     followups: FollowUpService
     stats: StatsService
     retention: RetentionService
@@ -129,6 +131,8 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         attempts,
         settings.connect,
         inbound,
+        content,
+        stats,
     )
     outbound = OutboundService(
         job_repo,
@@ -153,6 +157,16 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         message_repo,
         content,
         outbound,
+        stats,
+        bus,
+        log,
+    )
+    portability = PortabilityService(
+        job_repo,
+        batch_repo,
+        account_repo,
+        counter_repo,
+        content,
         stats,
         bus,
         log,
@@ -217,6 +231,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         inbound=inbound,
         outbound=outbound,
         batches=batches,
+        portability=portability,
         followups=followups,
         stats=stats,
         retention=retention,

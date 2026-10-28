@@ -10,6 +10,7 @@ class JobRow(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         Index("ix_jobs_batch_state", "batch_id", "state"),
+        Index("ix_jobs_batch_created", "batch_id", "created_at"),
         Index("ix_jobs_state_next", "state", "next_attempt_at"),
         Index("ix_jobs_account_created", "account_id", "created_at"),
         Index("ix_jobs_thread_root", "thread_root_job_id"),

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from downcroc.cli import inputs, schema
 from downcroc.cli import paths as path_tools
-from downcroc.cli.client import api, get, get_page, post
+from downcroc.cli.client import api, delete, get, get_page, post
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, page_footer, record, table
@@ -372,6 +372,10 @@ def run(args: object) -> int:
             return _approve(client, args, ui)
         if action == "cancel":
             return _cancel(client, args, ui)
+        if action == "reassign":
+            return _reassign(client, args, ui)
+        if action == "delete":
+            return _delete(client, args, ui)
         if action == "followup":
             return _followup(client, args, ui)
         if action == "suppression":
@@ -519,6 +523,58 @@ def _cancel(client, args: object, ui: Ui) -> int:
     else:
         record({"cancelled": updated["id"], "state": updated["state"]})
         print("mail already in flight cannot be recalled")
+    return 0
+
+
+def _reassign(client, args: object, ui: Ui) -> int:
+    dry_run = bool(args.dry_run)
+    if not dry_run:
+        prompts.confirm(
+            f"move batch {args.batch_id} to {args.to_account_id}?",
+            ui=ui,
+            yes_flag=bool(getattr(args, "yes", False)),
+        )
+    result = post(
+        client,
+        f"/api/batches/{args.batch_id}/reassign",
+        {
+            "to_account_id": args.to_account_id,
+            "states": args.states,
+            "include_failed": args.include_failed,
+            "dry_run": dry_run,
+            "confirm": not dry_run,
+        },
+    )
+    if ui.json_mode:
+        json_out(result)
+        return 0
+    verb = "would move" if result["dry_run"] else "moved"
+    print(f"{verb} {result['jobs']} jobs")
+    for item in result["skipped"]:
+        print(f"  skipped {item['id']}: {item['reason']}")
+    return 0
+
+
+def _delete(client, args: object, ui: Ui) -> int:
+    dry_run = bool(args.dry_run)
+    if not dry_run:
+        prompts.confirm(
+            f"delete batch {args.batch_id}?",
+            ui=ui,
+            yes_flag=bool(getattr(args, "yes", False)),
+        )
+    result = delete(
+        client,
+        f"/api/batches/{args.batch_id}",
+        confirm="true" if not dry_run else None,
+        dry_run="true" if dry_run else None,
+    )
+    if ui.json_mode:
+        json_out(result)
+    elif result.get("dry_run"):
+        print(f"would delete {result['batch_id']} and {result['jobs']} jobs")
+    else:
+        print(f"deleted {result['batch_id']} and {result['jobs']} jobs")
     return 0
 
 

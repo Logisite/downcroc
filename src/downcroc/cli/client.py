@@ -182,8 +182,8 @@ def put(
     return call(client, "PUT", path, json=body)
 
 
-def delete(client: httpx.Client, path: str) -> Any:
-    return call(client, "DELETE", path)
+def delete(client: httpx.Client, path: str, **params: Any) -> Any:
+    return call(client, "DELETE", path, params=params)
 
 
 def bytes_of(

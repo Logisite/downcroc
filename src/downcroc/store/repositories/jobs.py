@@ -292,6 +292,80 @@ class JobRepo:
             )
             return {state: count for state, count in rows}
 
+    def account_counts(self, account_id: str) -> dict[str, int]:
+        with self._sessions() as session:
+            rows = session.execute(
+                select(JobRow.state, func.count())
+                .where(JobRow.account_id == account_id)
+                .group_by(JobRow.state)
+            )
+            return {state: count for state, count in rows}
+
+    def select(
+        self,
+        *,
+        job_ids: list[str] | None = None,
+        batch_ids: list[str] | None = None,
+        account_id: str | None = None,
+        states: list[str] | None = None,
+        created_since: str | None = None,
+        created_until: str | None = None,
+        sent_since: str | None = None,
+        sent_until: str | None = None,
+        limit: int = 10_000,
+    ) -> list[Job]:
+        if job_ids:
+            query = select(JobRow).where(JobRow.id.in_(job_ids))
+        else:
+            query = select(JobRow)
+            if batch_ids:
+                query = query.where(JobRow.batch_id.in_(batch_ids))
+            if account_id is not None:
+                query = query.where(JobRow.account_id == account_id)
+            if states:
+                query = query.where(JobRow.state.in_(states))
+            if created_since is not None:
+                query = query.where(JobRow.created_at >= created_since)
+            if created_until is not None:
+                query = query.where(JobRow.created_at < created_until)
+            if sent_since is not None:
+                query = query.where(JobRow.sent_at >= sent_since)
+            if sent_until is not None:
+                query = query.where(JobRow.sent_at < sent_until)
+        query = query.order_by(JobRow.created_at, JobRow.id).limit(limit)
+        with self._sessions() as session:
+            return [to_job(row) for row in session.scalars(query)]
+
+    def delete(self, job_id: str) -> Job:
+        with self._sessions.begin() as session:
+            row = self._row(session, job_id)
+            job = to_job(row)
+            session.delete(row)
+        return job
+
+    def reassign(
+        self,
+        job_ids: list[str],
+        to_account_id: str,
+        *,
+        reset_attempts: bool = False,
+    ) -> list[str]:
+        if not job_ids:
+            return []
+        touched: set[str] = set()
+        with self._sessions.begin() as session:
+            rows = session.scalars(select(JobRow).where(JobRow.id.in_(job_ids)))
+            for row in rows:
+                row.account_id = to_account_id
+                row.updated_at = utc_now()
+                if reset_attempts:
+                    row.attempts = 0
+                    row.last_error_code = None
+                    row.last_error_message = None
+                    row.retryable = None
+                touched.add(row.batch_id)
+        return sorted(touched)
+
     def activity_rows(self) -> list[tuple[str, str | None, str | None, str]]:
         with self._sessions() as session:
             rows = session.execute(

@@ -7,6 +7,7 @@ from downcroc.cli.parser.common import (
     JOB_STATES,
     common,
     limit,
+    non_negative,
 )
 
 KINDS = ["json", "followups", "csv", "template"]
@@ -108,6 +109,34 @@ def batch(commands: argparse._SubParsersAction) -> None:
     cancel.add_argument("batch_id")
     common(cancel, yes=True)
 
+    reassign = actions.add_parser("reassign", help="move a batch to another account")
+    reassign.add_argument("batch_id")
+    reassign.add_argument(
+        "--to", dest="to_account_id", required=True, help="target account id"
+    )
+    reassign.add_argument(
+        "--state",
+        dest="states",
+        action="append",
+        choices=JOB_STATES,
+        default=[],
+        help="job state; repeat for several",
+    )
+    reassign.add_argument(
+        "--include-failed", action="store_true", help="move failed jobs too"
+    )
+    reassign.add_argument(
+        "--dry-run", action="store_true", help="report what would move"
+    )
+    common(reassign, yes=True)
+
+    delete_batch = actions.add_parser("delete", help="delete a finished batch")
+    delete_batch.add_argument("batch_id")
+    delete_batch.add_argument(
+        "--dry-run", action="store_true", help="report what would be deleted"
+    )
+    common(delete_batch, yes=True)
+
     followup = actions.add_parser("followup", help="create a follow-up step")
     followup.add_argument("batch_id")
     followup.add_argument("path")
@@ -193,6 +222,59 @@ def job(commands: argparse._SubParsersAction) -> None:
     send.add_argument("job_id")
     common(send, yes=True)
 
+    cancel = actions.add_parser("cancel", help="cancel one queued job")
+    cancel.add_argument("job_id")
+    common(cancel)
+
+    delete_job = actions.add_parser("delete", help="delete one job")
+    delete_job.add_argument("job_id")
+    delete_job.add_argument(
+        "--force",
+        action="store_true",
+        help="delete a job that has not reached a terminal state",
+    )
+    delete_job.add_argument(
+        "--dry-run", action="store_true", help="report what would be deleted"
+    )
+    common(delete_job, yes=True)
+
+    reassign = actions.add_parser("reassign", help="move jobs between accounts")
+    reassign.add_argument("--account", dest="from_account_id", help="source account id")
+    reassign.add_argument(
+        "--to", dest="to_account_id", required=True, help="target account id"
+    )
+    reassign.add_argument(
+        "--job",
+        dest="job_ids",
+        action="append",
+        default=[],
+        help="job id; repeat for several",
+    )
+    reassign.add_argument(
+        "--batch",
+        dest="batch_ids",
+        action="append",
+        default=[],
+        help="batch id; repeat for several",
+    )
+    reassign.add_argument(
+        "--state",
+        dest="states",
+        action="append",
+        choices=JOB_STATES,
+        default=[],
+        help="job state; repeat for several",
+    )
+    reassign.add_argument("--since", help="created on or after this timestamp")
+    reassign.add_argument("--until", help="created before this timestamp")
+    reassign.add_argument(
+        "--include-failed", action="store_true", help="move failed jobs too"
+    )
+    reassign.add_argument(
+        "--dry-run", action="store_true", help="report what would move"
+    )
+    common(reassign, yes=True)
+
     create = actions.add_parser("create", help="create a manual job")
     create.add_argument(
         "--account", required=True, dest="account_id", help="sending account id"
@@ -240,3 +322,24 @@ def failed(commands: argparse._SubParsersAction) -> None:
 
     retry_all = actions.add_parser("retry-all", help="retry every failure")
     common(retry_all, yes=True)
+
+    forget = actions.add_parser("forget", help="forget one failure")
+    forget.add_argument("job_id")
+    common(forget, yes=True)
+
+    purge = actions.add_parser("purge", help="forget failures by state or age")
+    purge.add_argument(
+        "--state",
+        dest="states",
+        action="append",
+        choices=JOB_STATES,
+        default=[],
+        help="job state; repeat for several",
+    )
+    purge.add_argument(
+        "--older-than", dest="older_than", type=non_negative, help="days"
+    )
+    purge.add_argument(
+        "--dry-run", action="store_true", help="report what would be forgotten"
+    )
+    common(purge, yes=True)

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.errors import FailureNotFound
 from downcroc.domain.failures import FailedJob
-from downcroc.store.db.models import FailedJobRow
+from downcroc.store.db.models import FailedJobRow, JobRow
 
 
 def _to_failure(row: FailedJobRow) -> FailedJob:
@@ -86,3 +86,30 @@ class FailureRepo:
                 return False
             session.delete(row)
             return True
+
+    def matching(
+        self,
+        *,
+        states: list[str] | None = None,
+        older_than: str | None = None,
+    ) -> list[FailedJob]:
+        query = select(FailedJobRow)
+        if states:
+            query = query.where(
+                FailedJobRow.job_id.in_(
+                    select(JobRow.id).where(JobRow.state.in_(states))
+                )
+            )
+        if older_than is not None:
+            query = query.where(FailedJobRow.failed_at < older_than)
+        with self._sessions() as session:
+            return [_to_failure(row) for row in session.scalars(query)]
+
+    def remove_many(self, job_ids: list[str]) -> int:
+        if not job_ids:
+            return 0
+        with self._sessions.begin() as session:
+            result = session.execute(
+                delete(FailedJobRow).where(FailedJobRow.job_id.in_(job_ids))
+            )
+            return int(result.rowcount or 0)

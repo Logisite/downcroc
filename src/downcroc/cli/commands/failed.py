@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from downcroc.cli.client import api, get, get_page, post
+from downcroc.cli.client import api, delete, get, get_page, post
 from downcroc.cli.context import load
 from downcroc.cli.output import json_out, page_footer, record, table
 from downcroc.cli.ui import prompts
@@ -90,6 +90,47 @@ def _retry_all(client, args: object, ui: Ui) -> int:
     return 0
 
 
+def _forget(client, args: object, ui: Ui) -> int:
+    prompts.confirm(
+        f"forget failure {args.job_id}?",
+        ui=ui,
+        yes_flag=bool(getattr(args, "yes", False)),
+    )
+    result = delete(client, f"/api/failures/{args.job_id}", confirm="true")
+    if ui.json_mode:
+        json_out(result)
+    else:
+        print(f"forgot {result['job_id']}")
+    return 0
+
+
+def _purge(client, args: object, ui: Ui) -> int:
+    dry_run = bool(args.dry_run)
+    if not dry_run:
+        prompts.confirm(
+            "purge failures?",
+            ui=ui,
+            yes_flag=bool(getattr(args, "yes", False)),
+        )
+    result = post(
+        client,
+        "/api/failures/purge",
+        {
+            "states": args.states,
+            "older_than_days": args.older_than,
+            "dry_run": dry_run,
+            "confirm": not dry_run,
+        },
+    )
+    if ui.json_mode:
+        json_out(result)
+    elif result.get("dry_run"):
+        print(f"would forget {result['failures']} failures")
+    else:
+        print(f"forgot {result['failures']} failures")
+    return 0
+
+
 def run(args: object) -> int:
     ui = build(args)
     paths, _, _ = load()
@@ -101,6 +142,10 @@ def run(args: object) -> int:
             return _listing(client, args, ui)
         if action == "retry-all":
             return _retry_all(client, args, ui)
+        if action == "forget":
+            return _forget(client, args, ui)
+        if action == "purge":
+            return _purge(client, args, ui)
         if action == "retry":
             job = post(client, f"/api/failed/{args.job_id}/retry")
             if ui.json_mode:

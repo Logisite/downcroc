@@ -20,6 +20,7 @@ class AccountRow(Base):
     credential_key: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(Text, nullable=False)
     last_verified_at: Mapped[str | None] = mapped_column(Text)
+    archived_at: Mapped[str | None] = mapped_column(Text)
     daily_allowance: Mapped[int] = mapped_column(Integer, nullable=False)
     window_start: Mapped[int] = mapped_column(Integer, nullable=False)
     window_end: Mapped[int] = mapped_column(Integer, nullable=False)

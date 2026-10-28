@@ -277,6 +277,9 @@ def run(args: object) -> int:
         if action in {
             "show",
             "delete",
+            "deletion",
+            "archive",
+            "unarchive",
             "attempt",
             "connect",
             "verify",
@@ -304,6 +307,12 @@ def run(args: object) -> int:
             return _added(account, ui)
         if action == "delete":
             return _delete(client, args, ui)
+        if action == "deletion":
+            return _deletion(client, args, ui)
+        if action == "archive":
+            return _archive(client, args, ui, archived=True)
+        if action == "unarchive":
+            return _archive(client, args, ui, archived=False)
         if action == "attempt":
             return _attempt(client, args, ui)
         if action == "connect":
@@ -369,18 +378,80 @@ def _added(account: dict, ui: Ui) -> int:
 
 
 def _delete(client, args: object, ui: Ui) -> int:
-    confirmed = getattr(args, "yes", False) or prompts.confirm(
-        f"delete {args.account_id} and its stored credential?",
+    account_id = args.account_id
+    preview = get(client, f"/api/accounts/{account_id}/deletion")
+    if args.dry_run:
+        if ui.json_mode:
+            json_out(preview)
+        else:
+            _deletion_view(preview)
+        return 0
+    if not ui.json_mode:
+        _deletion_view(preview)
+    prompts.confirm(
+        f"delete {account_id} and its stored credential?",
         ui=ui,
-        default=False,
+        yes_flag=bool(getattr(args, "yes", False)),
     )
-    if not confirmed:
-        raise CliError("cancelled", code="cancelled")
-    delete(client, f"/api/accounts/{args.account_id}")
+    result = delete(
+        client,
+        f"/api/accounts/{account_id}",
+        confirm="true",
+        reassign_to=args.reassign_to,
+        force_jobs="true" if args.force_jobs else None,
+        force_history="true" if args.force_history else None,
+    )
     if ui.json_mode:
-        json_out({"deleted": args.account_id})
+        json_out(result)
     else:
-        record({"account": f"{args.account_id} deleted"})
+        record(
+            {
+                "account": f"{result['account_id']} deleted",
+                "reassigned": result["reassigned"],
+                "deleted_jobs": result["deleted_jobs"],
+            }
+        )
+    return 0
+
+
+def _deletion_view(preview: dict) -> None:
+    record(
+        {
+            "account": preview["account_id"],
+            "counts": preview["counts"],
+            "blockers": ", ".join(preview["blockers"]) or "none",
+        }
+    )
+
+
+def _deletion(client, args: object, ui: Ui) -> int:
+    preview = get(client, f"/api/accounts/{args.account_id}/deletion")
+    if ui.json_mode:
+        json_out(preview)
+    else:
+        _deletion_view(preview)
+    return 0
+
+
+def _archive(client, args: object, ui: Ui, *, archived: bool) -> int:
+    action = "archive" if archived else "unarchive"
+    prompts.confirm(
+        f"{action} {args.account_id}?",
+        ui=ui,
+        yes_flag=bool(getattr(args, "yes", False)),
+    )
+    account = post(
+        client, f"/api/accounts/{args.account_id}/{action}", None, confirm="true"
+    )
+    if ui.json_mode:
+        json_out(account)
+    else:
+        record(
+            {
+                "account": f"{account['id']} {account['address']}",
+                "archived": account["archived_at"] or "no",
+            }
+        )
     return 0
 
 

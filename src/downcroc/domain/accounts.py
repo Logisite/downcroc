@@ -36,6 +36,7 @@ class Account:
     policy: SendPolicy
     last_error: str | None = None
     credential_key: str | None = None
+    archived_at: str | None = None
     watcher_enabled: bool = True
     last_uid: int = 0
     uidvalidity: int = 0

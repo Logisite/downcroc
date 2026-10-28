@@ -16,7 +16,7 @@ from downcroc.core.batches import (
 )
 from downcroc.domain.batches import Batch
 
-from .jobs import JobOut
+from .jobs import JobOut, ReassignSkipped
 
 
 class BatchSubmit(BaseModel):
@@ -42,6 +42,31 @@ class FollowUpRequest(BaseModel):
     account: str | None = Field(default=None, max_length=64)
     step: str = Field(min_length=1, max_length=64)
     require_approval: bool = False
+
+
+class BatchReassignRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    to_account_id: str = Field(min_length=1, max_length=64)
+    states: list[str] = Field(default_factory=list, max_length=16)
+    include_failed: bool = False
+    force: bool = False
+    dry_run: bool = False
+    confirm: bool = False
+
+
+class BatchReassignOut(BaseModel):
+    batch_id: str
+    jobs: int
+    skipped: list[ReassignSkipped]
+    dry_run: bool
+
+
+class BatchDeleteOut(BaseModel):
+    batch_id: str
+    jobs: int
+    bytes: int = 0
+    dry_run: bool = False
 
 
 class BatchOut(BaseModel):

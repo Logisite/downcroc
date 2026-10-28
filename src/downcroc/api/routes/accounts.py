@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
-from starlette.responses import Response
+from fastapi import APIRouter, Query, Request
 
+from downcroc.api.confirm import require
 from downcroc.api.schemas.accounts import (
     AccountCreate,
+    AccountDeleteOut,
+    AccountDeletionOut,
     AccountOut,
     AppPasswordConnect,
     AttemptOut,
@@ -35,10 +37,44 @@ def get_account(account_id: str, request: Request) -> AccountOut:
     return AccountOut.of(_service(request).get(account_id))
 
 
-@router.delete("/{account_id}", status_code=204)
-def delete_account(account_id: str, request: Request) -> Response:
-    _service(request).delete(account_id)
-    return Response(status_code=204)
+@router.get("/{account_id}/deletion", response_model=AccountDeletionOut)
+def preview_account_deletion(account_id: str, request: Request) -> AccountDeletionOut:
+    return AccountDeletionOut(**_service(request).deletion_preview(account_id))
+
+
+@router.delete("/{account_id}", response_model=AccountDeleteOut)
+def delete_account(
+    account_id: str,
+    request: Request,
+    confirm: bool = Query(default=False),
+    reassign_to: str | None = None,
+    force_jobs: bool = False,
+    force_history: bool = False,
+) -> AccountDeleteOut:
+    require(confirm)
+    result = _service(request).delete(
+        account_id,
+        reassign_to=reassign_to,
+        force_jobs=force_jobs,
+        force_history=force_history,
+    )
+    return AccountDeleteOut(**result)
+
+
+@router.post("/{account_id}/archive", response_model=AccountOut)
+def archive_account(
+    account_id: str, request: Request, confirm: bool = Query(default=False)
+) -> AccountOut:
+    require(confirm)
+    return AccountOut.of(_service(request).archive(account_id))
+
+
+@router.post("/{account_id}/unarchive", response_model=AccountOut)
+def unarchive_account(
+    account_id: str, request: Request, confirm: bool = Query(default=False)
+) -> AccountOut:
+    require(confirm)
+    return AccountOut.of(_service(request).unarchive(account_id))
 
 
 @router.post("/{account_id}/attempts", response_model=AttemptOut, status_code=201)

@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.batches import Batch, BatchKind, BatchState, NewBatch
 from downcroc.domain.errors import BatchNotFound
-from downcroc.store.db.models import BatchRow
+from downcroc.store.db.models import BatchRow, JobRow
+
+
+@dataclass(frozen=True)
+class BatchDelete:
+    batch_id: str
+    jobs: int
+    bodies: tuple[str, ...]
 
 
 def _to_batch(row: BatchRow) -> Batch:
@@ -132,6 +140,35 @@ class BatchRepo:
             row = self._row(session, batch_id)
             row.sample_job_id = job_id
         return self.get(batch_id)
+
+    def set_account(self, batch_id: str, account_id: str) -> Batch:
+        with self._sessions.begin() as session:
+            row = self._row(session, batch_id)
+            row.account_id = account_id
+        return self.get(batch_id)
+
+    def list_by_ids(self, batch_ids: list[str]) -> list[Batch]:
+        if not batch_ids:
+            return []
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(BatchRow)
+                .where(BatchRow.id.in_(batch_ids))
+                .order_by(BatchRow.created_at, BatchRow.id)
+            )
+            return [_to_batch(row) for row in rows]
+
+    def delete(self, batch_id: str) -> BatchDelete:
+        with self._sessions.begin() as session:
+            row = self._row(session, batch_id)
+            jobs = list(
+                session.scalars(select(JobRow).where(JobRow.batch_id == batch_id))
+            )
+            bodies = tuple(job.body_ref for job in jobs)
+            if jobs:
+                session.execute(delete(JobRow).where(JobRow.batch_id == batch_id))
+            session.delete(row)
+        return BatchDelete(batch_id, len(jobs), bodies)
 
     def _row(self, session: Session, batch_id: str) -> BatchRow:
         row = session.get(BatchRow, batch_id)
