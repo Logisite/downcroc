@@ -28,10 +28,13 @@ def submit_batch(body: BatchSubmit, request: Request) -> BatchDetailOut:
 
 @router.post("/preview", response_model=PreviewOut)
 def preview_batch(
-    body: BatchSubmit, request: Request, key: str | None = None
+    body: BatchSubmit,
+    request: Request,
+    key: str | None = None,
+    all: bool = False,
 ) -> PreviewOut:
     preview = _services(request).batches.preview(
-        body.path, body.template, key, body.account
+        body.path, body.template, key, body.account, all
     )
     return PreviewOut.of(preview)
 

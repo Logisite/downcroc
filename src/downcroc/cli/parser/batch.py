@@ -39,6 +39,11 @@ def batch(commands: argparse._SubParsersAction) -> None:
     _source(preview)
     preview.add_argument("--key", help="show one message by key or row")
     preview.add_argument("--all", action="store_true", help="show every message")
+    preview.add_argument(
+        "--table",
+        action="store_true",
+        help="show the summary and table instead of message cards",
+    )
     common(preview)
 
     submit = actions.add_parser(

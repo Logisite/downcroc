@@ -149,6 +149,7 @@ class BatchesService:
         template: str | None,
         key: str | None,
         account: str | None = None,
+        everything: bool = False,
     ) -> Preview:
         campaign = self._reader.read(path, template)
         if account:
@@ -171,7 +172,7 @@ class BatchesService:
                     f"no message or row matches {key}",
                     fields={"key": "not found in the source"},
                 )
-        else:
+        elif not everything:
             chosen = chosen[: self._settings.intake.sample_count]
         return Preview(
             source_kind=campaign.source_kind,

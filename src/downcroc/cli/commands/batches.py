@@ -8,7 +8,8 @@ from downcroc.cli.client import api, get, get_page, post
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, page_footer, record, table
-from downcroc.cli.ui import prompts
+from downcroc.cli.ui import card, prompts
+from downcroc.cli.ui.frame import columns
 from downcroc.cli.ui.menu import open_menu
 from downcroc.cli.ui.session import Ui, build
 
@@ -130,15 +131,17 @@ def _show(batch: dict, all_rows: bool) -> None:
     _recipients(batch.get("recipients") or [], all_rows)
 
 
-def show_preview(preview: dict, ui: Ui) -> None:
-    routing = preview.get("routing") or {}
-    if routing.get("unresolved"):
-        raise CliError(
-            "no connected account matches the routing policy",
-            code="account_unavailable",
-            hint="connect an account with `downcroc account connect`, "
-            "or pass --account",
-        )
+def show_preview(
+    preview: dict,
+    ui: Ui,
+    *,
+    key: str | None = None,
+    table_view: bool = False,
+) -> None:
+    messages = preview["messages"]
+    if not table_view:
+        _cards(preview, messages[:1] if key is not None else messages, ui, key)
+        return
     record(
         {
             "campaign": f"{preview['campaign_name']} ({preview['campaign_key']})",
@@ -166,6 +169,22 @@ def show_preview(preview: dict, ui: Ui) -> None:
     if not ui.quiet and preview.get("sampled", 0) < preview.get("total", 0):
         print()
         print(f"next: downcroc batch preview {preview.get('path', 'FILE')} --all")
+
+
+def _cards(preview: dict, messages: list[dict], ui: Ui, key: str | None) -> None:
+    width = max(1, columns(ui) - 1)
+    for index, message in enumerate(messages):
+        if index:
+            print()
+        for line in card.message_card(ui, message, width):
+            print(line)
+    if (
+        key is None
+        and not ui.quiet
+        and preview.get("sampled", 0) < preview.get("total", 0)
+    ):
+        print()
+        print(ui.dim(f"{preview['sampled']} of {preview['total']} shown, pass --all"))
 
 
 def _approval(preview: dict) -> str:
@@ -407,11 +426,18 @@ def _preview_command(client, args: object, ui: Ui) -> int:
             "template": body["template"],
             "account": body["account"],
         },
+        key=getattr(args, "key", None),
+        all=getattr(args, "all", False),
     )
     if ui.json_mode:
         json_out(preview)
     else:
-        show_preview(preview, ui)
+        show_preview(
+            preview,
+            ui,
+            key=getattr(args, "key", None),
+            table_view=getattr(args, "table", False),
+        )
     return 0
 
 
