@@ -111,10 +111,7 @@ def _choose_account(client, ui: Ui, verb: str) -> str:
         )
     chosen = prompts.choose(
         f"Account to {verb}",
-        [
-            prompts.Option(row["address"], row["id"], row["status"])
-            for row in rows
-        ],
+        [prompts.Option(row["address"], row["id"], row["status"]) for row in rows],
         ui=ui,
         back=False,
     )

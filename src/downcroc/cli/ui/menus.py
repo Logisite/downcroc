@@ -197,8 +197,14 @@ def service_menu(ui: Ui) -> None:
                 detail="pid, port, and uptime",
                 action=action(ui, "service", "status"),
             ),
-            Item("Start", detail="start the daemon", action=action(ui, "service", "start")),
-            Item("Stop", detail="stop the daemon", action=action(ui, "service", "stop")),
+            Item(
+                "Start",
+                detail="start the daemon",
+                action=action(ui, "service", "start"),
+            ),
+            Item(
+                "Stop", detail="stop the daemon", action=action(ui, "service", "stop")
+            ),
             Item(
                 "Restart",
                 detail="stop, then start",

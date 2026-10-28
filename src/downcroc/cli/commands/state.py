@@ -7,9 +7,12 @@ from downcroc.cli.client import api, get
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
+from downcroc.cli.ui import prompts
+from downcroc.cli.ui.menu import run_args
 from downcroc.cli.ui.session import Ui, build
 from downcroc.runtime import keyring
 from downcroc.runtime.config.loader import ConfigError
+from downcroc.runtime.paths import resolve
 from downcroc.runtime.service import install as service_install
 from downcroc.runtime.service.lifecycle import status
 from downcroc.version import __version__
@@ -248,10 +251,100 @@ def run(args: object) -> int:
     return home(args, ui)
 
 
+def _absent(args: object, ui: Ui, paths: object) -> int:
+    if ui.json_mode:
+        json_out({"state": "absent", "config": str(paths.config_file)})
+        return 1
+    print(f"{ui.accent(ui.glyph('mail'))} {ui.bold('downcroc')} {__version__}")
+    print(f"  {ui.paint(f'no installation found at {paths.config}', 'warn')}")
+    if not ui.interactive:
+        print(f"  {ui.dim('next: downcroc init')}")
+        return 1
+    print()
+    if not prompts.confirm("Run init now?", ui=ui, default=True):
+        return 0
+    return run_args(ui, "init")
+
+
+def _state(args: object, paths: object) -> dict:
+    report = status(paths)
+    info: dict = {"report": report, "running": report.get("state") == "running"}
+    if not info["running"]:
+        return info
+    try:
+        with api(paths, timeout=getattr(args, "timeout", None)) as client:
+            info["vault"] = get(client, "/api/vault")
+            info["accounts"] = get(client, "/api/accounts")
+            info["summary"] = get(client, "/api/stats/summary")
+    except CliError:
+        info["running"] = False
+    return info
+
+
+def _home_header(ui: Ui, info: dict) -> None:
+    report = info["report"]
+    running = info["running"]
+    where = f"daemon running, pid {report['pid']}" if running else "daemon stopped"
+    print(
+        f"{ui.accent(ui.glyph('mail'))} {ui.bold('downcroc')} {__version__}   {ui.dim(where)}"
+    )
+    if not running:
+        print(f"  {ui.dim('next: downcroc service start')}")
+        print()
+        return
+    vault = info.get("vault")
+    accounts = info.get("accounts") or []
+    summary = info.get("summary") or {}
+    total = summary.get("total", {})
+    tone = "good" if vault and vault["state"] == "unlocked" else "warn"
+    pending = [item for item in accounts if item["status"] == "pending"]
+    queue = f"{total.get('sent', 0):,} sent, {total.get('failed', 0):,} failed"
+    detail = f"{len(accounts):,} accounts"
+    if pending:
+        detail += f", {len(pending):,} pending"
+    state = "vault " + (vault["state"] if vault else "unknown")
+    print(f"  {ui.paint(state, tone)}   {detail}   {queue}")
+    print()
+
+
+def _needs_vault(info: dict) -> str | None:
+    vault = info.get("vault")
+    if vault is None or vault["state"] == "unlocked":
+        return None
+    return "unlock" if Path(vault["path"]).exists() else "init"
+
+
+def _prompt_step(ui: Ui, info: dict) -> tuple[str, list[str]] | None:
+    if not info["running"]:
+        return "Start the daemon now?", ["service", "start"]
+    vault_step = _needs_vault(info)
+    if vault_step == "unlock":
+        return "Unlock now?", ["vault", "unlock"]
+    if vault_step == "init":
+        return "Create the vault now?", ["vault", "init"]
+    if not info.get("accounts"):
+        return "Add an account now?", ["account", "add"]
+    return None
+
+
 def home(args: object, ui: Ui) -> int:
+    paths = resolve()
+    if not paths.config_file.exists():
+        return _absent(args, ui, paths)
     if not ui.interactive:
         return status_report(args, ui)
-    _home_header(args, ui)
+    while True:
+        info = _state(args, paths)
+        _home_header(ui, info)
+        step = _prompt_step(ui, info)
+        if step is None:
+            break
+        question, argv = step
+        if not prompts.confirm(question, ui=ui, default=True):
+            return 0
+        code = run_args(ui, *argv)
+        if code != 0:
+            return code
     from downcroc.cli.ui.menus import home_menu
 
     try:
@@ -260,39 +353,6 @@ def home(args: object, ui: Ui) -> int:
         if error.code != "cancelled":
             raise
     return 0
-
-
-def _home_header(args: object, ui: Ui) -> None:
-    paths, _, _ = load()
-    report = status(paths)
-    running = report.get("state") == "running"
-    where = f"daemon running, pid {report['pid']}" if running else "daemon stopped"
-    print(f"{ui.accent(ui.glyph('mail'))} {ui.bold('downcroc')} {__version__}   {ui.dim(where)}")
-    if not running:
-        print(f"  {ui.dim('next: downcroc service start')}")
-        print()
-        return
-    try:
-        with api(paths, timeout=getattr(args, "timeout", None)) as client:
-            vault = get(client, "/api/vault")
-            accounts = get(client, "/api/accounts")
-            summary = get(client, "/api/stats/summary")
-    except CliError:
-        print()
-        return
-    total = summary["total"]
-    tone = "good" if vault["state"] == "unlocked" else "warn"
-    pending = [item for item in accounts if item["status"] == "pending"]
-    queue = f"{total.get('sent', 0):,} sent, {total.get('failed', 0):,} failed"
-    detail = f"{len(accounts):,} accounts"
-    if pending:
-        detail += f", {len(pending):,} pending"
-    print(
-        f"  {ui.paint('vault ' + vault['state'], tone)}"
-        f"   {detail}"
-        f"   {queue}"
-    )
-    print()
 
 
 def config_error(error: ConfigError) -> CliError:

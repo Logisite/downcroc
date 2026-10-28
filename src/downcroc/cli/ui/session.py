@@ -11,7 +11,7 @@ GLYPHS = {
         "selected": "\uf054",
         "unselected": " ",
         "pointer": "\u25c6",
-        "choice": "\uf111",
+        "choice": "\uf105",
         "checked": "\uf00c",
         "unchecked": "\uf096",
         "back": "\uf060",

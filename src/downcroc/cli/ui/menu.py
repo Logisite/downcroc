@@ -54,11 +54,26 @@ def menu(ui: Ui, title: str, items: list[Item], *, back: bool = True) -> Item | 
     return chosen  # type: ignore[return-value]
 
 
+def ui_flags(ui: Ui) -> list[str]:
+    flags = ["--glyphs", ui.glyphs, "--color", "always" if ui.colour else "never"]
+    if ui.wide:
+        flags.append("--wide")
+    if ui.full:
+        flags.append("--full")
+    if ui.quiet:
+        flags.append("--quiet")
+    if ui.json_mode:
+        flags.append("--json")
+    if not ui.interactive:
+        flags.append("--no-input")
+    return flags
+
+
 def run_args(ui: Ui, *argv: str) -> int:
     from downcroc.cli import dispatch
 
     try:
-        return dispatch.run(list(argv))
+        return dispatch.run([*argv, *ui_flags(ui)])
     except CliError as error:
         render(error, json_mode=ui.json_mode)
         return error.exit_code
@@ -73,7 +88,14 @@ def run(ui: Ui, title: str, items: list[Item], *, breadcrumb: str = "") -> None:
         while stack:
             current_title, current_items = stack[-1]
             heading = f"{breadcrumb} / {current_title}".strip(" /")
-            selected = menu(ui, heading, current_items, back=True)
+            try:
+                selected = menu(ui, heading, current_items, back=True)
+            except Cancelled:
+                stack.pop()
+                if not stack:
+                    print(ui.dim("cancelled"))
+                    return
+                continue
             if selected is None:
                 stack.pop()
                 continue
@@ -86,7 +108,7 @@ def run(ui: Ui, title: str, items: list[Item], *, breadcrumb: str = "") -> None:
             try:
                 selected.action()
             except Cancelled:
-                return
+                continue
             except Quit:
                 return
     except Quit:
@@ -101,9 +123,13 @@ def open_menu(ui: Ui, name: str) -> bool:
     """Open a named interactive menu. Returns False when there is no terminal."""
     if not ui.interactive:
         return False
-    from downcroc.cli.ui import menus, menus_work
+    from downcroc.cli.ui import menus, menus_settings, menus_work
 
-    renderer = getattr(menus, name, None) or getattr(menus_work, name, None)
+    renderer = (
+        getattr(menus, name, None)
+        or getattr(menus_work, name, None)
+        or getattr(menus_settings, name, None)
+    )
     if renderer is None:
         return False
     renderer(ui)

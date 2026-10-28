@@ -326,11 +326,12 @@ def index(ui: Ui | None = None) -> str:
         lines.append("run: downcroc help TOPIC")
         return "\n".join(lines) + "\n"
     lines = [ui.heading("Help topics"), ""]
+    room = max(24, ui.width - 26)
     for name in names():
-        lines.append(
-            f"  {ui.accent(ui.glyph('dot'))} "
-            f"{ui.bold(f'{name:<16}')} {summary(name)}"
-        )
+        text = summary(name)
+        if len(text) > room:
+            text = text[: room - 1] + "~"
+        lines.append(f"  {ui.accent(ui.glyph('dot'))} {ui.bold(f'{name:<16}')} {text}")
     lines.append("")
     lines.append(f"  {ui.dim('run')} {ui.accent('downcroc help TOPIC')}")
     return "\n".join(lines) + "\n"
@@ -371,9 +372,7 @@ def _section(text: str, following: str, ui: Ui, out: list[str]) -> None:
         return
     indent = len(following) - len(following.lstrip())
     heading = (
-        len(text) <= 40
-        and not text.endswith((".", ":", "!", "?"))
-        and indent >= 4
+        len(text) <= 40 and not text.endswith((".", ":", "!", "?")) and indent >= 4
     )
     if heading:
         if out[-1] != "":

@@ -91,7 +91,7 @@ def _set(client, args: object, ui) -> int:
         default = json.dumps(before, ensure_ascii=False)
         text = prompts.ask(args.key, ui=ui, default=default, required=False)
         if not text or text == default:
-            print(f"{args.key} is unchanged")
+            print(ui.dim(f"{args.key} is unchanged"))
             return 0
     result = patch(client, "/api/config", _patch(args.key, _value(text)))
     after = flatten(result["config"]).get(args.key)
@@ -106,12 +106,12 @@ def _set(client, args: object, ui) -> int:
         json_out(body)
         return 0
     if not body["changed"]:
-        print(f"{args.key} is already {json.dumps(after, ensure_ascii=False)}")
+        value = json.dumps(after, ensure_ascii=False)
+        print(ui.result(True, "unchanged", f"{args.key} is {value}"))
         return 0
-    print(
-        f"{args.key}: {json.dumps(before, ensure_ascii=False)} -> "
-        f"{json.dumps(after, ensure_ascii=False)}"
-    )
+    old = json.dumps(before, ensure_ascii=False)
+    new = json.dumps(after, ensure_ascii=False)
+    print(ui.result(True, "set", f"{args.key}: {old} -> {new}"))
     if body["restart_required"]:
         print("restart the daemon to apply this change: downcroc service restart")
     return 0

@@ -107,10 +107,7 @@ def _followup(ui: Ui) -> None:
         return
     batch = prompts.choose(
         "Follow up on a batch",
-        [
-            prompts.Option(row["name"], row["id"], row["state"])
-            for row in found
-        ],
+        [prompts.Option(row["name"], row["id"], row["state"]) for row in found],
         ui=ui,
         back=False,
     )
@@ -124,15 +121,29 @@ def batch_menu(ui: Ui) -> None:
         ui,
         "Batches",
         [
-            Item("List batches", detail="state and counts", action=action(ui, "batch", "list")),
+            Item(
+                "List batches",
+                detail="state and counts",
+                action=action(ui, "batch", "list"),
+            ),
             Item("Show a batch", children=_batch_items(ui, "show")),
-            Item("Validate a file", detail="offline checks", action=lambda: _validate(ui)),
-            Item("Preview a file", detail="per-message plan", action=lambda: _preview(ui)),
+            Item(
+                "Validate a file", detail="offline checks", action=lambda: _validate(ui)
+            ),
+            Item(
+                "Preview a file", detail="per-message plan", action=lambda: _preview(ui)
+            ),
             Item("Submit a file", detail="write a batch", action=lambda: _submit(ui)),
             Item("Approve a batch", children=_approve_items(ui)),
             Item("Cancel a batch", children=_cancel_items(ui)),
-            Item("Follow up", detail="add a follow-up step", action=lambda: _followup(ui)),
-            Item("Suppressions", detail="who will be skipped", children=_suppression_items(ui)),
+            Item(
+                "Follow up", detail="add a follow-up step", action=lambda: _followup(ui)
+            ),
+            Item(
+                "Suppressions",
+                detail="who will be skipped",
+                children=_suppression_items(ui),
+            ),
             Item("Quit", action=quit_menu),
         ],
     )
@@ -173,15 +184,14 @@ def _create_job(ui: Ui) -> None:
     if found is None:
         return
     if not found:
-        if prompts.confirm("No account is configured. Add one now?", ui=ui, default=True):
+        if prompts.confirm(
+            "No account is configured. Add one now?", ui=ui, default=True
+        ):
             run_args(ui, "account", "add")
         return
     account = prompts.choose(
         "Sending account",
-        [
-            prompts.Option(row["address"], row["id"], row["status"])
-            for row in found
-        ],
+        [prompts.Option(row["address"], row["id"], row["status"]) for row in found],
         ui=ui,
         back=False,
     )
@@ -214,10 +224,18 @@ def job_menu(ui: Ui) -> None:
         ui,
         "Jobs",
         [
-            Item("List jobs", detail="queue and history", action=action(ui, "job", "list")),
+            Item(
+                "List jobs",
+                detail="queue and history",
+                action=action(ui, "job", "list"),
+            ),
             Item("Show a job", children=_job_items(ui, "show")),
             Item("Send a job now", children=_job_items(ui, "send")),
-            Item("Create a job", detail="one message by hand", action=lambda: _create_job(ui)),
+            Item(
+                "Create a job",
+                detail="one message by hand",
+                action=lambda: _create_job(ui),
+            ),
             Item("Quit", action=quit_menu),
         ],
     )
@@ -291,7 +309,11 @@ def failed_menu(ui: Ui) -> None:
             Item("List failures", action=action(ui, "failed", "list")),
             Item("Show a failure", children=_failed_items(ui, "show")),
             Item("Retry one", children=_failed_items(ui, "retry")),
-            Item("Retry all", detail="asks before queueing", action=lambda: _retry_all(ui)),
+            Item(
+                "Retry all",
+                detail="asks before queueing",
+                action=lambda: _retry_all(ui),
+            ),
             Item("Quit", action=quit_menu),
         ],
     )
@@ -319,16 +341,22 @@ def mail_menu(ui: Ui) -> None:
         "Mail",
         [
             Item("List inbox", action=action(ui, "mail", "list")),
-            Item("Show a message", children=_message_items(ui, "show", "/api/messages")),
+            Item(
+                "Show a message", children=_message_items(ui, "show", "/api/messages")
+            ),
             Item("List threads", action=action(ui, "mail", "threads")),
-            Item("Show a thread", children=_message_items(ui, "thread", "/api/threads")),
+            Item(
+                "Show a thread", children=_message_items(ui, "thread", "/api/threads")
+            ),
             Item("Quit", action=quit_menu),
         ],
     )
 
 
 def _backup(ui: Ui) -> None:
-    path = prompts.ask("Bundle path (blank for a generated name)", ui=ui, required=False)
+    path = prompts.ask(
+        "Bundle path (blank for a generated name)", ui=ui, required=False
+    )
     if path:
         run_args(ui, "backup", path)
     else:
@@ -351,7 +379,9 @@ def _restore(ui: Ui) -> None:
     if mode == "check":
         run_args(ui, "restore", path, "--dry-run")
         return
-    prompts.confirm_word("restore", f"This replaces the current state with {path}.", ui=ui)
+    prompts.confirm_word(
+        "restore", f"This replaces the current state with {path}.", ui=ui
+    )
     argv = ["restore", path, "--yes"]
     if mode == "start":
         argv.append("--stop")
@@ -364,7 +394,11 @@ def backup_menu(ui: Ui) -> None:
         "Back up or restore",
         [
             Item("Write a backup", action=lambda: _backup(ui)),
-            Item("Restore a bundle", detail="asks before replacing", action=lambda: _restore(ui)),
+            Item(
+                "Restore a bundle",
+                detail="asks before replacing",
+                action=lambda: _restore(ui),
+            ),
             Item("Quit", action=quit_menu),
         ],
     )

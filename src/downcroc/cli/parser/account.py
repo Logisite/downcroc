@@ -112,7 +112,7 @@ def provider(commands: argparse._SubParsersAction) -> None:
             "  downcroc provider add fastmail"
         ),
     )
-    actions = parser.add_subparsers(dest="action", required=True)
+    actions = parser.add_subparsers(dest="action", required=False)
 
     listing = actions.add_parser("list", help="list providers and readiness")
     common(listing)
