@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+export HOME=${DOWNCROC_TEST_HOME:-/tmp/opencode/downcroc-nontty}
+export XDG_CONFIG_HOME=
+export XDG_DATA_HOME=
+export XDG_STATE_HOME=
+export NO_COLOR=${NO_COLOR:-}
+
+PASSWORD=${DOWNCROC_TEST_PASSWORD:-nontty-password}
+
+run() {
+    cd "$ROOT"
+    uv run downcroc "$@"
+}
+
+unlock() {
+    printf '%s\n' "$PASSWORD" | run vault unlock --password-stdin >/dev/null
+    echo "vault unlocked"
+}
+
+case "${1:-}" in
+    up)
+        run service start
+        sleep 1
+        unlock
+        ;;
+    down)
+        run service stop
+        ;;
+    restart)
+        run service stop >/dev/null 2>&1 || true
+        run service start
+        sleep 1
+        unlock
+        ;;
+    unlock)
+        unlock
+        ;;
+    *)
+        run "$@"
+        ;;
+esac
