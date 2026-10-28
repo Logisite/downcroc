@@ -21,8 +21,14 @@ def _services(request: Request) -> Services:
 
 
 @router.post("", response_model=BatchDetailOut, status_code=201)
-def submit_batch(body: BatchSubmit, request: Request) -> BatchDetailOut:
-    detail = _services(request).batches.submit(body.path, body.template, body.account)
+def submit_batch(
+    body: BatchSubmit, request: Request, response: Response
+) -> BatchDetailOut:
+    detail = _services(request).batches.submit(
+        body.path, body.template, body.account, body.key
+    )
+    if detail.reused:
+        response.status_code = 200
     return BatchDetailOut.from_detail(detail)
 
 

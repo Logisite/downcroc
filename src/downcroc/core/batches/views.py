@@ -80,3 +80,4 @@ class BatchDetail:
     counts: dict[str, int]
     jobs: tuple[Job, ...]
     samples: tuple[Sample, ...]
+    reused: bool = False

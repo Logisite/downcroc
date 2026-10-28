@@ -88,8 +88,12 @@ class Api:
     ) -> dict[str, Any]:
         return self.post(f"/api/accounts/{account_id}/connect", {"password": password})
 
-    def submit(self, path: str, template: str | None = None) -> dict[str, Any]:
-        return self.post("/api/batches", {"path": path, "template": template})
+    def submit(
+        self, path: str, template: str | None = None, key: str | None = None
+    ) -> dict[str, Any]:
+        return self.post(
+            "/api/batches", {"path": path, "template": template, "key": key}
+        )
 
     def preview(
         self, path: str, template: str | None = None, key: str | None = None

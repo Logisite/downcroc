@@ -27,6 +27,7 @@ class Batch:
     source_kind: str
     schema_version: str | None
     campaign_key: str | None
+    submit_key: str | None
     producer_json: str
     template_ref: str | None
     account_id: str | None
@@ -64,3 +65,4 @@ class NewBatch:
     ignored: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     created_at: str = ""
+    submit_key: str | None = None

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Index, Text
+from sqlalchemy import Index, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from downcroc.store.db.models.base import Base
@@ -12,6 +12,13 @@ class BatchRow(Base):
         Index("ix_batches_state_created", "state", "created_at"),
         Index("ix_batches_campaign_key", "campaign_key"),
         Index("ix_batches_parent", "parent_batch_id"),
+        Index(
+            "ux_batches_source_submit_key",
+            "source_hash",
+            "submit_key",
+            unique=True,
+            sqlite_where=text("submit_key IS NOT NULL"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -23,6 +30,7 @@ class BatchRow(Base):
     source_kind: Mapped[str] = mapped_column(Text, nullable=False)
     schema_version: Mapped[str | None] = mapped_column(Text)
     campaign_key: Mapped[str | None] = mapped_column(Text)
+    submit_key: Mapped[str | None] = mapped_column(Text)
     producer_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     template_ref: Mapped[str | None] = mapped_column(Text)
     account_id: Mapped[str | None] = mapped_column(Text)

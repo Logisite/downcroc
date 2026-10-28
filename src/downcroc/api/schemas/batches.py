@@ -25,6 +25,7 @@ class BatchSubmit(BaseModel):
     path: str = Field(min_length=1, max_length=4096)
     template: str | None = Field(default=None, max_length=64)
     account: str | None = Field(default=None, max_length=64)
+    key: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class ApproveRequest(BaseModel):
@@ -120,6 +121,7 @@ class BatchDetailOut(BatchOut):
     recipients: list[JobOut]
     ignored: list[str]
     warnings: list[str]
+    reused: bool = False
 
     @classmethod
     def from_detail(cls, detail: BatchDetail) -> BatchDetailOut:
@@ -130,6 +132,7 @@ class BatchDetailOut(BatchOut):
             recipients=[JobOut.of(job) for job in detail.jobs],
             ignored=list(detail.batch.ignored),
             warnings=list(detail.batch.warnings),
+            reused=detail.reused,
         )
 
 

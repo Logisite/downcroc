@@ -443,36 +443,39 @@ def _preview_command(client, args: object, ui: Ui) -> int:
 
 def _submit(client, args: object, ui: Ui) -> int:
     body = source_body(args)
+    key = getattr(args, "key", None)
     if args.dry_run:
         preview = post(
             client,
             "/api/batches/preview",
-            {
-                "path": body["path"],
-                "template": body["template"],
-                "account": body["account"],
-            },
+            body,
+            key=key,
         )
         if ui.json_mode:
             json_out({"dry_run": True, "preview": preview})
         else:
-            show_preview(preview, ui)
+            show_preview(preview, ui, key=key)
             print()
             print("dry run, nothing was written")
         return 0
-    batch = post(client, "/api/batches", body)
-    if args.approve != "none":
-        batch = post(
+    batch = post(client, "/api/batches", {**body, "key": key})
+    reused = bool(batch.get("reused"))
+    if args.approve != "none" and batch["state"] == "awaiting_approval":
+        approved = post(
             client,
             f"/api/batches/{batch['id']}/approve",
             {"mode": args.approve},
         )
+        approved["reused"] = reused
+        batch = approved
     if ui.json_mode:
         json_out(batch)
     else:
         record(
             {
-                "submitted": f"{batch['id']} ({batch['name']})",
+                "reused" if reused else "submitted": (
+                    f"{batch['id']} ({batch['name']})"
+                ),
                 "state": batch["state"],
                 "approval": batch["approval"],
             }

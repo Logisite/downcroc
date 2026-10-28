@@ -6,7 +6,7 @@ from email.utils import parseaddr
 from tests.conftest import Stack
 from tests.harness.campaigns import campaign_of, input_files, submit
 from tests.harness.logs import events
-from tests.harness.seed import message, write_csv, write_json, write_template
+from tests.harness.seed import campaign, message, write_csv, write_json, write_template
 
 
 def test_submit_routes_and_snapshots(stack: Stack) -> None:
@@ -209,3 +209,76 @@ def test_submit_logs_the_intake_stages(stack: Stack) -> None:
         "batch.created",
     ):
         assert name in logged
+
+
+def test_submit_key_creates_one_job_and_a_retry_reuses_it(stack: Stack) -> None:
+    path = write_json(input_files(stack), "single.json", campaign_of(3))
+
+    status, first = stack.api.raw(
+        "POST", "/api/batches", {"path": str(path), "key": "m2"}
+    )
+    assert status == 201
+    assert first["reused"] is False
+    assert [job["source_key"] for job in first["recipients"]] == ["m2"]
+    assert [sample["key"] for sample in first["samples"]] == ["m2"]
+
+    status, second = stack.api.raw(
+        "POST", "/api/batches", {"path": str(path), "key": "m2"}
+    )
+    assert status == 200
+    assert second["reused"] is True
+    assert second["id"] == first["id"]
+    assert len(stack.api.get("/api/batches")) == 1
+    assert events(stack)["batch.reused"][0]["batch"] == first["id"]
+
+
+def test_submit_key_of_another_message_creates_another_batch(stack: Stack) -> None:
+    path = write_json(input_files(stack), "keys.json", campaign_of(2))
+
+    first = stack.api.submit(str(path), key="m1")
+    second = stack.api.submit(str(path), key="m2")
+
+    assert second["reused"] is False
+    assert second["id"] != first["id"]
+    assert [job["source_key"] for job in second["recipients"]] == ["m2"]
+    assert len(stack.api.get("/api/batches")) == 2
+
+
+def test_submit_key_of_edited_source_creates_a_new_batch(stack: Stack) -> None:
+    path = write_json(input_files(stack), "edited.json", campaign_of(1))
+    first = stack.api.submit(str(path), key="m1")
+
+    write_json(
+        input_files(stack),
+        "edited.json",
+        campaign([message("person1@example.com", key="m1", subject="Edited")]),
+    )
+    second = stack.api.submit(str(path), key="m1")
+
+    assert second["reused"] is False
+    assert second["id"] != first["id"]
+    assert second["recipients"][0]["subject"] == "Edited"
+    assert len(stack.api.get("/api/batches")) == 2
+
+
+def test_submit_with_an_unknown_key_creates_nothing(stack: Stack) -> None:
+    path = write_json(input_files(stack), "missing.json", campaign_of(2))
+    status, body = stack.api.raw(
+        "POST", "/api/batches", {"path": str(path), "key": "m9"}
+    )
+
+    assert status == 422
+    assert body["error"] == "batch_invalid"
+    assert "m9" in body["message"]
+    assert stack.api.get("/api/batches") == []
+
+
+def test_submit_without_a_key_is_never_reused(stack: Stack) -> None:
+    path = write_json(input_files(stack), "whole.json", campaign_of(2))
+
+    first = stack.api.submit(str(path))
+    second = stack.api.submit(str(path))
+
+    assert second["reused"] is False
+    assert second["id"] != first["id"]
+    assert len(stack.api.get("/api/batches")) == 2

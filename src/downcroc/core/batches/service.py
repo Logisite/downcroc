@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from downcroc.core.batches import samples, snapshot
@@ -22,7 +24,7 @@ from downcroc.core.inputs.routing import RoutingPlan
 from downcroc.core.outbound import OutboundService
 from downcroc.core.stats import StatsService
 from downcroc.domain.batches import Batch, BatchKind, BatchState, NewBatch
-from downcroc.domain.campaign import Campaign
+from downcroc.domain.campaign import Campaign, Message
 from downcroc.domain.errors import (
     AccountUnavailable,
     BatchInvalid,
@@ -72,17 +74,36 @@ class BatchesService:
         self._builder = JobBuilder(settings, accounts, jobs, content)
 
     def submit(
-        self, path: str, template: str | None, account: str | None = None
+        self,
+        path: str,
+        template: str | None,
+        account: str | None = None,
+        key: str | None = None,
     ) -> BatchDetail:
         started_at = utc_now()
         started = time.monotonic()
         campaign = self._reader.read(path, template)
         if account:
             campaign = fixed_account(campaign, account)
+        if key is not None:
+            campaign = replace(campaign, messages=_select(campaign, key))
         elapsed_ms = round((time.monotonic() - started) * 1000, 2)
         self._log_detected(path, campaign)
         for item in campaign.ignored:
             self._log.info("input.field_ignored", key=item.key, field=item.field)
+
+        payload = snapshot.campaign_bytes(campaign)
+        digest = hashlib.sha256(payload).hexdigest()
+        if key is not None:
+            existing = self._batches.find_submit(digest, key)
+            if existing is not None:
+                self._log.info(
+                    "batch.reused",
+                    batch=existing.id,
+                    key=key,
+                    jobs=len(self._jobs.list(batch_id=existing.id, limit=10_000)),
+                )
+                return replace(self.detail(existing.id), reused=True)
 
         plan = routing.resolve(campaign, self._accounts.list())
         batch_id = new_id("bat")
@@ -91,9 +112,7 @@ class BatchesService:
             JobState.AWAITING_APPROVAL if approval == "review" else JobState.QUEUED
         )
         built = self._builder.build(campaign, plan.assignments, batch_id, job_state)
-        stored = self._content.put_batch_source(
-            batch_id, snapshot.campaign_bytes(campaign)
-        )
+        stored = self._content.put_batch_source(batch_id, payload)
         chosen = samples.select(
             batch_id,
             [job.id for job in built],
@@ -108,6 +127,7 @@ class BatchesService:
                 stored,
                 chosen,
                 started_at,
+                key,
             )
         )
         self._jobs.create_many(built)
@@ -162,16 +182,7 @@ class BatchesService:
         assignments = plan.assignments if plan else {}
         chosen = campaign.messages
         if key is not None:
-            chosen = tuple(
-                message
-                for message in campaign.messages
-                if message.key == key or str(message.source_index) == key
-            )
-            if not chosen:
-                raise BatchInvalid(
-                    f"no message or row matches {key}",
-                    fields={"key": "not found in the source"},
-                )
+            chosen = _select(campaign, key)
         elif not everything:
             chosen = chosen[: self._settings.intake.sample_count]
         return Preview(
@@ -333,6 +344,7 @@ class BatchesService:
         stored: StoredContent,
         chosen: tuple[str, ...],
         started_at: str,
+        submit_key: str | None = None,
     ) -> NewBatch:
         return NewBatch(
             id=batch_id,
@@ -372,6 +384,7 @@ class BatchesService:
                 else ()
             ),
             created_at=started_at,
+            submit_key=submit_key,
         )
 
     def _first_job(self, batch_id: str) -> str:
@@ -381,6 +394,20 @@ class BatchesService:
         if not jobs:
             raise BatchInvalid("the batch has no sendable job")
         return jobs[0]
+
+
+def _select(campaign: Campaign, key: str) -> tuple[Message, ...]:
+    chosen = tuple(
+        message
+        for message in campaign.messages
+        if message.key == key or str(message.source_index) == key
+    )
+    if not chosen:
+        raise BatchInvalid(
+            f"no message or row matches {key}",
+            fields={"key": "not found in the source"},
+        )
+    return chosen
 
 
 def _reply_window(options_json: str) -> int:

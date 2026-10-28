@@ -21,6 +21,7 @@ def _to_batch(row: BatchRow) -> Batch:
         source_kind=row.source_kind,
         schema_version=row.schema_version,
         campaign_key=row.campaign_key,
+        submit_key=row.submit_key,
         producer_json=row.producer_json,
         template_ref=row.template_ref,
         account_id=row.account_id,
@@ -52,6 +53,7 @@ class BatchRepo:
             source_kind=batch.source_kind,
             schema_version=batch.schema_version,
             campaign_key=batch.campaign_key,
+            submit_key=batch.submit_key,
             producer_json=batch.producer_json,
             template_ref=batch.template_ref,
             account_id=batch.account_id,
@@ -76,6 +78,15 @@ class BatchRepo:
             if row is None:
                 raise BatchNotFound(f"no batch {batch_id}")
             return _to_batch(row)
+
+    def find_submit(self, source_hash: str, submit_key: str) -> Batch | None:
+        query = select(BatchRow).where(
+            BatchRow.source_hash == source_hash,
+            BatchRow.submit_key == submit_key,
+        )
+        with self._sessions() as session:
+            row = session.scalars(query).first()
+            return None if row is None else _to_batch(row)
 
     def list(
         self,

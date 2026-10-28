@@ -63,7 +63,10 @@ def batch(commands: argparse._SubParsersAction) -> None:
         default="none",
         help="none holds for review, one sends a sample, all sends",
     )
-    submit.add_argument("--key", help="submit one message by key or row")
+    submit.add_argument(
+        "--key",
+        help="submit one message by key or row; a retry reuses the batch",
+    )
     submit.add_argument(
         "--dry-run",
         action="store_true",
