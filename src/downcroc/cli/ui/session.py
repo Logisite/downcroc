@@ -171,7 +171,7 @@ def build(args: object) -> Ui:
         full=bool(_flag(args, "full")),
         quiet=bool(_flag(args, "quiet")),
         timeout=_timeout(args),
-        width=max(40, width),
+        width=max(20, width),
     )
 
 

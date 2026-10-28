@@ -23,6 +23,10 @@ CTRL_D = "ctrl_d"
 CTRL_U = "ctrl_u"
 CTRL_W = "ctrl_w"
 
+ESC_TIMEOUT_S = 0.1
+CSI_LIMIT = 16
+READ_SIZE = 64
+
 CSI_KEYS = {
     "A": UP,
     "B": DOWN,
@@ -58,9 +62,11 @@ class Unavailable(RuntimeError):
 class Keys:
     """Read single key presses from a terminal, arrows included."""
 
-    def __init__(self, stream=None) -> None:
+    def __init__(self, stream=None, escape_timeout: float = ESC_TIMEOUT_S) -> None:
         self._stream = stream or sys.stdin
         self._saved: object = None
+        self._pending = b""
+        self._escape_timeout = escape_timeout
         self._windows = os.name == "nt"
         try:
             self._fd = self._stream.fileno()
@@ -113,7 +119,7 @@ class Keys:
         return CONTROL_KEYS.get(char, char)
 
     def _read_posix(self) -> str:
-        first = os.read(self._fd, 1)
+        first = self._take(1)
         if not first:
             raise Cancelled()
         if first == b"\x1b":
@@ -121,31 +127,50 @@ class Keys:
         char = self._decode(first)
         return CONTROL_KEYS.get(char, char)
 
+    def _take(self, count: int) -> bytes:
+        while len(self._pending) < count:
+            try:
+                chunk = os.read(self._fd, READ_SIZE)
+            except OSError:
+                break
+            if not chunk:
+                break
+            self._pending += chunk
+        out = self._pending[:count]
+        self._pending = self._pending[count:]
+        return out
+
     def _escape(self) -> str:
         import select
 
-        ready, _, _ = select.select([self._fd], [], [], 0.03)
-        if not ready:
-            return ESC
-        rest = os.read(self._fd, 1)
-        if rest == b"[":
+        if not self._pending:
+            ready, _, _ = select.select([self._fd], [], [], self._escape_timeout)
+            if not ready:
+                return ESC
+        head = self._take(1)
+        if head in (b"[", b"O"):
             return self._csi()
-        if rest == b"O":
-            return self._csi()
+        if head:
+            self._pending = head + self._pending
         return ESC
 
     def _csi(self) -> str:
         sequence = ""
-        while len(sequence) < 8:
-            char = os.read(self._fd, 1)
+        while len(sequence) < CSI_LIMIT:
+            char = self._take(1)
             if not char:
                 break
-            sequence += char.decode("ascii", "ignore")
-            if sequence and ("@" <= sequence[-1] <= "~"):
+            text = char.decode("ascii", "ignore")
+            if not text:
+                continue
+            sequence += text
+            if "@" <= text <= "~":
                 break
+        if not sequence:
+            return ESC
         if sequence.endswith("~"):
             return CSI_KEYS.get(sequence, "")
-        return CSI_KEYS.get(sequence[-1:] if sequence else "", "")
+        return CSI_KEYS.get(sequence[-1], "")
 
     def _decode(self, lead: bytes) -> str:
         if lead[0] < 0x80:
@@ -157,7 +182,7 @@ class Keys:
             need = 2
         buffer = lead
         while len(buffer) < need + 1:
-            chunk = os.read(self._fd, 1)
+            chunk = self._take(1)
             if not chunk:
                 break
             buffer += chunk

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import sys
-
 from downcroc.cli.errors import Cancelled
 from downcroc.cli.ui import ansi
+from downcroc.cli.ui.frame import Frame, columns
 from downcroc.cli.ui.keys import (
     BACKSPACE,
     CTRL_C,
@@ -32,26 +31,33 @@ def edit_line(
     required: bool = True,
 ) -> str:
     suffix = ui.dim(f"  [{default}]") if default else ""
-    print(f"{ui.accent('?')} {ui.bold(label)}{suffix}")
+    limit = max(1, columns(ui) - 1)
+    print(ansi.fit(f"{ui.accent('?')} {ui.bold(label)}{suffix}", limit))
     buffer = ""
     cursor = 0
     error = ""
-    with Keys() as keys:
+    drawn: tuple[str, int, str] | None = None
+    value = ""
+    cancelled = False
+    with Keys() as keys, Frame(ui) as frame:
         while True:
-            _draw(ui, buffer, cursor, mask, error, default)
+            state = (buffer, cursor, error)
+            if state != drawn:
+                text, column = _render(ui, buffer, cursor, mask, error, default)
+                frame.draw([text])
+                frame.place(column)
+                drawn = state
             key = keys.read()
             error = ""
             if key in (CTRL_C, CTRL_D, ESC):
-                _cancel(ui)
-                raise Cancelled()
+                cancelled = True
+                break
             if key == ENTER:
                 value = buffer or (default or "")
                 if not value and required:
                     error = "a value is required"
                     continue
-                _close()
-                _answer(ui, value, mask)
-                return value
+                break
             if key == BACKSPACE:
                 if cursor:
                     buffer = buffer[: cursor - 1] + buffer[cursor:]
@@ -78,6 +84,11 @@ def edit_line(
             elif isinstance(key, str) and len(key) == 1 and key.isprintable():
                 buffer = buffer[:cursor] + key + buffer[cursor:]
                 cursor += 1
+    if cancelled:
+        _cancel(ui)
+        raise Cancelled()
+    _answer(ui, value, mask)
+    return value
 
 
 def _drop_word(buffer: str, cursor: int) -> int:
@@ -89,38 +100,32 @@ def _drop_word(buffer: str, cursor: int) -> int:
     return spot
 
 
-def _draw(
+def _render(
     ui: Ui,
     buffer: str,
     cursor: int,
     mask: bool,
     error: str,
     default: str | None,
-) -> None:
+) -> tuple[str, int]:
+    limit = max(1, columns(ui) - 1)
     shown = "*" * len(buffer) if mask else buffer
     if not shown and default:
         view = ui.dim(default)
-        width = len(default)
         position = 0
+        source = default
     else:
-        room = max(10, ui.width - 10)
+        room = max(4, limit - 4)
         start = max(0, cursor - room + 1) if len(shown) > room else 0
         text = shown[start : start + room]
         view = text
-        width = len(text)
         position = cursor - start
+        source = text
     pointer = ui.accent(ui.glyph("pointer"))
     tail = ui.paint(f"  {error}", "bad") if error else ""
-    sys.stdout.write(ansi.clear_line() + f"{pointer} {view}{tail}")
-    back = max(0, width - position) + ansi.width(tail)
-    if back:
-        sys.stdout.write(f"\x1b[{back}D")
-    sys.stdout.flush()
-
-
-def _close() -> None:
-    sys.stdout.write(ansi.clear_line())
-    sys.stdout.flush()
+    line = ansi.fit(f"{pointer} {view}{tail}", limit)
+    column = ansi.cells(pointer) + 1 + ansi.cells(source[:position])
+    return line, min(column, ansi.cells(line))
 
 
 def _answer(ui: Ui, value: str, mask: bool) -> None:
@@ -133,6 +138,5 @@ def _answer(ui: Ui, value: str, mask: bool) -> None:
 
 
 def _cancel(ui: Ui) -> None:
-    sys.stdout.write(ansi.clear_line())
     pointer = ui.accent(ui.glyph("pointer"))
     print(f"{pointer} {ui.dim('cancelled')}")
