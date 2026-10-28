@@ -45,6 +45,7 @@ LEVEL_COLOUR = {
     "error": "\x1b[31m",
     "critical": "\x1b[1;31m",
 }
+EVENT_COLOUR = "\x1b[32m"
 
 
 def entry_from(record: logging.LogRecord) -> dict[str, Any]:
@@ -85,7 +86,10 @@ def render(entry: dict[str, Any], colour: bool = True) -> str:
     )
     if colour:
         tint = LEVEL_COLOUR.get(level, "")
-        head = f"{DIM}{stamp}{RESET}  {tint}{level:<7}{RESET}  {BOLD}{event:<24}{RESET}"
+        head = (
+            f"{DIM}{stamp}{RESET}  {tint}{level:<7}{RESET}  "
+            f"{EVENT_COLOUR}{BOLD}{event:<24}{RESET}"
+        )
         pairs = f"  {DIM}{fields}{RESET}" if fields else ""
         return (head + pairs).rstrip()
     return f"{stamp}  {level:<7}  {event:<24}  {fields}".rstrip()
