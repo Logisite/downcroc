@@ -26,6 +26,11 @@ CLASSIFIER_LICENCES = {
     "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)": "MPL-2.0",
     "License :: OSI Approved :: Python Software Foundation License": "PSF-2.0",
 }
+PLATFORM_LICENCES = {
+    "jeepney": "MIT",
+    "pywin32-ctypes": "BSD-3-Clause",
+    "secretstorage": "BSD-3-Clause",
+}
 
 
 def _lock_packages() -> dict[str, dict]:
@@ -52,7 +57,15 @@ def _runtime_closure(packages: dict[str, dict]) -> list[dict]:
 
 
 def _licence(package: dict) -> str:
-    distribution = metadata.distribution(package["name"])
+    try:
+        distribution = metadata.distribution(package["name"])
+    except metadata.PackageNotFoundError:
+        known = PLATFORM_LICENCES.get(package["name"].lower())
+        if known is None:
+            raise SystemExit(
+                f"{package['name']} is not installed and has no platform licence entry"
+            ) from None
+        return known
     installed = distribution.version
     if installed != package["version"]:
         raise SystemExit(
