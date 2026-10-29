@@ -47,13 +47,15 @@ class ReassignRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     from_account_id: str | None = Field(default=None, max_length=64)
-    to_account_id: str = Field(min_length=1, max_length=64)
+    to_account_id: str | None = Field(default=None, max_length=64)
     job_ids: list[str] = Field(default_factory=list, max_length=10_000)
     batch_ids: list[str] = Field(default_factory=list, max_length=10_000)
     states: list[str] = Field(default_factory=list, max_length=16)
     created_since: str | None = None
     created_until: str | None = None
     include_failed: bool = False
+    pin: bool = False
+    unpin: bool = False
     force: bool = False
     dry_run: bool = False
     confirm: bool = False
@@ -68,7 +70,25 @@ class ReassignOut(BaseModel):
     jobs: int
     batches: int
     skipped: list[ReassignSkipped]
+    pinned: int = 0
+    unpinned: int = 0
     dry_run: bool
+
+
+class SendAttemptOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    job_id: str
+    account_id: str | None
+    transport: str
+    started_at: str
+    finished_at: str | None
+    outcome: str
+    accepted: bool | None
+    error_code: str | None
+    error_message: str | None
+    provider_message_id: str | None
 
 
 class JobErrorOut(BaseModel):
@@ -80,7 +100,8 @@ class JobErrorOut(BaseModel):
 class JobOut(BaseModel):
     id: str
     batch_id: str
-    account_id: str
+    account_id: str | None
+    sender_policy: str
     recipient: str
     recipient_name: str | None
     source_kind: str
@@ -113,6 +134,7 @@ class JobOut(BaseModel):
             id=job.id,
             batch_id=job.batch_id,
             account_id=job.account_id,
+            sender_policy=job.sender_policy.value,
             recipient=job.recipient,
             recipient_name=job.recipient_name,
             source_kind=job.source_kind,

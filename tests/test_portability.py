@@ -200,6 +200,108 @@ def test_account_deletion_guards_history(stack: Stack) -> None:
     assert status == 404
 
 
+def test_sender_policy_survives_account_deletion(stack_factory) -> None:
+    stack = stack_factory(config_extra=dispatch_config())
+    alice, bob = stack.accounts
+    batch = submit(
+        stack,
+        campaign_of(
+            2,
+            options={"approval": "review"},
+            routing={"mode": "fixed", "account": alice},
+        ),
+    )
+    pinned_id, auto_id = (job["id"] for job in batch["recipients"])
+    jobs = {job["id"]: job for job in stack.api.get(f"/api/jobs?batch={batch['id']}")}
+    assert jobs[pinned_id]["sender_policy"] == "pinned"
+    assert jobs[pinned_id]["account_id"] == alice
+
+    unpinned = stack.api.post(
+        "/api/jobs/reassign",
+        {"job_ids": [auto_id], "unpin": True, "confirm": True},
+    )
+    assert unpinned["jobs"] == 1
+    assert unpinned["unpinned"] == 1
+    assert unpinned["pinned"] == 0
+    assert unpinned["skipped"] == []
+    auto_job = stack.api.get(f"/api/jobs/{auto_id}")
+    assert auto_job["sender_policy"] == "auto"
+    assert auto_job["account_id"] is None
+    assert stack.api.get(f"/api/jobs/{pinned_id}")["account_id"] == alice
+    assert stack.api.get(f"/api/jobs/{auto_id}/attempts") == []
+
+    preview = stack.api.get(f"/api/accounts/{alice}/deletion")
+    assert preview["counts"]["pinned_jobs"] == 1
+    assert preview["counts"]["auto_jobs"] == 1
+    assert preview["counts"]["batches"] == 1
+    assert preview["counts"]["batches_pinned"] == 1
+    assert "account_in_use" in preview["blockers"]
+
+    status, blocked = stack.api.raw("DELETE", f"/api/accounts/{alice}?confirm=true")
+    assert status == 409
+    assert blocked["error"] == "account_in_use"
+    assert "--reassign-to" in blocked["hint"]
+
+    status, deleted = stack.api.raw(
+        "DELETE",
+        f"/api/accounts/{alice}?confirm=true&reassign_to={bob}",
+    )
+    assert status == 200
+    assert deleted["reassigned"] == 1
+    assert deleted["deleted_jobs"] == 0
+
+    moved = stack.api.get(f"/api/jobs/{pinned_id}")
+    assert moved["sender_policy"] == "pinned"
+    assert moved["account_id"] == bob
+    surviving = stack.api.get(f"/api/jobs/{auto_id}")
+    assert surviving["sender_policy"] == "auto"
+    assert surviving["account_id"] is None
+    assert stack.api.get(f"/api/batches/{batch['id']}")["account_id"] == bob
+
+    stack.api.post(f"/api/batches/{batch['id']}/approve", {"mode": "all"})
+    _done(stack, batch["id"])
+    detail = stack.api.get(f"/api/batches/{batch['id']}")
+    assert detail["counts"]["sent"] == 2
+
+    attempts = stack.api.get(f"/api/jobs/{auto_id}/attempts")
+    assert len(attempts) == 1
+    assert attempts[0]["account_id"] == bob
+    assert attempts[0]["transport"] == "smtp"
+    assert attempts[0]["outcome"] == "sent"
+    assert attempts[0]["accepted"] is True
+    pinned_attempts = stack.api.get(f"/api/jobs/{pinned_id}/attempts")
+    assert [item["account_id"] for item in pinned_attempts] == [bob]
+
+    document = campaign_of(
+        0, options={"approval": "review"}, routing={"mode": "fixed", "account": bob}
+    )
+    document["messages"] = [
+        {
+            "to": {"email": "permanent-auto@example.com"},
+            "subject": "Auto failure",
+            "text": "Body",
+        }
+    ]
+    failing = submit(stack, document)
+    failing_id = failing["recipients"][0]["id"]
+    stack.api.post(
+        "/api/jobs/reassign",
+        {"job_ids": [failing_id], "unpin": True, "confirm": True},
+    )
+    stack.api.post(f"/api/batches/{failing['id']}/approve", {"mode": "all"})
+    _done(stack, failing["id"])
+
+    failures = stack.api.get("/api/failed")
+    assert [item["job_id"] for item in failures] == [failing_id]
+    assert failures[0]["account_id"] == bob
+    assert failures[0]["recipient"] == "permanent-auto@example.com"
+    failed_attempts = stack.api.get(f"/api/jobs/{failing_id}/attempts")
+    assert len(failed_attempts) == 1
+    assert failed_attempts[0]["account_id"] == bob
+    assert failed_attempts[0]["accepted"] is False
+    assert failed_attempts[0]["outcome"] == "failed"
+
+
 def test_archive_hides_an_account_from_list_and_routing(stack: Stack) -> None:
     alice, bob = stack.accounts
 

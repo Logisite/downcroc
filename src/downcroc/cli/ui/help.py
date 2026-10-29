@@ -80,7 +80,7 @@ TOPICS: dict[str, str] = {
   step can be resumed. The result names the IMAP host and sent folder; it
   never claims SMTP was checked.
 
-  Related: providers, vault, send
+  Related: providers, vault, send, jobs
 """,
     "providers": """providers
 
@@ -124,7 +124,7 @@ TOPICS: dict[str, str] = {
   --account pins every message to one account. It rewrites
   campaign.routing to fixed so the file and the flag cannot disagree.
 
-  Related: batch, templates, review
+  Related: batch, templates, review, jobs
 """,
     "batch": """batch
 
@@ -149,7 +149,49 @@ TOPICS: dict[str, str] = {
     downcroc batch example --kind json
     downcroc batch validate campaign.json
 
-  Related: send, templates
+  Related: send, templates, jobs
+""",
+    "jobs": """jobs
+
+  A job is one message. Its sender is a policy, not a mailbox.
+
+  Sender policy
+    pinned   one named mailbox carries this job; account_id is set
+    auto     the daemon picks an eligible mailbox at send time;
+             account_id is null
+
+  Manual jobs are pinned. Campaign jobs stay pinned until fleet
+  scheduling lands; then a campaign routes automatically.
+
+  Commands
+    downcroc job list
+    downcroc job show JOB_ID
+    downcroc job reassign --job JOB_ID --to ACCOUNT_ID --pin
+    downcroc job reassign --job JOB_ID --unpin
+    downcroc job attempts JOB_ID
+    downcroc job cancel JOB_ID
+    downcroc job delete JOB_ID
+
+  Reassignment levels
+    --pin     choose the target mailbox for the selection
+    --unpin   clear the sender and route at send time
+    neither   move pinned jobs to the target account
+
+  Only queued, awaiting approval, and retry jobs move. A sending job is
+  refused. Sent and cancelled jobs never move. Attempt history is kept.
+
+  Deleting an account
+    A pinned job blocks the delete. Auto jobs never block it: they are
+    detached and keep routing. Pass --reassign-to to move pinned work,
+    or --force-jobs to delete unsent pinned jobs.
+
+    downcroc account deletion ACCOUNT_ID
+    downcroc account delete ACCOUNT_ID --reassign-to OTHER_ID
+
+  Archive hides an account from routing but keeps its history. Delete
+  removes the account and its stored credential.
+
+  Related: accounts, batch, send
 """,
     "templates": """templates
 

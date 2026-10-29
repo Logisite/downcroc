@@ -8,7 +8,7 @@ from downcroc.domain.failures import FailedJob
 class FailureOut(BaseModel):
     job_id: str
     batch_id: str
-    account_id: str
+    account_id: str | None
     recipient: str
     code: str
     message: str

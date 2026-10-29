@@ -9,6 +9,7 @@ from downcroc.core.outbound.reconcile import SentReconciler
 from downcroc.core.stats import StatsService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.domain.attempts import SendAttempt
 from downcroc.domain.errors import (
     AccountNeedsReauth,
     ContentCorrupt,
@@ -34,6 +35,7 @@ from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.jobs import JobRepo
+from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 
 class OutboundService:
@@ -50,6 +52,7 @@ class OutboundService:
         log: EventLogger,
         settings: OutboundSettings,
         connect: ConnectSettings,
+        send_attempts: SendAttemptRepo,
     ) -> None:
         self._jobs = jobs
         self._accounts = accounts
@@ -59,6 +62,7 @@ class OutboundService:
         self._bus = bus
         self._log = log
         self._settings = settings
+        self._send_attempts = send_attempts
         self._credentials = CredentialResolver(accounts, vault, tokens)
         self._reconciler = SentReconciler(
             jobs,
@@ -162,7 +166,7 @@ class OutboundService:
     async def send(self, job_id: str) -> Job:
         self._credentials.ensure_unlocked()
         job = self._jobs.get(job_id)
-        account = self._accounts.get(job.account_id)
+        account = self._sender_for(job)
         self._require_connected(account)
         claimed = self._jobs.claim(
             job_id,
@@ -177,6 +181,17 @@ class OutboundService:
             )
         return await self.deliver(claimed, account)
 
+    def _sender_for(self, job: Job) -> Account:
+        if job.account_id is not None:
+            return self._accounts.get(job.account_id)
+        for account in self._accounts.list():
+            if account.status is AccountStatus.CONNECTED and account.policy.enabled:
+                return account
+        raise AccountNeedsReauth(
+            "no mailbox can carry this job",
+            hint="connect an account before sending",
+        )
+
     async def deliver(self, job: Job, account: Account | None = None) -> Job:
         self._credentials.ensure_unlocked()
         claimed = job
@@ -186,10 +201,11 @@ class OutboundService:
         self._require_connected(account)
         spec = self._providers.get(account.provider)
         started = time.monotonic()
+        started_at = utc_now()
         self._log.info(
             "job.send_start",
             job=claimed.id,
-            account=claimed.account_id,
+            account=account.id,
             attempt=claimed.attempts,
         )
         try:
@@ -213,6 +229,15 @@ class OutboundService:
                 timeout_s=self._settings.smtp_timeout_s,
             )
         except sender.SmtpAuthFailure as error:
+            self._record_attempt(
+                claimed,
+                account,
+                started_at,
+                outcome="failed",
+                accepted=False,
+                code=error.code,
+                message=error.message,
+            )
             self._accounts.mark_needs_reauth(account.id, error.code)
             self._jobs.mark_queued(
                 claimed.id,
@@ -231,6 +256,15 @@ class OutboundService:
                 hint="connect the account again",
             ) from error
         except sender.SmtpFailure as error:
+            self._record_attempt(
+                claimed,
+                account,
+                started_at,
+                outcome="deferred" if error.transient else "failed",
+                accepted=False,
+                code=error.code,
+                message=error.message,
+            )
             if error.transient:
                 self._jobs.mark_retry(
                     claimed.id,
@@ -254,6 +288,15 @@ class OutboundService:
             )
             return self._jobs.get(claimed.id)
         except AccountNeedsReauth:
+            self._record_attempt(
+                claimed,
+                account,
+                started_at,
+                outcome="deferred",
+                accepted=None,
+                code="account_needs_reauth",
+                message="the account must be reconnected",
+            )
             self._jobs.mark_queued(
                 claimed.id,
                 code="account_needs_reauth",
@@ -262,6 +305,15 @@ class OutboundService:
             )
             raise
         except CredentialMissing, OAuthFailed, OAuthUnavailable, VaultLocked:
+            self._record_attempt(
+                claimed,
+                account,
+                started_at,
+                outcome="deferred",
+                accepted=None,
+                code="send_unavailable",
+                message="the send credential is not available",
+            )
             self._jobs.mark_queued(
                 claimed.id,
                 code="send_unavailable",
@@ -270,6 +322,15 @@ class OutboundService:
             )
             raise
         except SmtpUnavailable:
+            self._record_attempt(
+                claimed,
+                account,
+                started_at,
+                outcome="deferred",
+                accepted=None,
+                code="smtp_unavailable",
+                message="the send credential could not be refreshed",
+            )
             self._jobs.mark_retry(
                 claimed.id,
                 code="smtp_unavailable",
@@ -279,6 +340,15 @@ class OutboundService:
             )
             raise
         except (ContentCorrupt, ContentMissing, ValueError) as error:
+            self._record_attempt(
+                claimed,
+                account,
+                started_at,
+                outcome="failed",
+                accepted=False,
+                code="send_preparation_failed",
+                message=error.__class__.__name__,
+            )
             self._jobs.mark_failed(
                 claimed.id,
                 code="send_preparation_failed",
@@ -304,8 +374,15 @@ class OutboundService:
             message_id=claimed.message_id,
             duration_ms=result.accepted_ms,
         )
+        self._record_attempt(
+            claimed,
+            account,
+            started_at,
+            outcome="sent",
+            accepted=True,
+        )
         sent = self._jobs.mark_sent(claimed.id, utc_now())
-        self._stats.record_sent(sent)
+        self._stats.record_sent(sent, account.id)
         self._bus.publish(
             "job.sent",
             {"id": sent.id, "batch": sent.batch_id, "message_id": sent.message_id},
@@ -320,6 +397,34 @@ class OutboundService:
 
     async def reconcile(self) -> None:
         await self._reconciler.run()
+
+    def _record_attempt(
+        self,
+        job: Job,
+        account: Account,
+        started_at: str,
+        *,
+        outcome: str,
+        accepted: bool | None,
+        code: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        self._send_attempts.create(
+            SendAttempt(
+                id=new_id("att"),
+                job_id=job.id,
+                account_id=account.id,
+                transport="smtp",
+                started_at=started_at,
+                finished_at=utc_now(),
+                outcome=outcome,
+                accepted=accepted,
+                error_code=code,
+                error_message=message,
+                provider_message_id=None,
+                detail=None,
+            )
+        )
 
     def _require_connected(self, account: Account) -> None:
         if account.status is AccountStatus.NEEDS_REAUTH:

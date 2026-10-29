@@ -2,51 +2,18 @@ from __future__ import annotations
 
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, delete, get, get_page, post
+from downcroc.cli.commands.job_view import (
+    attempts_table,
+    job_list,
+    job_show,
+    sender_label,
+)
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
-from downcroc.cli.output import json_out, page_footer, record, table
+from downcroc.cli.output import json_out, page_footer
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.menu import open_menu
 from downcroc.cli.ui.session import Ui, build
-
-
-def _list(rows: list[dict]) -> None:
-    table(
-        ["id", "recipient", "state", "attempts", "subject", "sent"],
-        [
-            [
-                item["id"],
-                item["recipient"],
-                item["state"],
-                item["attempts"],
-                item["subject"],
-                item["sent_at"],
-            ]
-            for item in rows
-        ],
-    )
-
-
-def _show(job: dict) -> None:
-    error = job.get("last_error") or {}
-    record(
-        {
-            "id": job["id"],
-            "batch": job["batch_id"],
-            "account": job["account_id"],
-            "recipient": job["recipient"],
-            "name": job["recipient_name"],
-            "subject": job["subject"],
-            "state": job["state"],
-            "attempts": job["attempts"],
-            "message_id": job["message_id"],
-            "thread_root": job["thread_root_job_id"],
-            "next_attempt_at": job["next_attempt_at"],
-            "sent_at": job["sent_at"],
-            "error": error.get("code"),
-            "error_message": error.get("message"),
-        }
-    )
 
 
 def _contents(parser: object) -> tuple[str, str | None]:
@@ -74,7 +41,7 @@ def _listing(client, args: object, ui: Ui) -> int:
     if ui.json_mode:
         json_out(rows)
         return 0
-    _list(rows)
+    job_list(rows)
     page_footer(
         len(rows),
         total,
@@ -118,7 +85,7 @@ def _confirm_send(job: dict, args: object, ui: Ui) -> None:
         return
     print(f"  to      {job['recipient']}")
     print(f"  subject {job['subject']}")
-    print(f"  account {job['account_id']}")
+    print(f"  sender  {sender_label(job)}")
     prompts.confirm(
         "send this job now?",
         ui=ui,
@@ -200,7 +167,7 @@ def _reassign(client, args: object, ui: Ui) -> int:
     dry_run = bool(args.dry_run)
     if not dry_run:
         prompts.confirm(
-            f"move jobs to {args.to_account_id}?",
+            _reassign_question(args),
             ui=ui,
             yes_flag=bool(getattr(args, "yes", False)),
         )
@@ -216,6 +183,8 @@ def _reassign(client, args: object, ui: Ui) -> int:
             "created_since": args.since,
             "created_until": args.until,
             "include_failed": args.include_failed,
+            "pin": args.pin,
+            "unpin": args.unpin,
             "dry_run": dry_run,
             "confirm": not dry_run,
         },
@@ -225,8 +194,32 @@ def _reassign(client, args: object, ui: Ui) -> int:
         return 0
     verb = "would move" if result["dry_run"] else "moved"
     print(f"{verb} {result['jobs']} jobs in {result['batches']} batches")
+    if result["pinned"]:
+        print(f"  pinned {result['pinned']}")
+    if result["unpinned"]:
+        print(f"  unpinned {result['unpinned']}, routed at send time")
     for item in result["skipped"]:
         print(f"  skipped {item['id']}: {item['reason']}")
+    return 0
+
+
+def _reassign_question(args: object) -> str:
+    if args.unpin:
+        return "route these jobs at send time?"
+    if args.pin:
+        return f"pin these jobs to {args.to_account_id}?"
+    return f"move these jobs to {args.to_account_id}?"
+
+
+def _attempts(client, args: object, ui: Ui) -> int:
+    rows = get(client, f"/api/jobs/{args.job_id}/attempts")
+    if ui.json_mode:
+        json_out(rows)
+        return 0
+    if not rows:
+        print("no send attempts yet")
+        return 0
+    attempts_table(rows)
     return 0
 
 
@@ -249,9 +242,11 @@ def run(args: object) -> int:
             return _delete(client, args, ui)
         if action == "reassign":
             return _reassign(client, args, ui)
+        if action == "attempts":
+            return _attempts(client, args, ui)
         job = get(client, f"/api/jobs/{args.job_id}")
         if ui.json_mode:
             json_out(job)
         else:
-            _show(job)
+            job_show(job)
         return 0

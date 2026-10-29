@@ -24,7 +24,7 @@ class FailedJobRow(Base):
         Text, ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True
     )
     batch_id: Mapped[str] = mapped_column(Text, nullable=False)
-    account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    account_id: Mapped[str | None] = mapped_column(Text)
     recipient: Mapped[str] = mapped_column(Text, nullable=False)
     code: Mapped[str] = mapped_column(Text, nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)

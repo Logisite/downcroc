@@ -219,6 +219,98 @@ def _create_job(ui: Ui) -> None:
     run_args(ui, *argv)
 
 
+def _sender_label(row: dict) -> str:
+    if row.get("sender_policy") == "auto" or row.get("account_id") is None:
+        return "auto"
+    return f"pinned {row['account_id']}"
+
+
+def _sender_items(ui: Ui) -> list[Item]:
+    found = rows(ui, "/api/jobs")
+    if found is None:
+        return need_daemon(ui)
+    if not found:
+        return [Item("No jobs yet", detail="submit a campaign first")]
+    return [
+        Item(
+            row["recipient"],
+            detail=f"{_sender_label(row)}  {row['state']}  {row['id']}",
+            action=lambda row=row: _sender_card(ui, row),
+        )
+        for row in found
+    ]
+
+
+def _sender_card(ui: Ui, row: dict) -> None:
+    print(f"  recipient {row['recipient']}")
+    print(f"  sender    {_sender_label(row)}")
+    choice = prompts.choose(
+        f"Sender for {row['id']}",
+        [
+            prompts.Option("Pin to an account", "pin", "one mailbox, chosen now"),
+            prompts.Option("Route at send time", "unpin", "any eligible mailbox"),
+            prompts.Option("Show attempts", "attempts", "what carried it"),
+        ],
+        ui=ui,
+        back=True,
+    )
+    if choice is None:
+        return
+    if choice == "attempts":
+        run_args(ui, "job", "attempts", row["id"])
+        return
+    if choice == "unpin":
+        if row.get("sender_policy") == "auto":
+            print("  this job already routes at send time")
+            return
+        if prompts.confirm("Route this job at send time?", ui=ui, default=True):
+            run_args(ui, "job", "reassign", "--job", row["id"], "--unpin", "--yes")
+        return
+    accounts = rows(ui, "/api/accounts")
+    if not accounts:
+        print("  no account can take the pin")
+        return
+    target = prompts.choose(
+        "Pin to account",
+        [
+            prompts.Option(account["address"], account["id"], account["status"])
+            for account in accounts
+        ],
+        ui=ui,
+        back=True,
+    )
+    if target is None:
+        return
+    if prompts.confirm(f"Pin this job to {target}?", ui=ui, default=True):
+        run_args(
+            ui,
+            "job",
+            "reassign",
+            "--job",
+            row["id"],
+            "--to",
+            str(target),
+            "--pin",
+            "--yes",
+        )
+
+
+def _attempt_items(ui: Ui) -> list[Item]:
+    found = rows(ui, "/api/jobs")
+    if found is None:
+        return need_daemon(ui)
+    if not found:
+        return [Item("No jobs yet", detail="submit a campaign first")]
+    return [
+        Item(
+            row["recipient"],
+            detail=f"{row['state']}  {row['id']}",
+            action=action(ui, "job", "attempts", row["id"]),
+        )
+        for row in found
+    ]
+
+
 def job_menu(ui: Ui) -> None:
     run(
         ui,
@@ -231,6 +323,12 @@ def job_menu(ui: Ui) -> None:
             ),
             Item("Show a job", children=_job_items(ui, "show")),
             Item("Send a job now", children=_job_items(ui, "send")),
+            Item(
+                "Reassign sender",
+                detail="pin or route at send time",
+                children=_sender_items(ui),
+            ),
+            Item("Show attempts", children=_attempt_items(ui)),
             Item(
                 "Create a job",
                 detail="one message by hand",

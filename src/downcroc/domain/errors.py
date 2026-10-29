@@ -415,6 +415,11 @@ class ReassignTargetInvalid(DomainError):
     status = 422
 
 
+class SenderConflict(DomainError):
+    code = "sender_conflict"
+    status = 422
+
+
 class AccountPending(DomainError):
     code = "account_pending"
     status = 409

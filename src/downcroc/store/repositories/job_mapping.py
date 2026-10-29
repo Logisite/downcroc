@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from downcroc.domain.jobs import Job, JobState, NewJob
+from downcroc.domain.jobs import Job, JobState, NewJob, SenderPolicy
 from downcroc.store.db.models import JobRow
 
 
@@ -9,6 +9,7 @@ def to_job(row: JobRow) -> Job:
         id=row.id,
         batch_id=row.batch_id,
         account_id=row.account_id,
+        sender_policy=SenderPolicy(row.sender_policy),
         recipient=row.recipient,
         recipient_name=row.recipient_name,
         source_kind=row.source_kind,
@@ -40,6 +41,7 @@ def to_row(job: NewJob) -> JobRow:
         id=job.id,
         batch_id=job.batch_id,
         account_id=job.account_id,
+        sender_policy=job.sender_policy.value,
         recipient=job.recipient,
         recipient_name=job.recipient_name,
         source_kind=job.source_kind,

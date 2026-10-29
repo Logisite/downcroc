@@ -123,7 +123,7 @@ class SampleOut(BaseModel):
     text: str
     html: str | None
     attachments: list[str]
-    account_id: str
+    account_id: str | None
 
     @classmethod
     def of(cls, sample: Sample) -> SampleOut:

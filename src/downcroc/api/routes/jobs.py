@@ -10,6 +10,7 @@ from downcroc.api.schemas.jobs import (
     JobOut,
     ReassignOut,
     ReassignRequest,
+    SendAttemptOut,
 )
 from downcroc.core.bootstrap import Services
 from downcroc.core.portability import Selection
@@ -90,10 +91,22 @@ def reassign_jobs(
             created_until=body.created_until,
         ),
         include_failed=body.include_failed,
+        pin=body.pin,
+        unpin=body.unpin,
         force=body.force,
         dry_run=body.dry_run,
     )
     return ReassignOut(**result)
+
+
+@router.get("/{job_id}/attempts", response_model=list[SendAttemptOut])
+def job_attempts(job_id: str, request: Request) -> list[SendAttemptOut]:
+    services = _services(request)
+    services.outbound.get(job_id)
+    return [
+        SendAttemptOut.model_validate(attempt)
+        for attempt in services.send_attempts.list_for_job(job_id)
+    ]
 
 
 @router.post("/{job_id}/cancel", response_model=JobOut)

@@ -241,7 +241,9 @@ def job(commands: argparse._SubParsersAction) -> None:
     reassign = actions.add_parser("reassign", help="move jobs between accounts")
     reassign.add_argument("--account", dest="from_account_id", help="source account id")
     reassign.add_argument(
-        "--to", dest="to_account_id", required=True, help="target account id"
+        "--to",
+        dest="to_account_id",
+        help="target account id; omit when unpinning",
     )
     reassign.add_argument(
         "--job",
@@ -270,10 +272,25 @@ def job(commands: argparse._SubParsersAction) -> None:
     reassign.add_argument(
         "--include-failed", action="store_true", help="move failed jobs too"
     )
+    policy = reassign.add_mutually_exclusive_group()
+    policy.add_argument(
+        "--pin",
+        action="store_true",
+        help="pin the selection to the target account",
+    )
+    policy.add_argument(
+        "--unpin",
+        action="store_true",
+        help="route the selection at send time",
+    )
     reassign.add_argument(
         "--dry-run", action="store_true", help="report what would move"
     )
     common(reassign, yes=True)
+
+    attempts = actions.add_parser("attempts", help="show the send attempts for a job")
+    attempts.add_argument("job_id")
+    common(attempts)
 
     create = actions.add_parser("create", help="create a manual job")
     create.add_argument(

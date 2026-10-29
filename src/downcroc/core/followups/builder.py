@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import mimetypes
 from dataclasses import dataclass
+from email.parser import BytesParser
+from email.policy import SMTP
+from email.utils import parseaddr
 from pathlib import Path
 
 from downcroc.core.batches import samples, snapshot
@@ -18,7 +21,7 @@ from downcroc.domain.campaign import (
     RoutingPolicy,
 )
 from downcroc.domain.errors import BatchInvalid
-from downcroc.domain.jobs import JobState, NewJob
+from downcroc.domain.jobs import Job, JobState, NewJob, SenderPolicy
 from downcroc.mail.mime.builder import (
     OutgoingAttachment,
     build_message,
@@ -31,6 +34,14 @@ from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
+
+
+@dataclass(frozen=True)
+class _Sender:
+    address: str
+    name: str
+    account_id: str | None
+    policy: SenderPolicy
 
 
 @dataclass(frozen=True)
@@ -94,12 +105,12 @@ class DerivedBuilder:
     ) -> list[NewJob]:
         built: list[NewJob] = []
         for item in source.candidates:
-            account = self._accounts.get(item.parent.account_id)
+            sender = self._sender(item.parent)
             job_id = new_id("job")
-            message_id = mint_message_id(account.address, self._jobs.message_id_exists)
+            message_id = mint_message_id(sender.address, self._jobs.message_id_exists)
             payload = build_message(
-                from_address=account.address,
-                from_name=account.label,
+                from_address=sender.address,
+                from_name=sender.name,
                 to_address=item.parent.recipient,
                 to_name=item.parent.recipient_name,
                 subject=item.content.subject,
@@ -115,7 +126,8 @@ class DerivedBuilder:
                 NewJob(
                     id=job_id,
                     batch_id=batch_id,
-                    account_id=account.id,
+                    account_id=sender.account_id,
+                    sender_policy=sender.policy,
                     recipient=item.parent.recipient.lower(),
                     recipient_name=item.parent.recipient_name,
                     source_kind=source.source_kind,
@@ -141,6 +153,29 @@ class DerivedBuilder:
                 )
             )
         return built
+
+    def _sender(self, parent: Job) -> _Sender:
+        if parent.account_id is not None:
+            account = self._accounts.get(parent.account_id)
+            return _Sender(
+                account.address,
+                account.label,
+                account.id,
+                SenderPolicy.PINNED,
+            )
+        address, name = self._parent_sender(parent)
+        return _Sender(address, name, None, SenderPolicy.AUTO)
+
+    def _parent_sender(self, parent: Job) -> tuple[str, str]:
+        payload = self._content.read_bytes(parent.body_ref)
+        message = BytesParser(policy=SMTP).parsebytes(payload)
+        name, address = parseaddr(str(message.get("From", "")))
+        if not address:
+            raise BatchInvalid(
+                f"parent job {parent.id} has no sender address",
+                hint="a follow-up needs a From address to build its thread",
+            )
+        return address, name
 
     def _campaign(self, source: DerivedInput, batch_id: str) -> Campaign:
         messages = tuple(
@@ -200,8 +235,12 @@ class DerivedBuilder:
         assignments = {
             item.parent.recipient: item.parent.account_id for item in source.candidates
         }
+        pinned = {value for value in assignments.values() if value is not None}
+        batch_account = next(iter(pinned)) if len(pinned) == 1 else None
         counts: dict[str, int] = {}
         for account_id in assignments.values():
+            if account_id is None:
+                continue
             counts[account_id] = counts.get(account_id, 0) + 1
         routing_json = json.dumps(
             {
@@ -227,7 +266,7 @@ class DerivedBuilder:
             campaign_key=source.parent.campaign_key,
             producer_json=json.dumps(source.producer, sort_keys=True),
             template_ref=source.template,
-            account_id=None,
+            account_id=batch_account,
             routing_json=routing_json,
             approval=approval,
             options_json=json.dumps(

@@ -61,12 +61,22 @@ class StatsService:
             log,
         )
 
-    def record_sent(self, job: Job, moment: datetime | None = None) -> None:
-        self._add(job.account_id, {"sent": 1}, moment)
+    def record_sent(
+        self,
+        job: Job,
+        account_id: str | None = None,
+        moment: datetime | None = None,
+    ) -> None:
+        self._add(self._attribution(job, account_id), {"sent": 1}, moment)
         self.touch_batch(job.batch_id)
 
-    def record_failed(self, job: Job, moment: datetime | None = None) -> None:
-        self._add(job.account_id, {"failed": 1}, moment)
+    def record_failed(
+        self,
+        job: Job,
+        account_id: str | None = None,
+        moment: datetime | None = None,
+    ) -> None:
+        self._add(self._attribution(job, account_id), {"failed": 1}, moment)
         self.touch_batch(job.batch_id)
 
     def record_inbound(
@@ -179,6 +189,12 @@ class StatsService:
 
     def rebuild(self, since: str | None) -> RebuildResult:
         return self._rebuilder.run(since)
+
+    def _attribution(self, job: Job, account_id: str | None) -> str:
+        chosen = account_id or job.account_id
+        if chosen is None:
+            raise ValueError(f"job {job.id} has no account to attribute activity to")
+        return chosen
 
     def _add(
         self,

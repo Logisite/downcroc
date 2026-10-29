@@ -7,7 +7,7 @@ from dataclasses import dataclass
 class FailedJob:
     job_id: str
     batch_id: str
-    account_id: str
+    account_id: str | None
     recipient: str
     code: str
     message: str

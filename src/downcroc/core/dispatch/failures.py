@@ -105,11 +105,12 @@ class FailureService:
         self._bus = bus
         self._log = log
 
-    def record(self, job: Job) -> FailedJob:
+    def record(self, job: Job, account_id: str | None = None) -> FailedJob:
+        attribution = account_id or job.account_id
         failure = FailedJob(
             job_id=job.id,
             batch_id=job.batch_id,
-            account_id=job.account_id,
+            account_id=attribution,
             recipient=job.recipient,
             code=job.last_error_code or "send_failed",
             message=job.last_error_message or "",
@@ -121,7 +122,7 @@ class FailureService:
             return failure
         self._log_file.append(failure)
         self._failures.add(failure)
-        self._stats.record_failed(job)
+        self._stats.record_failed(job, attribution)
         self._log.warning(
             "job.failed",
             job=job.id,
@@ -226,10 +227,11 @@ class FailureService:
     @staticmethod
     def _entry(entry: dict[str, Any]) -> FailedJob | None:
         try:
+            account = entry.get("account")
             return FailedJob(
                 job_id=str(entry["job"]),
                 batch_id=str(entry["batch"]),
-                account_id=str(entry["account"]),
+                account_id=None if account is None else str(account),
                 recipient=str(entry["recipient"]),
                 code=str(entry["code"]),
                 message=str(entry["message"]),

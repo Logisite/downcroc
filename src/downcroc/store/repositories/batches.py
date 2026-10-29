@@ -141,7 +141,7 @@ class BatchRepo:
             row.sample_job_id = job_id
         return self.get(batch_id)
 
-    def set_account(self, batch_id: str, account_id: str) -> Batch:
+    def set_account(self, batch_id: str, account_id: str | None) -> Batch:
         with self._sessions.begin() as session:
             row = self._row(session, batch_id)
             row.account_id = account_id

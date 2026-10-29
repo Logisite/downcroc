@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 from downcroc.core.events import EventBus
-from downcroc.core.portability.selection import HISTORY, MOVABLE, TERMINAL, Selection
+from downcroc.core.portability.reassign import Reassigner
+from downcroc.core.portability.selection import TERMINAL, Selection
 from downcroc.core.stats import StatsService
-from downcroc.domain.accounts import AccountStatus
 from downcroc.domain.batches import BatchState
 from downcroc.domain.errors import (
-    AccountArchived,
-    AccountNotFound,
-    AccountPending,
     BatchStateConflict,
     JobInFlight,
     JobNotTerminal,
     JobStateConflict,
-    ReassignSameAccount,
-    ReassignTargetInvalid,
 )
 from downcroc.domain.jobs import Job, JobState
 from downcroc.runtime.logging.setup import EventLogger
@@ -45,6 +40,7 @@ class PortabilityService:
         self._stats = stats
         self._bus = bus
         self._log = log
+        self._reassigner = Reassigner(jobs, batches, accounts, stats, bus, log)
 
     def cancel_job(self, job_id: str) -> Job:
         job = self._jobs.get(job_id)
@@ -133,73 +129,24 @@ class PortabilityService:
         self,
         *,
         from_account_id: str | None,
-        to_account_id: str,
+        to_account_id: str | None,
         selection: Selection,
         include_failed: bool,
         force: bool,
         dry_run: bool,
+        pin: bool = False,
+        unpin: bool = False,
     ) -> dict:
-        target = self._target(to_account_id, from_account_id, force)
-        wanted = self._states(selection.states, include_failed)
-        filters = selection.as_filters()
-        selected = self._jobs.select(
-            job_ids=selection.job_ids,
-            batch_ids=selection.batch_ids,
-            account_id=from_account_id,
-            states=wanted,
-            created_since=filters["created_since"],
-            created_until=filters["created_until"],
+        return self._reassigner.reassign(
+            from_account_id=from_account_id,
+            to_account_id=to_account_id,
+            selection=selection,
+            include_failed=include_failed,
+            force=force,
+            dry_run=dry_run,
+            pin=pin,
+            unpin=unpin,
         )
-        if selection.job_ids and from_account_id is not None:
-            selected = [job for job in selected if job.account_id == from_account_id]
-        self._refuse_in_flight(selected)
-        move = [job for job in selected if job.state.value not in HISTORY]
-        skipped = [
-            {"id": job.id, "reason": f"state {job.state.value}"}
-            for job in selected
-            if job.state.value in HISTORY
-        ]
-        if dry_run:
-            return {
-                "jobs": len(move),
-                "batches": len({job.batch_id for job in move}),
-                "skipped": skipped,
-                "dry_run": True,
-            }
-        touched = self._jobs.reassign(
-            [job.id for job in move],
-            target.id,
-            reset_attempts=include_failed,
-        )
-        for batch_id in touched:
-            self._repin(batch_id, from_account_id, target.id)
-            self._stats.touch_batch(batch_id)
-            self._log.info(
-                "batch.reassigned",
-                batch=batch_id,
-                to=target.id,
-                from_account=from_account_id,
-            )
-            self._bus.publish(
-                "batch.reassigned", {"batch_id": batch_id, "account": target.id}
-            )
-        self._log.info(
-            "job.reassigned",
-            to=target.id,
-            from_account=from_account_id,
-            jobs=len(move),
-            batches=len(touched),
-        )
-        self._bus.publish(
-            "job.reassigned",
-            {"account": target.id, "jobs": len(move), "batches": len(touched)},
-        )
-        return {
-            "jobs": len(move),
-            "batches": len(touched),
-            "skipped": skipped,
-            "dry_run": False,
-        }
 
     def reassign_batch(
         self,
@@ -211,48 +158,14 @@ class PortabilityService:
         force: bool,
         dry_run: bool,
     ) -> dict:
-        batch = self._batches.get(batch_id)
-        source = batch.account_id
-        target = self._target(to_account_id, source, force)
-        wanted = self._states(states, include_failed)
-        selected = self._jobs.select(batch_ids=[batch_id], states=wanted)
-        self._refuse_in_flight(selected)
-        move = [job for job in selected if job.state.value not in HISTORY]
-        skipped = [
-            {"id": job.id, "reason": f"state {job.state.value}"}
-            for job in selected
-            if job.state.value in HISTORY
-        ]
-        if dry_run:
-            return {
-                "batch_id": batch_id,
-                "jobs": len(move),
-                "skipped": skipped,
-                "dry_run": True,
-            }
-        self._jobs.reassign(
-            [job.id for job in move],
-            target.id,
-            reset_attempts=include_failed,
+        return self._reassigner.reassign_batch(
+            batch_id,
+            to_account_id=to_account_id,
+            states=states,
+            include_failed=include_failed,
+            force=force,
+            dry_run=dry_run,
         )
-        self._batches.set_account(batch_id, target.id)
-        self._stats.touch_batch(batch_id)
-        self._log.info(
-            "batch.reassigned",
-            batch=batch_id,
-            to=target.id,
-            from_account=source,
-            jobs=len(move),
-        )
-        self._bus.publish(
-            "batch.reassigned", {"batch_id": batch_id, "account": target.id}
-        )
-        return {
-            "batch_id": batch_id,
-            "jobs": len(move),
-            "skipped": skipped,
-            "dry_run": False,
-        }
 
     def delete_batch(self, batch_id: str, *, dry_run: bool) -> dict:
         batch = self._batches.get(batch_id)
@@ -284,55 +197,3 @@ class PortabilityService:
             "bytes": size,
             "dry_run": False,
         }
-
-    def _target(self, to_account_id: str, from_account_id: str | None, force: bool):
-        if from_account_id is not None and to_account_id == from_account_id:
-            raise ReassignSameAccount("the source and target account are the same")
-        try:
-            target = self._accounts.get(to_account_id)
-        except AccountNotFound as error:
-            raise ReassignTargetInvalid(
-                f"no account {to_account_id}",
-                hint="add the target account first",
-            ) from error
-        if target.archived_at is not None:
-            raise AccountArchived(
-                f"account {to_account_id} is archived",
-                hint="unarchive the target account first",
-            )
-        if target.status is AccountStatus.PENDING and not force:
-            raise AccountPending(
-                f"account {to_account_id} is pending",
-                hint="connect the target account, or pass --force",
-            )
-        return target
-
-    @staticmethod
-    def _states(states: list[str] | None, include_failed: bool) -> list[str]:
-        wanted = list(states) if states else list(MOVABLE)
-        if include_failed and "failed" not in wanted:
-            wanted.append("failed")
-        return wanted
-
-    @staticmethod
-    def _refuse_in_flight(jobs: list[Job]) -> None:
-        sending = [job.id for job in jobs if job.state is JobState.SENDING]
-        if sending:
-            raise JobInFlight(
-                f"{len(sending)} job(s) are in flight",
-                hint="wait for the lease to expire and retry",
-                fields={"jobs": ", ".join(sending[:5])},
-            )
-
-    def _repin(
-        self, batch_id: str, from_account_id: str | None, to_account_id: str
-    ) -> None:
-        batch = self._batches.get(batch_id)
-        if batch.account_id != from_account_id:
-            return
-        remaining = self._jobs.select(
-            batch_ids=[batch_id], account_id=from_account_id, limit=1
-        )
-        if remaining:
-            return
-        self._batches.set_account(batch_id, to_account_id)

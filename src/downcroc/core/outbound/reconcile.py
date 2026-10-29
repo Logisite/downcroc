@@ -8,6 +8,7 @@ from downcroc.core.stats import StatsService
 from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (
     AccountNeedsReauth,
+    AccountNotFound,
     CredentialMissing,
     OAuthFailed,
     OAuthUnavailable,
@@ -61,20 +62,34 @@ class SentReconciler:
         except VaultLocked:
             return
         for job in self._jobs.list_sending():
-            account = self._accounts.get(job.account_id)
-            spec = self._providers.get(account.provider)
-            found, failure = await self._look_for_sent(job, account, spec)
-            if failure is not None:
-                self._log.warning(
-                    "outbound.reconcile_failed",
-                    job=job.id,
-                    reason=failure.__class__.__name__,
-                )
-                continue
-            if found:
-                self._mark_found(job)
-                continue
-            await self._recover(job)
+            accounts = self._candidates(job)
+            failed = False
+            for account in accounts:
+                spec = self._providers.get(account.provider)
+                found, failure = await self._look_for_sent(job, account, spec)
+                if failure is not None:
+                    failed = True
+                    self._log.warning(
+                        "outbound.reconcile_failed",
+                        job=job.id,
+                        account=account.id,
+                        reason=failure.__class__.__name__,
+                    )
+                    continue
+                if found:
+                    self._mark_found(job, account.id)
+                    break
+            else:
+                if not failed:
+                    await self._recover(job)
+
+    def _candidates(self, job: Job) -> list[Account]:
+        if job.account_id is not None:
+            try:
+                return [self._accounts.get(job.account_id)]
+            except AccountNotFound:
+                return []
+        return list(self._accounts.list())
 
     async def _look_for_sent(
         self, job: Job, account: Account, spec: ProviderSpec
@@ -123,9 +138,9 @@ class SentReconciler:
             return found, error
         return found, None
 
-    def _mark_found(self, job: Job) -> None:
+    def _mark_found(self, job: Job, account_id: str) -> None:
         sent = self._jobs.mark_reconciled(job.id, utc_now())
-        self._stats.record_sent(sent)
+        self._stats.record_sent(sent, account_id)
         self._bus.publish(
             "job.sent",
             {

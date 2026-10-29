@@ -415,13 +415,20 @@ def _delete(client, args: object, ui: Ui) -> int:
 
 
 def _deletion_view(preview: dict) -> None:
+    counts = preview["counts"]
     record(
         {
             "account": preview["account_id"],
-            "counts": preview["counts"],
+            "pinned_jobs": counts.get("pinned_jobs", 0),
+            "auto_jobs": counts.get("auto_jobs", 0),
+            "batches": counts.get("batches", 0),
+            "batches_pinned": counts.get("batches_pinned", 0),
+            "messages": counts.get("messages", 0),
             "blockers": ", ".join(preview["blockers"]) or "none",
         }
     )
+    if counts.get("auto_jobs"):
+        print("  auto jobs keep routing after the delete")
 
 
 def _deletion(client, args: object, ui: Ui) -> int:

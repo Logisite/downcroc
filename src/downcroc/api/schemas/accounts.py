@@ -96,6 +96,8 @@ class AccountOut(BaseModel):
 
 class AccountDeletionCounts(BaseModel):
     jobs: int = 0
+    pinned_jobs: int = 0
+    auto_jobs: int = 0
     queued: int = 0
     awaiting_approval: int = 0
     retry_wait: int = 0
@@ -104,6 +106,7 @@ class AccountDeletionCounts(BaseModel):
     failed: int = 0
     cancelled: int = 0
     batches: int = 0
+    batches_pinned: int = 0
     messages: int = 0
     attempts: int = 0
     activity: int = 0

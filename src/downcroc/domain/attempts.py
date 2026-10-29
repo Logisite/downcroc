@@ -32,3 +32,19 @@ class ConnectAttempt:
     created_at: str
     expires_at: str
     error: str | None
+
+
+@dataclass(frozen=True)
+class SendAttempt:
+    id: str
+    job_id: str
+    account_id: str | None
+    transport: str
+    started_at: str
+    finished_at: str | None
+    outcome: str
+    accepted: bool | None
+    error_code: str | None
+    error_message: str | None
+    provider_message_id: str | None
+    detail: str | None

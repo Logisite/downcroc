@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -12,6 +12,7 @@ from downcroc.domain.errors import (
     AccountExists,
     AccountInUse,
     AccountNotFound,
+    AccountPending,
     JobInFlight,
     ReassignSameAccount,
     ReassignTargetInvalid,
@@ -22,9 +23,11 @@ from downcroc.store.db.models import (
     ActivityDailyRow,
     ActivityHourlyRow,
     AttemptRow,
+    BatchRow,
     JobRow,
     MessageRow,
     QuotaBucketRow,
+    SendAttemptRow,
 )
 
 MOVABLE = ("queued", "awaiting_approval", "retry_wait")
@@ -255,13 +258,34 @@ class AccountRepo:
         with self._sessions() as session:
             self._row(session, account_id)
             jobs = self._counts(session, JobRow.state, JobRow.account_id, account_id)
-            batches = session.scalar(
-                select(func.count(func.distinct(JobRow.batch_id))).where(
-                    JobRow.account_id == account_id
+            pinned_jobs = sum(jobs.values())
+            pinned_batches = set(
+                session.scalars(
+                    select(JobRow.batch_id).where(JobRow.account_id == account_id)
                 )
             )
+            auto_rows = session.execute(
+                select(JobRow.batch_id, JobRow.sender_policy)
+                .join(BatchRow, BatchRow.id == JobRow.batch_id)
+                .where(BatchRow.account_id == account_id)
+            )
+            auto_batches = {batch for batch, _policy in auto_rows}
+            auto_jobs = int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(JobRow)
+                    .join(BatchRow, BatchRow.id == JobRow.batch_id)
+                    .where(
+                        BatchRow.account_id == account_id,
+                        JobRow.sender_policy == "auto",
+                    )
+                )
+                or 0
+            )
             return {
-                "jobs": sum(jobs.values()),
+                "jobs": pinned_jobs,
+                "pinned_jobs": pinned_jobs,
+                "auto_jobs": auto_jobs,
                 "queued": jobs.get("queued", 0),
                 "awaiting_approval": jobs.get("awaiting_approval", 0),
                 "retry_wait": jobs.get("retry_wait", 0),
@@ -269,9 +293,11 @@ class AccountRepo:
                 "sent": jobs.get("sent", 0) + jobs.get("sent_unconfirmed", 0),
                 "failed": jobs.get("failed", 0),
                 "cancelled": jobs.get("cancelled", 0),
-                "batches": int(batches or 0),
+                "batches": len(pinned_batches | auto_batches),
+                "batches_pinned": len(pinned_batches),
                 "messages": self._count(session, MessageRow, account_id),
                 "attempts": self._count(session, AttemptRow, account_id),
+                "send_attempts": self._count(session, SendAttemptRow, account_id),
                 "activity": self._count(session, ActivityHourlyRow, account_id)
                 + self._count(session, ActivityDailyRow, account_id),
                 "quota": self._count(session, QuotaBucketRow, account_id),
@@ -298,6 +324,7 @@ class AccountRepo:
             if reassign_to is not None:
                 return self._delete_reassigned(session, row, jobs, reassign_to)
             if not jobs:
+                self._detach_batches(session, account_id)
                 session.delete(row)
                 return AccountDelete(account_id, 0, 0, (), ())
             if not force_jobs:
@@ -325,6 +352,7 @@ class AccountRepo:
                 session.execute(
                     delete(JobRow).where(JobRow.id.in_([job.id for job in doomed]))
                 )
+            self._detach_batches(session, account_id)
             session.delete(row)
             return AccountDelete(account_id, 0, len(doomed), bodies, batches)
 
@@ -342,6 +370,11 @@ class AccountRepo:
             raise ReassignTargetInvalid(f"no account {reassign_to}")
         if target.archived_at is not None:
             raise AccountArchived(f"account {reassign_to} is archived")
+        if target.status == AccountStatus.PENDING.value:
+            raise AccountPending(
+                f"account {reassign_to} is pending",
+                hint="connect the target account before reassigning work to it",
+            )
         moved = 0
         for job in jobs:
             if job.state in MOVABLE:
@@ -357,8 +390,40 @@ class AccountRepo:
                 ),
             )
         batches = tuple(sorted({job.batch_id for job in jobs}))
+        self._repoint_batches(session, row.id, jobs, reassign_to)
+        self._detach_batches(session, row.id)
         session.delete(row)
         return AccountDelete(row.id, moved, 0, (), batches)
+
+    @staticmethod
+    def _repoint_batches(
+        session: Session,
+        account_id: str,
+        jobs: list[JobRow],
+        target_id: str,
+    ) -> None:
+        for batch_id in {job.batch_id for job in jobs}:
+            remaining = session.scalar(
+                select(JobRow.id)
+                .where(
+                    JobRow.batch_id == batch_id,
+                    JobRow.account_id == account_id,
+                )
+                .limit(1)
+            )
+            if remaining is not None:
+                continue
+            batch = session.get(BatchRow, batch_id)
+            if batch is not None and batch.account_id == account_id:
+                batch.account_id = target_id
+
+    @staticmethod
+    def _detach_batches(session: Session, account_id: str) -> None:
+        session.execute(
+            update(BatchRow)
+            .where(BatchRow.account_id == account_id)
+            .values(account_id=None)
+        )
 
     @staticmethod
     def _count(session: Session, model, account_id: str) -> int:

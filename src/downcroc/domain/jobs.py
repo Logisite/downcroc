@@ -15,11 +15,17 @@ class JobState(StrEnum):
     CANCELLED = "cancelled"
 
 
+class SenderPolicy(StrEnum):
+    PINNED = "pinned"
+    AUTO = "auto"
+
+
 @dataclass(frozen=True)
 class Job:
     id: str
     batch_id: str
-    account_id: str
+    account_id: str | None
+    sender_policy: SenderPolicy
     recipient: str
     recipient_name: str | None
     source_kind: str
@@ -49,7 +55,7 @@ class Job:
 class NewJob:
     id: str
     batch_id: str
-    account_id: str
+    account_id: str | None
     recipient: str
     recipient_name: str | None
     vars_json: str
@@ -58,6 +64,7 @@ class NewJob:
     message_id: str
     created_at: str
     source_kind: str = "manual"
+    sender_policy: SenderPolicy = SenderPolicy.PINNED
     source_key: str | None = None
     source_index: int = 0
     step_key: str | None = None

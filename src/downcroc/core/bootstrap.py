@@ -37,6 +37,7 @@ from downcroc.store.repositories.failures import FailureRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
 from downcroc.store.repositories.quota import QuotaRepo
+from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 
 @dataclass
@@ -58,6 +59,7 @@ class Services:
     stats: StatsService
     retention: RetentionService
     failures: FailureService
+    send_attempts: SendAttemptRepo
     dispatcher: Dispatcher
     backup: BackupService
     restore: RestoreService
@@ -93,6 +95,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     job_repo = JobRepo(sessions)
     batch_repo = BatchRepo(sessions)
     quota_repo = QuotaRepo(sessions)
+    send_attempts = SendAttemptRepo(sessions)
     activity_repo = ActivityRepo(sessions)
     counter_repo = BatchCounterRepo(sessions)
     content = ContentStore(paths.data / "content")
@@ -146,6 +149,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         log,
         settings.outbound,
         settings.connect,
+        send_attempts,
     )
     inbound.open()
     batches = BatchesService(
@@ -236,6 +240,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         stats=stats,
         retention=retention,
         failures=failures,
+        send_attempts=send_attempts,
         dispatcher=dispatcher,
         backup=backup,
         restore=restore,

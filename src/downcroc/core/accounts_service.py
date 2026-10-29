@@ -132,7 +132,7 @@ class AccountsService:
             self._vault.delete_account_secrets(account_id)
         except VaultLocked:
             pass
-        self._bus.publish("account.removed", {"id": account_id})
+        self._bus.publish("account.deleted", {"id": account_id})
         self._log.info(
             "account.deleted",
             account=account_id,

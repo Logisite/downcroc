@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from downcroc.store.db.models.base import Base
@@ -28,13 +28,19 @@ class JobRow(Base):
             unique=True,
             sqlite_where=text("step_key IS NOT NULL"),
         ),
+        CheckConstraint(
+            "(sender_policy = 'pinned' AND account_id IS NOT NULL) "
+            "OR (sender_policy = 'auto' AND account_id IS NULL)",
+            name="ck_jobs_sender_policy",
+        ),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     batch_id: Mapped[str] = mapped_column(Text, nullable=False)
-    account_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False
+    account_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("accounts.id", ondelete="RESTRICT")
     )
+    sender_policy: Mapped[str] = mapped_column(Text, nullable=False, default="pinned")
     recipient: Mapped[str] = mapped_column(Text, nullable=False)
     recipient_name: Mapped[str | None] = mapped_column(Text)
     source_kind: Mapped[str] = mapped_column(Text, nullable=False, default="manual")

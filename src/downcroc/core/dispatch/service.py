@@ -135,6 +135,11 @@ class Dispatcher:
         due_accounts = 0
         blocked_window = 0
         blocked_allowance = 0
+        auto_pool = [
+            job
+            for job in self._jobs.due_auto(now)
+            if self._batch_ready(job, now_utc, cache)
+        ]
         for account in self._accounts.list():
             if not self._can_send(account):
                 continue
@@ -143,7 +148,7 @@ class Dispatcher:
                 for job in self._jobs.due(account.id, now)
                 if self._batch_ready(job, now_utc, cache)
             ]
-            if not due:
+            if not due and not auto_pool:
                 continue
             due_accounts += 1
             if not eligibility.inside_window(account.policy, moment):
@@ -165,7 +170,12 @@ class Dispatcher:
         picked: list[tuple[Job, Account]] = []
         while candidates and len(picked) < capacity:
             candidate = self._weighted(candidates)
-            job = candidate.jobs.pop(0)
+            job = candidate.jobs.pop(0) if candidate.jobs else None
+            if job is None and auto_pool:
+                job = auto_pool.pop(0)
+            if job is None:
+                candidates.remove(candidate)
+                continue
             claimed = self._claim(candidate.account, job)
             if claimed is None:
                 if not candidate.jobs:
@@ -199,7 +209,7 @@ class Dispatcher:
             if (
                 per_account >= candidate.account.policy.max_in_flight
                 or candidate.remaining <= 0
-                or not candidate.jobs
+                or (not candidate.jobs and not auto_pool)
             ):
                 candidates.remove(candidate)
         results = await asyncio.gather(
@@ -265,7 +275,10 @@ class Dispatcher:
             result = self._jobs.get(job.id)
         except (OSError, RuntimeError, SQLAlchemyError, ValueError) as error:
             self._log.error(
-                "dispatch.error", job=job.id, error=error.__class__.__name__
+                "dispatch.error",
+                job=job.id,
+                error=error.__class__.__name__,
+                detail=str(error)[:300],
             )
             result = self._jobs.get(job.id)
             if result.state is JobState.SENDING:
@@ -276,21 +289,21 @@ class Dispatcher:
                     next_attempt_at=utc_now(),
                     retryable=True,
                 )
-        return self._settle(result)
+        return self._settle(result, account.id)
 
-    def _settle(self, job: Job) -> str:
+    def _settle(self, job: Job, account_id: str) -> str:
         if job.state is JobState.SENT:
             return "sent"
         if job.state is JobState.FAILED:
-            self._failures.record(job)
+            self._failures.record(job, account_id)
             return "failed"
         if job.state is JobState.RETRY_WAIT:
-            return self._retry_or_fail(job)
+            return self._retry_or_fail(job, account_id)
         if job.state is JobState.QUEUED and job.retryable:
-            return self._retry_or_fail(job)
+            return self._retry_or_fail(job, account_id)
         return "deferred"
 
-    def _retry_or_fail(self, job: Job) -> str:
+    def _retry_or_fail(self, job: Job, account_id: str) -> str:
         if job.attempts >= self._dispatch.max_attempts:
             failed = self._jobs.mark_failed(
                 job.id,
@@ -298,7 +311,7 @@ class Dispatcher:
                 message=job.last_error_message or "",
                 retryable=True,
             )
-            self._failures.record(failed)
+            self._failures.record(failed, account_id)
             return "failed"
         delay = retry.backoff_seconds(
             job.attempts,

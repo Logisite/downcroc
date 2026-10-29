@@ -252,6 +252,64 @@ class JobRepo:
         with self._sessions() as session:
             return [to_job(row) for row in session.scalars(query)]
 
+    def due_auto(self, now: str, limit: int = 50) -> list[Job]:
+        sendable = (
+            (JobRow.sender_policy == "auto")
+            & JobRow.state.in_(_SENDABLE)
+            & ((JobRow.next_attempt_at.is_(None)) | (JobRow.next_attempt_at <= now))
+        )
+        expired = (
+            (JobRow.sender_policy == "auto")
+            & (JobRow.state == JobState.SENDING.value)
+            & (JobRow.lease_expires_at.is_(None) | (JobRow.lease_expires_at <= now))
+        )
+        query = (
+            select(JobRow)
+            .where(sendable | expired)
+            .order_by(
+                func.coalesce(JobRow.next_attempt_at, JobRow.created_at),
+                JobRow.created_at,
+                JobRow.id,
+            )
+            .limit(limit)
+        )
+        with self._sessions() as session:
+            return [to_job(row) for row in session.scalars(query)]
+
+    def pinned_accounts(self, batch_id: str) -> set[str]:
+        query = select(JobRow.account_id).where(
+            JobRow.batch_id == batch_id,
+            JobRow.sender_policy == "pinned",
+            JobRow.account_id.is_not(None),
+        )
+        with self._sessions() as session:
+            return {row for row in session.scalars(query) if row is not None}
+
+    def set_sender(
+        self,
+        job_ids: list[str],
+        *,
+        account_id: str | None,
+        policy: str,
+        reset_attempts: bool = False,
+    ) -> list[str]:
+        if not job_ids:
+            return []
+        touched: set[str] = set()
+        with self._sessions.begin() as session:
+            rows = session.scalars(select(JobRow).where(JobRow.id.in_(job_ids)))
+            for row in rows:
+                row.account_id = account_id
+                row.sender_policy = policy
+                row.updated_at = utc_now()
+                if reset_attempts:
+                    row.attempts = 0
+                    row.last_error_code = None
+                    row.last_error_message = None
+                    row.retryable = None
+                touched.add(row.batch_id)
+        return sorted(touched)
+
     def reset_for_retry(self, job_id: str) -> Job:
         with self._sessions.begin() as session:
             row = self._row(session, job_id)
@@ -357,6 +415,7 @@ class JobRepo:
             rows = session.scalars(select(JobRow).where(JobRow.id.in_(job_ids)))
             for row in rows:
                 row.account_id = to_account_id
+                row.sender_policy = "pinned"
                 row.updated_at = utc_now()
                 if reset_attempts:
                     row.attempts = 0
