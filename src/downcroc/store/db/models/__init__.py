@@ -17,10 +17,12 @@ from downcroc.store.db.models.messages import (
     ThreadRow,
 )
 from downcroc.store.db.models.send_attempts import SendAttemptRow
+from downcroc.store.db.models.transports import AccountTransportRow, OAuthClientRow
 
 __all__ = [
     "AccountRow",
     "AccountStateRow",
+    "AccountTransportRow",
     "ActivityDailyRow",
     "ActivityHourlyRow",
     "AttachmentRow",
@@ -32,6 +34,7 @@ __all__ = [
     "FailedJobRow",
     "JobRow",
     "MessageRow",
+    "OAuthClientRow",
     "QuotaBucketRow",
     "SendAttemptRow",
     "ThreadLinkRow",

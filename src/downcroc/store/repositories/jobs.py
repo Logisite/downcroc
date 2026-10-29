@@ -5,14 +5,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.errors import JobNotFound
 from downcroc.domain.jobs import Job, JobState, NewJob
-from downcroc.runtime.clock import utc_now
 from downcroc.store.db.models import JobRow
 from downcroc.store.repositories.job_mapping import to_job, to_row
+from downcroc.store.repositories.job_senders import JobSenderRepo
+from downcroc.store.repositories.job_states import JobStateRepo
 
 _SENDABLE = (JobState.QUEUED.value, JobState.RETRY_WAIT.value)
 
 
-class JobRepo:
+class JobRepo(JobSenderRepo, JobStateRepo):
     def __init__(self, sessions: sessionmaker[Session]) -> None:
         self._sessions = sessions
 
@@ -114,124 +115,6 @@ class JobRepo:
             )
             return row is not None
 
-    def claim(
-        self,
-        job_id: str,
-        owner: str,
-        now: str,
-        lease_expires_at: str,
-    ) -> Job | None:
-        with self._sessions.begin() as session:
-            row = session.get(JobRow, job_id)
-            if row is None:
-                raise JobNotFound(f"no job {job_id}")
-            expired = row.lease_expires_at is None or row.lease_expires_at <= now
-            if row.state == JobState.SENDING.value and not expired:
-                return None
-            if row.state not in _SENDABLE and row.state != JobState.SENDING.value:
-                return None
-            row.state = JobState.SENDING.value
-            row.attempts += 1
-            row.lease_owner = owner
-            row.lease_expires_at = lease_expires_at
-            row.updated_at = now
-            row.last_error_code = None
-            row.last_error_message = None
-            row.retryable = None
-        return self.get(job_id)
-
-    def mark_sent(self, job_id: str, sent_at: str) -> Job:
-        with self._sessions.begin() as session:
-            row = self._row(session, job_id)
-            row.state = JobState.SENT.value
-            row.sent_at = sent_at
-            row.updated_at = sent_at
-            row.lease_owner = None
-            row.lease_expires_at = None
-            row.next_attempt_at = None
-            row.last_error_code = None
-            row.last_error_message = None
-            row.retryable = None
-        return self.get(job_id)
-
-    def mark_reconciled(self, job_id: str, sent_at: str) -> Job:
-        return self.mark_sent(job_id, sent_at)
-
-    def mark_retry(
-        self,
-        job_id: str,
-        *,
-        code: str,
-        message: str,
-        next_attempt_at: str,
-        retryable: bool,
-    ) -> Job:
-        with self._sessions.begin() as session:
-            row = self._row(session, job_id)
-            row.state = JobState.RETRY_WAIT.value
-            row.next_attempt_at = next_attempt_at
-            row.lease_owner = None
-            row.lease_expires_at = None
-            row.last_error_code = code
-            row.last_error_message = message
-            row.retryable = retryable
-            row.updated_at = utc_now()
-        return self.get(job_id)
-
-    def mark_failed(
-        self,
-        job_id: str,
-        *,
-        code: str,
-        message: str,
-        retryable: bool,
-    ) -> Job:
-        with self._sessions.begin() as session:
-            row = self._row(session, job_id)
-            row.state = JobState.FAILED.value
-            row.next_attempt_at = None
-            row.lease_owner = None
-            row.lease_expires_at = None
-            row.last_error_code = code
-            row.last_error_message = message
-            row.retryable = retryable
-            row.updated_at = utc_now()
-        return self.get(job_id)
-
-    def mark_queued(
-        self,
-        job_id: str,
-        *,
-        code: str | None = None,
-        message: str | None = None,
-        retryable: bool | None = None,
-    ) -> Job:
-        with self._sessions.begin() as session:
-            row = self._row(session, job_id)
-            row.state = JobState.QUEUED.value
-            row.next_attempt_at = None
-            row.lease_owner = None
-            row.lease_expires_at = None
-            row.last_error_code = code
-            row.last_error_message = message
-            row.retryable = retryable
-            row.updated_at = utc_now()
-        return self.get(job_id)
-
-    def set_state(self, job_id: str, state: JobState) -> Job:
-        with self._sessions.begin() as session:
-            row = self._row(session, job_id)
-            row.state = state.value
-            row.updated_at = utc_now()
-        return self.get(job_id)
-
-    def list_sending(self) -> list[Job]:
-        with self._sessions() as session:
-            rows = session.scalars(
-                select(JobRow).where(JobRow.state == JobState.SENDING.value)
-            )
-            return [to_job(row) for row in rows]
-
     def due(self, account_id: str, now: str, limit: int = 50) -> list[Job]:
         sendable = JobRow.state.in_(_SENDABLE) & (
             (JobRow.next_attempt_at.is_(None)) | (JobRow.next_attempt_at <= now)
@@ -276,71 +159,6 @@ class JobRepo:
         with self._sessions() as session:
             return [to_job(row) for row in session.scalars(query)]
 
-    def pinned_accounts(self, batch_id: str) -> set[str]:
-        query = select(JobRow.account_id).where(
-            JobRow.batch_id == batch_id,
-            JobRow.sender_policy == "pinned",
-            JobRow.account_id.is_not(None),
-        )
-        with self._sessions() as session:
-            return {row for row in session.scalars(query) if row is not None}
-
-    def set_sender(
-        self,
-        job_ids: list[str],
-        *,
-        account_id: str | None,
-        policy: str,
-        reset_attempts: bool = False,
-    ) -> list[str]:
-        if not job_ids:
-            return []
-        touched: set[str] = set()
-        with self._sessions.begin() as session:
-            rows = session.scalars(select(JobRow).where(JobRow.id.in_(job_ids)))
-            for row in rows:
-                row.account_id = account_id
-                row.sender_policy = policy
-                row.updated_at = utc_now()
-                if reset_attempts:
-                    row.attempts = 0
-                    row.last_error_code = None
-                    row.last_error_message = None
-                    row.retryable = None
-                touched.add(row.batch_id)
-        return sorted(touched)
-
-    def reset_for_retry(self, job_id: str) -> Job:
-        with self._sessions.begin() as session:
-            row = self._row(session, job_id)
-            row.state = JobState.QUEUED.value
-            row.attempts = 0
-            row.next_attempt_at = None
-            row.lease_owner = None
-            row.lease_expires_at = None
-            row.last_error_code = None
-            row.last_error_message = None
-            row.retryable = None
-            row.updated_at = utc_now()
-        return self.get(job_id)
-
-    def transition_one(
-        self,
-        job_id: str,
-        *,
-        from_state: JobState,
-        to_state: JobState,
-    ) -> Job | None:
-        with self._sessions.begin() as session:
-            row = session.get(JobRow, job_id)
-            if row is None:
-                raise JobNotFound(f"no job {job_id}")
-            if row.state != from_state.value:
-                return None
-            row.state = to_state.value
-            row.updated_at = utc_now()
-        return self.get(job_id)
-
     def counts(self, batch_id: str) -> dict[str, int]:
         with self._sessions() as session:
             rows = session.execute(
@@ -359,71 +177,12 @@ class JobRepo:
             )
             return {state: count for state, count in rows}
 
-    def select(
-        self,
-        *,
-        job_ids: list[str] | None = None,
-        batch_ids: list[str] | None = None,
-        account_id: str | None = None,
-        states: list[str] | None = None,
-        created_since: str | None = None,
-        created_until: str | None = None,
-        sent_since: str | None = None,
-        sent_until: str | None = None,
-        limit: int = 10_000,
-    ) -> list[Job]:
-        if job_ids:
-            query = select(JobRow).where(JobRow.id.in_(job_ids))
-        else:
-            query = select(JobRow)
-            if batch_ids:
-                query = query.where(JobRow.batch_id.in_(batch_ids))
-            if account_id is not None:
-                query = query.where(JobRow.account_id == account_id)
-            if states:
-                query = query.where(JobRow.state.in_(states))
-            if created_since is not None:
-                query = query.where(JobRow.created_at >= created_since)
-            if created_until is not None:
-                query = query.where(JobRow.created_at < created_until)
-            if sent_since is not None:
-                query = query.where(JobRow.sent_at >= sent_since)
-            if sent_until is not None:
-                query = query.where(JobRow.sent_at < sent_until)
-        query = query.order_by(JobRow.created_at, JobRow.id).limit(limit)
-        with self._sessions() as session:
-            return [to_job(row) for row in session.scalars(query)]
-
     def delete(self, job_id: str) -> Job:
         with self._sessions.begin() as session:
             row = self._row(session, job_id)
             job = to_job(row)
             session.delete(row)
         return job
-
-    def reassign(
-        self,
-        job_ids: list[str],
-        to_account_id: str,
-        *,
-        reset_attempts: bool = False,
-    ) -> list[str]:
-        if not job_ids:
-            return []
-        touched: set[str] = set()
-        with self._sessions.begin() as session:
-            rows = session.scalars(select(JobRow).where(JobRow.id.in_(job_ids)))
-            for row in rows:
-                row.account_id = to_account_id
-                row.sender_policy = "pinned"
-                row.updated_at = utc_now()
-                if reset_attempts:
-                    row.attempts = 0
-                    row.last_error_code = None
-                    row.last_error_message = None
-                    row.retryable = None
-                touched.add(row.batch_id)
-        return sorted(touched)
 
     def activity_rows(self) -> list[tuple[str, str | None, str | None, str]]:
         with self._sessions() as session:
@@ -456,12 +215,11 @@ class JobRepo:
                 )
             )
             total = len(rows)
-            chosen = [
+            return [
                 to_job(row)
                 for index, row in enumerate(rows)
                 if total - index > keep or (row.sent_at or row.updated_at) < cutoff
             ]
-            return chosen
 
     def delete_many(self, job_ids: list[str]) -> int:
         if not job_ids:
@@ -479,27 +237,6 @@ class JobRepo:
                 .order_by(JobRow.created_at, JobRow.id)
             )
             return list(rows)
-
-    def transition_batch(
-        self,
-        batch_id: str,
-        *,
-        from_states: tuple[JobState, ...],
-        to_state: JobState,
-    ) -> int:
-        wanted = tuple(state.value for state in from_states)
-        with self._sessions.begin() as session:
-            rows = session.scalars(
-                select(JobRow).where(
-                    JobRow.batch_id == batch_id, JobRow.state.in_(wanted)
-                )
-            )
-            changed = 0
-            for row in rows:
-                row.state = to_state.value
-                row.updated_at = utc_now()
-                changed += 1
-            return changed
 
     def _row(self, session: Session, job_id: str) -> JobRow:
         row = session.get(JobRow, job_id)

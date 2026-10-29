@@ -169,6 +169,50 @@ class DispatchSettings(BaseModel):
         le=256,
         description="Maximum concurrent sends across all accounts.",
     )
+    network_cooldown_after: int = Field(
+        default=2,
+        ge=1,
+        le=20,
+        description="Consecutive network failures before a binding cools down.",
+    )
+    network_cooldown_s: int = Field(
+        default=60,
+        ge=1,
+        le=86_400,
+        description="Base cool-down in seconds after a network failure.",
+    )
+    quota_cooldown_s: int = Field(
+        default=300,
+        ge=1,
+        le=86_400,
+        description="Cool-down in seconds when a provider reports quota limits.",
+    )
+    capacity_advice: bool = Field(
+        default=True,
+        description="Warn when a selection runs on a single sequential seat.",
+    )
+    capacity_warn_messages: int = Field(
+        default=10,
+        ge=1,
+        le=100_000,
+        description="Message count at which capacity advice becomes a warning.",
+    )
+    capacity_warn_on_window: bool = Field(
+        default=True,
+        description="Escalate when an estimate spills past the send window.",
+    )
+    eta_horizon_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Days the finish estimate may walk before reporting beyond_horizon.",
+    )
+    eta_refresh_s: float = Field(
+        default=30.0,
+        ge=0.5,
+        le=3600,
+        description="Minimum seconds between interactive ETA recomputations.",
+    )
     shutdown_join_s: float = Field(
         default=5.0,
         gt=0,

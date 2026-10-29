@@ -227,6 +227,28 @@ class OutboundSettings(BaseModel):
         le=60,
         description="Seconds between Sent-folder searches.",
     )
+    keepalive: bool = Field(
+        default=True,
+        description="Keep SMTP sessions open and reuse them for later sends.",
+    )
+    keepalive_idle_s: int = Field(
+        default=300,
+        ge=5,
+        le=3600,
+        description="Seconds an idle SMTP session is kept before it is closed.",
+    )
+    keepalive_max_sessions: int = Field(
+        default=1,
+        ge=1,
+        le=16,
+        description="SMTP sessions kept open per binding.",
+    )
+    keepalive_noop_s: int = Field(
+        default=60,
+        ge=1,
+        le=3600,
+        description="Seconds before a reused session is checked with NOOP.",
+    )
 
 
 class IntakeSettings(BaseModel):

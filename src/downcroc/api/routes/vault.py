@@ -48,7 +48,8 @@ async def unlock(body: VaultUnlock, request: Request) -> VaultOut:
 
 
 @router.post("/lock", response_model=VaultOut)
-def lock(request: Request) -> VaultOut:
+async def lock(request: Request) -> VaultOut:
     request.app.state.services.inbound.stop_all("vault_locked")
+    await request.app.state.services.outbound.close_sessions("vault_locked")
     _service(request).lock("api")
     return _out(request)

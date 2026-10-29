@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import time
 from dataclasses import replace
-from pathlib import Path
 
-from downcroc.core.batches import samples, snapshot
+from downcroc.core.batches import planning, samples, snapshot
 from downcroc.core.batches.builder import JobBuilder
 from downcroc.core.batches.source import CampaignReader
 from downcroc.core.batches.views import (
     BatchDetail,
     Preview,
-    PreviewAttachments,
     PreviewFollowUp,
     PreviewMessage,
-    PreviewRouting,
 )
 from downcroc.core.events import EventBus
 from downcroc.core.inputs import routing
@@ -23,8 +19,8 @@ from downcroc.core.inputs.override import fixed_account
 from downcroc.core.inputs.routing import RoutingPlan
 from downcroc.core.outbound import OutboundService
 from downcroc.core.stats import StatsService
-from downcroc.domain.batches import Batch, BatchKind, BatchState, NewBatch
-from downcroc.domain.campaign import Campaign, Message
+from downcroc.domain.batches import Batch, BatchState
+from downcroc.domain.campaign import Campaign
 from downcroc.domain.errors import (
     AccountUnavailable,
     BatchInvalid,
@@ -37,12 +33,11 @@ from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.ids import new_id
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
-from downcroc.store.content import ContentStore, StoredContent
+from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
-from downcroc.store.repositories.replies import DEFAULT_REPLY_WINDOW_DAYS
 
 
 class BatchesService:
@@ -86,7 +81,9 @@ class BatchesService:
         if account:
             campaign = fixed_account(campaign, account)
         if key is not None:
-            campaign = replace(campaign, messages=_select(campaign, key))
+            campaign = replace(
+                campaign, messages=planning.select_messages(campaign, key)
+            )
         elapsed_ms = round((time.monotonic() - started) * 1000, 2)
         self._log_detected(path, campaign)
         for item in campaign.ignored:
@@ -119,7 +116,7 @@ class BatchesService:
             self._settings.intake.sample_count,
         )
         batch = self._batches.create(
-            self._new_batch(
+            planning.new_batch(
                 campaign,
                 plan,
                 batch_id,
@@ -182,7 +179,7 @@ class BatchesService:
         assignments = plan.assignments if plan else {}
         chosen = campaign.messages
         if key is not None:
-            chosen = _select(campaign, key)
+            chosen = planning.select_messages(campaign, key)
         elif not everything:
             chosen = chosen[: self._settings.intake.sample_count]
         return Preview(
@@ -209,7 +206,7 @@ class BatchesService:
             valid=len(campaign.messages),
             sampled=len(chosen),
             sample_limit=self._settings.intake.sample_count,
-            routing=_routing_view(campaign, plan),
+            routing=planning.routing_view(campaign, plan),
             followups=tuple(
                 PreviewFollowUp(
                     key=step.key,
@@ -220,7 +217,7 @@ class BatchesService:
                 for step in campaign.followups
             ),
             duplicates=campaign.duplicates,
-            attachments=_attachments(campaign),
+            attachments=planning.attachments(campaign),
         )
 
     def list(
@@ -234,7 +231,7 @@ class BatchesService:
     def counts(self, batch_id: str) -> dict[str, int]:
         batch = self._batches.get(batch_id)
         totals = self._messages.batch_totals(
-            batch_id, _reply_window(batch.options_json)
+            batch_id, planning.reply_window(batch.options_json)
         )
         return {
             **self._jobs.counts(batch_id),
@@ -335,58 +332,6 @@ class BatchesService:
             schema=campaign.schema if campaign.source_kind == "json" else None,
         )
 
-    def _new_batch(
-        self,
-        campaign: Campaign,
-        plan: RoutingPlan,
-        batch_id: str,
-        approval: str,
-        stored: StoredContent,
-        chosen: tuple[str, ...],
-        started_at: str,
-        submit_key: str | None = None,
-    ) -> NewBatch:
-        return NewBatch(
-            id=batch_id,
-            kind=BatchKind.CAMPAIGN,
-            parent_batch_id=None,
-            name=campaign.name,
-            source_ref=stored.path,
-            source_hash=stored.hash,
-            source_kind=campaign.source_kind,
-            schema_version=campaign.schema if campaign.source_kind == "json" else None,
-            campaign_key=campaign.key,
-            producer_json=json.dumps(campaign.producer, sort_keys=True),
-            template_ref=campaign.template,
-            account_id=plan.account_id,
-            routing_json=plan.as_json(),
-            approval=approval,
-            options_json=json.dumps(
-                {
-                    "suppress_replies": campaign.options.suppress_replies,
-                    "reply_window_days": campaign.options.reply_window_days,
-                    "not_before": campaign.options.not_before,
-                    "stop_on": list(campaign.options.stop_on),
-                    "allow_duplicates": campaign.options.allow_duplicates,
-                },
-                sort_keys=True,
-            ),
-            state=(
-                BatchState.AWAITING_APPROVAL
-                if approval == "review"
-                else BatchState.SENDING
-            ),
-            samples=chosen,
-            ignored=tuple(f"{item.key}:{item.field}" for item in campaign.ignored),
-            warnings=(
-                (f"{campaign.duplicates} duplicate address(es) collapsed",)
-                if campaign.duplicates
-                else ()
-            ),
-            created_at=started_at,
-            submit_key=submit_key,
-        )
-
     def _first_job(self, batch_id: str) -> str:
         jobs = self._jobs.ids_in_states(
             batch_id, (JobState.AWAITING_APPROVAL, JobState.QUEUED)
@@ -394,61 +339,3 @@ class BatchesService:
         if not jobs:
             raise BatchInvalid("the batch has no sendable job")
         return jobs[0]
-
-
-def _select(campaign: Campaign, key: str) -> tuple[Message, ...]:
-    chosen = tuple(
-        message
-        for message in campaign.messages
-        if message.key == key or str(message.source_index) == key
-    )
-    if not chosen:
-        raise BatchInvalid(
-            f"no message or row matches {key}",
-            fields={"key": "not found in the source"},
-        )
-    return chosen
-
-
-def _reply_window(options_json: str) -> int:
-    try:
-        options = json.loads(options_json or "{}")
-    except json.JSONDecodeError:
-        return DEFAULT_REPLY_WINDOW_DAYS
-    value = options.get("reply_window_days")
-    if isinstance(value, int) and value >= 0:
-        return value
-    return DEFAULT_REPLY_WINDOW_DAYS
-
-
-def _routing_view(campaign: Campaign, plan: RoutingPlan | None) -> PreviewRouting:
-    if plan is None:
-        return PreviewRouting(
-            mode=campaign.routing.mode,
-            account_id=campaign.routing.account,
-            counts={},
-            unresolved=True,
-        )
-    counts: dict[str, int] = {}
-    for account_id in plan.assignments.values():
-        counts[account_id] = counts.get(account_id, 0) + 1
-    return PreviewRouting(
-        mode=plan.mode,
-        account_id=plan.account_id,
-        counts=counts,
-    )
-
-
-def _attachments(campaign: Campaign) -> PreviewAttachments:
-    names = [name for message in campaign.messages for name in message.attachments]
-    total = 0
-    root = Path(campaign.source_dir) if campaign.source_dir else None
-    for name in names:
-        candidate = Path(name)
-        if not candidate.is_absolute() and root is not None:
-            candidate = root / candidate
-        try:
-            total += candidate.stat().st_size
-        except OSError:
-            continue
-    return PreviewAttachments(count=len(names), bytes=total)

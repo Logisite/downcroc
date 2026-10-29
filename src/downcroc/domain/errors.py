@@ -213,6 +213,11 @@ class SmtpUnavailable(DomainError):
     status = 502
 
 
+class TransportUnavailable(DomainError):
+    code = "transport_unavailable"
+    status = 503
+
+
 class MessageNotFound(DomainError):
     code = "message_not_found"
     status = 404

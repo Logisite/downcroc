@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
+from downcroc.core.credentials import CredentialResolver
 from downcroc.core.events import EventBus
-from downcroc.core.outbound.credentials import CredentialResolver
 from downcroc.core.stats import StatsService
 from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (

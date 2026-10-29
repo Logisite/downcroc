@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-import contextlib
-import time
 from dataclasses import dataclass
 
-import aiosmtplib
-from aiosmtplib import SMTP
-
 from downcroc.domain.accounts import Account
-from downcroc.domain.providers import AuthKind, ProviderSpec, TlsMode
+from downcroc.domain.providers import AuthKind, ProviderSpec
 
 _AUTH_CODES = frozenset({530, 534, 535})
 _PERMANENT_CODES = frozenset({550, 551, 552, 553, 554})
@@ -52,60 +47,32 @@ async def send(
     *,
     timeout_s: float,
 ) -> SmtpSendResult:
-    if not spec.smtp_host or not spec.smtp_port:
-        raise SmtpFailure(
-            "smtp_not_configured",
-            "the provider has no smtp host",
-            transient=False,
-        )
-    client = SMTP(
-        hostname=spec.smtp_host,
-        port=spec.smtp_port,
-        timeout=timeout_s,
-        use_tls=spec.smtp_tls is TlsMode.SSL,
-        start_tls=spec.smtp_tls is TlsMode.STARTTLS,
-    )
-    connected_at = 0.0
-    accepted_at = 0.0
+    from downcroc.mail.smtp.session import SmtpSession
+
+    session = SmtpSession(spec, account, credentials, timeout_s)
+    await session.connect()
     try:
-        started = time.monotonic()
-        await client.connect()
-        connected_at = time.monotonic()
-        if credentials.auth_kind is AuthKind.OAUTH2:
-            await client.auth_xoauth2(
-                credentials.address,
-                credentials.access_token or "",
-                timeout=timeout_s,
-            )
-        else:
-            await client.login(
-                credentials.address,
-                credentials.password or "",
-                timeout=timeout_s,
-            )
-        await client.mail(account.address)
-        await client.rcpt(recipient)
-        response = await client.data(message, timeout=timeout_s)
-        accepted_at = time.monotonic()
-        return SmtpSendResult(
-            code=response.code,
-            response=response.message,
-            connect_ms=round((connected_at - started) * 1000),
-            accepted_ms=round((accepted_at - started) * 1000),
-        )
-    except aiosmtplib.SMTPAuthenticationError as error:
-        raise SmtpAuthFailure(f"smtp_{error.code}", _text(error.message)) from error
-    except aiosmtplib.SMTPResponseException as error:
-        raise _response_failure(error.code, _text(error.message)) from error
-    except (aiosmtplib.SMTPException, OSError, TimeoutError) as error:
-        raise SmtpFailure(
-            "smtp_network",
-            str(error) or error.__class__.__name__,
-            transient=True,
-        ) from error
+        return await session.send(recipient, message)
     finally:
-        with contextlib.suppress(Exception):
-            await client.quit()
+        await session.close()
+
+
+async def test(
+    spec: ProviderSpec,
+    account: Account,
+    credentials: SmtpCredentials,
+    *,
+    timeout_s: float,
+) -> int:
+    from downcroc.mail.smtp.session import SmtpSession
+
+    session = SmtpSession(spec, account, credentials, timeout_s)
+    await session.connect()
+    try:
+        await session.noop()
+        return session.messages
+    finally:
+        await session.close()
 
 
 def _response_failure(code: int, message: str) -> SmtpFailure:

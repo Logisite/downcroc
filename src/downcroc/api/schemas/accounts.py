@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from downcroc.domain.accounts import Account
 from downcroc.domain.attempts import ConnectAttempt
 from downcroc.domain.providers import ProviderSpec
+from downcroc.domain.transports import AccountTransport
 from downcroc.providers.registry import readiness
 
 
@@ -147,6 +148,72 @@ class AttemptOut(BaseModel):
             created_at=attempt.created_at,
             error=attempt.error,
         )
+
+
+class TransportCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(min_length=1, max_length=16)
+    priority: int = 0
+    max_concurrency: int = Field(default=1, ge=1)
+    rate_per_min: int | None = Field(default=None, ge=1)
+    oauth_client_id: str | None = None
+
+
+class TransportUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    priority: int | None = None
+    max_concurrency: int | None = Field(default=None, ge=1)
+    rate_per_min: int | None = Field(default=None, ge=1)
+    enabled: bool | None = None
+
+
+class TransportOut(BaseModel):
+    id: str
+    account_id: str
+    provider_id: str
+    kind: str
+    oauth_client_id: str | None
+    enabled: bool
+    priority: int
+    max_concurrency: int
+    rate_per_min: int | None
+    health: str
+    cooldown_until: str | None
+    last_error_code: str | None
+    last_error_message: str | None
+    last_success_at: str | None
+    created_at: str
+    updated_at: str
+
+    @classmethod
+    def of(cls, binding: AccountTransport) -> TransportOut:
+        return cls(
+            id=binding.id,
+            account_id=binding.account_id,
+            provider_id=binding.provider_id,
+            kind=binding.kind.value,
+            oauth_client_id=binding.oauth_client_id,
+            enabled=binding.enabled,
+            priority=binding.priority,
+            max_concurrency=binding.max_concurrency,
+            rate_per_min=binding.rate_per_min,
+            health=binding.health.value,
+            cooldown_until=binding.cooldown_until,
+            last_error_code=binding.last_error_code,
+            last_error_message=binding.last_error_message,
+            last_success_at=binding.last_success_at,
+            created_at=binding.created_at,
+            updated_at=binding.updated_at,
+        )
+
+
+class TransportTestOut(BaseModel):
+    ok: bool
+    code: str | None
+    message: str
+    health: str
 
 
 class ProviderIn(BaseModel):

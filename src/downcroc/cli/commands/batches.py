@@ -2,333 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from downcroc.cli import inputs, schema
+from downcroc.cli import inputs
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, delete, get, get_page, post
+from downcroc.cli.commands import batch_view
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, page_footer, record, table
-from downcroc.cli.ui import card, prompts
-from downcroc.cli.ui.frame import columns
+from downcroc.cli.ui import prompts
 from downcroc.cli.ui.menu import open_menu
 from downcroc.cli.ui.session import Ui, build
-
-COUNT_KEYS = [
-    "awaiting_approval",
-    "queued",
-    "sending",
-    "sent",
-    "sent_unconfirmed",
-    "retry_wait",
-    "failed",
-    "cancelled",
-    "inbound",
-    "replies",
-    "late_replies",
-    "bounces",
-    "suppressed",
-    "invalid",
-]
-
-
-def _counts(counts: dict) -> dict:
-    ordered = {key: counts[key] for key in COUNT_KEYS if key in counts}
-    for key in sorted(counts):
-        ordered.setdefault(key, counts[key])
-    return ordered
-
-
-def _list(rows: list[dict], ui: Ui) -> None:
-    table(
-        ["id", "name", "kind", "state", "approval", "sent", "replies", "created"],
-        [
-            [
-                item["id"],
-                item["name"],
-                item["kind"],
-                item["state"],
-                item["approval"],
-                item["counts"].get("sent", 0),
-                item["counts"].get("replies", 0),
-                item["created_at"],
-            ]
-            for item in rows
-        ],
-    )
-    if not rows:
-        print("no batches match")
-        if not ui.quiet:
-            print("next: downcroc batch validate campaign.json")
-        return
-    waiting = [item for item in rows if item["state"] == "awaiting_approval"]
-    if waiting and not ui.quiet:
-        print()
-        print(f"next: downcroc review ({len(waiting)} waiting)")
-
-
-def _recipients(rows: list[dict], all_rows: bool) -> None:
-    shown = rows if all_rows else rows[:20]
-    if shown:
-        table(
-            ["job", "recipient", "state", "attempts", "sent"],
-            [
-                [
-                    item["id"],
-                    item["recipient"],
-                    item["state"],
-                    item["attempts"],
-                    item["sent_at"],
-                ]
-                for item in shown
-            ],
-        )
-    if not all_rows and len(rows) > len(shown):
-        print(f"{len(rows) - len(shown)} more recipients, use --all to show them")
-
-
-def _routing(batch: dict) -> str:
-    routing = batch.get("routing") or {}
-    mode = routing.get("mode", "auto")
-    if mode == "fixed":
-        return f"fixed, {routing.get('account') or batch.get('account_id')}"
-    counts = routing.get("counts") or {}
-    if counts:
-        joined = ", ".join(f"{name} {count}" for name, count in counts.items())
-        return f"auto, {joined}"
-    return "auto"
-
-
-def _show(batch: dict, all_rows: bool) -> None:
-    record(
-        {
-            "id": batch["id"],
-            "name": batch["name"],
-            "kind": batch["kind"],
-            "state": batch["state"],
-            "approval": batch["approval"],
-            "routing": _routing(batch),
-            "source": batch["source_ref"],
-            "template": batch["template_ref"],
-            "created_at": batch["created_at"],
-            "approved_at": batch["approved_at"],
-        }
-    )
-    record(_counts(batch["counts"]))
-    options = batch.get("options") or {}
-    if options:
-        record(
-            {
-                "suppress_replies": options.get("suppress_replies"),
-                "reply_window_days": options.get("reply_window_days"),
-                "not_before": options.get("not_before"),
-                "stop_on": ", ".join(options.get("stop_on") or []),
-            }
-        )
-    for warning in batch.get("warnings") or []:
-        print(f"warning: {warning}")
-    for field in batch.get("ignored") or []:
-        print(f"ignored: {field}")
-    _recipients(batch.get("recipients") or [], all_rows)
-
-
-def show_preview(
-    preview: dict,
-    ui: Ui,
-    *,
-    key: str | None = None,
-    table_view: bool = False,
-) -> None:
-    messages = preview["messages"]
-    if not table_view:
-        _cards(preview, messages[:1] if key is not None else messages, ui, key)
-        return
-    record(
-        {
-            "campaign": f"{preview['campaign_name']} ({preview['campaign_key']})",
-            "kind": preview["source_kind"],
-            "messages": (f"{preview['total']:,} total, showing {preview['sampled']}"),
-            "approval": _approval(preview),
-            "routing": _preview_routing(preview),
-            "followups": _followups(preview),
-            "attachments": _attachments(preview),
-        }
-    )
-    if preview.get("duplicates"):
-        record({"duplicates": f"{preview['duplicates']} skipped"})
-    table(
-        ["recipient", "subject", "account"],
-        [
-            [item["email"], item["subject"], item["account_id"]]
-            for item in preview["messages"]
-        ],
-    )
-    for field in preview.get("ignored") or []:
-        print(f"ignored: {field}")
-    for warning in preview.get("warnings") or []:
-        print(f"warning: {warning}")
-    if not ui.quiet and preview.get("sampled", 0) < preview.get("total", 0):
-        print()
-        print(f"next: downcroc batch preview {preview.get('path', 'FILE')} --all")
-
-
-def _cards(preview: dict, messages: list[dict], ui: Ui, key: str | None) -> None:
-    width = max(1, columns(ui) - 1)
-    for index, message in enumerate(messages):
-        if index:
-            print()
-        for line in card.message_card(ui, message, width):
-            print(line)
-    if (
-        key is None
-        and not ui.quiet
-        and preview.get("sampled", 0) < preview.get("total", 0)
-    ):
-        print()
-        print(ui.dim(f"{preview['sampled']} of {preview['total']} shown, pass --all"))
-
-
-def _approval(preview: dict) -> str:
-    if preview["valid"] != preview["total"]:
-        return f"{preview['total'] - preview['valid']} invalid, nothing will submit"
-    return f"{preview['valid']:,} valid"
-
-
-def _preview_routing(preview: dict) -> str:
-    routing = preview.get("routing") or {}
-    mode = routing.get("mode", "auto")
-    if mode == "fixed":
-        account = routing.get("account_id") or routing.get("account") or "-"
-        return f"fixed, {account}, {preview['total']:,} messages"
-    counts = routing.get("counts") or {}
-    if not counts:
-        return "auto, no account"
-    joined = ", ".join(f"{name} {count:,}" for name, count in counts.items())
-    return f"auto, {joined}"
-
-
-def _followups(preview: dict) -> str:
-    steps = preview.get("followups") or []
-    if not steps:
-        return "none"
-    return ", ".join(
-        f"{step['key']} after {step['after_days']}d when {step['when']}"
-        for step in steps
-    )
-
-
-def _attachments(preview: dict) -> str:
-    value = preview.get("attachments") or {}
-    if not value.get("count"):
-        return "none"
-    return f"{value['count']} files, {value['bytes']:,} bytes"
-
-
-def show_validation(body: dict) -> None:
-    if body["ok"]:
-        record(
-            {
-                "file": body["path"],
-                "kind": body["kind"],
-                "campaign": f"{body['campaign']['name']} ({body['campaign']['key']})",
-                "messages": f"{body['valid']:,} valid",
-                "routing": (
-                    f"{body['routing']['mode']}"
-                    + (
-                        f", {body['routing']['account']}"
-                        if body["routing"]["account"]
-                        else ""
-                    )
-                ),
-                "followups": len(body.get("followups") or []),
-                "duplicates": body.get("duplicates", 0),
-            }
-        )
-        for field in body.get("ignored") or []:
-            print(f"ignored: {field}")
-        return
-    print(f"invalid {body['path']}")
-    for issue in body.get("issues") or []:
-        where = issue.get("field") or "source"
-        if issue.get("row") is not None:
-            where = f"row {issue['row']}, {where}"
-        if issue.get("key"):
-            where = f"{issue['key']}, {where}"
-        print(f"  {where}: {issue['message']}")
-    if body.get("hint"):
-        print(f"  hint: {body['hint']}")
-
-
-def _example(kind: str, write_to: str | None, ui: Ui) -> int:
-    if not write_to:
-        if ui.json_mode:
-            json_out(inputs.EXAMPLES[kind])
-            return 0
-        for name, content in inputs.EXAMPLES[kind].items():
-            print(f"# {name}")
-            if isinstance(content, dict):
-                import json
-
-                print(json.dumps(content, indent=2))
-            else:
-                print(content.rstrip())
-            print()
-        return 0
-    directory = path_tools.expand(write_to)
-    directory.mkdir(parents=True, exist_ok=True)
-    written = inputs.write_example(kind, directory)
-    if ui.json_mode:
-        json_out([str(path) for path in written])
-    else:
-        for path in written:
-            print(str(path))
-        print(f"wrote {len(written)} files to {directory}")
-    return 0
-
-
-def _schema(ui: Ui) -> int:
-    if ui.json_mode:
-        json_out(schema.CONTRACT)
-        return 0
-    print(schema_text())
-    return 0
-
-
-def schema_text() -> str:
-    lines = [
-        f"{schema.SCHEMA}",
-        "",
-        "detection",
-        f"  json   {schema.CONTRACT['detection']['json']}",
-        f"  csv    {schema.CONTRACT['detection']['csv']}",
-        "",
-        "top level: " + ", ".join(schema.CONTRACT["top_level"]),
-        "",
-        "campaign.routing",
-        "  mode      auto or fixed",
-        "  account   required when mode is fixed",
-        "  include   list of account ids or addresses",
-        "  exclude   list of account ids or addresses",
-        "",
-        "campaign.options",
-        "  approval            review or auto",
-        "  suppress_replies    boolean, default true",
-        "  reply_window_days   0-3650, default 60",
-        "  not_before          ISO 8601 timestamp",
-        "  stop_on             reply, bounce",
-        "  allow_duplicates    boolean, default false",
-        "",
-        "messages",
-        "  key, to{email,name}, subject, text, html, reply_to, attachments, followups",
-        "  a per-message account field is rejected; use campaign.routing.account",
-        "",
-        "followups",
-        "  key, after_days 1-365, when no_reply or always, subject, text, html,",
-        "  require_approval",
-        "",
-        "csv needs a template under the config templates directory",
-        "next: downcroc batch example --kind json",
-    ]
-    return "\n".join(lines)
 
 
 def source_body(args: object) -> dict:
@@ -355,9 +38,9 @@ def run(args: object) -> int:
             return 0
         action = "list"
     if action == "schema":
-        return _schema(ui)
+        return batch_view.show_schema(ui)
     if action == "example":
-        return _example(args.kind, args.write, ui)
+        return batch_view.example(args.kind, args.write, ui)
     if action == "validate":
         return _validate(args, ui)
     paths, _, _ = load()
@@ -384,7 +67,7 @@ def run(args: object) -> int:
     if ui.json_mode:
         json_out(batch)
     else:
-        _show(batch, bool(args.all))
+        batch_view.show_batch(batch, bool(args.all))
     return 0
 
 
@@ -395,7 +78,7 @@ def _validate(args: object, ui: Ui) -> int:
     if ui.json_mode:
         json_out(body)
     else:
-        show_validation(body)
+        batch_view.show_validation(body)
     return 0 if body["ok"] else 1
 
 
@@ -410,7 +93,7 @@ def _listing(client, args: object, ui: Ui) -> int:
     if ui.json_mode:
         json_out(rows)
     else:
-        _list(rows, ui)
+        batch_view.listing(rows, ui)
         page_footer(
             len(rows),
             total,
@@ -436,7 +119,7 @@ def _preview_command(client, args: object, ui: Ui) -> int:
     if ui.json_mode:
         json_out(preview)
     else:
-        show_preview(
+        batch_view.show_preview(
             preview,
             ui,
             key=getattr(args, "key", None),
@@ -458,7 +141,7 @@ def _submit(client, args: object, ui: Ui) -> int:
         if ui.json_mode:
             json_out({"dry_run": True, "preview": preview})
         else:
-            show_preview(preview, ui, key=key)
+            batch_view.show_preview(preview, ui, key=key)
             print()
             print("dry run, nothing was written")
         return 0

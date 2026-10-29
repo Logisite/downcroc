@@ -9,6 +9,7 @@ from downcroc.backup import BackupService, RestoreService
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.batches import BatchesService
 from downcroc.core.config_service import ConfigService
+from downcroc.core.credentials import CredentialResolver
 from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
@@ -17,6 +18,7 @@ from downcroc.core.outbound import OutboundService
 from downcroc.core.portability import PortabilityService
 from downcroc.core.retention import RetentionService
 from downcroc.core.stats import StatsService
+from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import SendPolicy
 from downcroc.providers.registry import ProviderRegistry
@@ -38,6 +40,7 @@ from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
 from downcroc.store.repositories.quota import QuotaRepo
 from downcroc.store.repositories.send_attempts import SendAttemptRepo
+from downcroc.store.repositories.transports import TransportRepo
 
 
 @dataclass
@@ -60,6 +63,7 @@ class Services:
     retention: RetentionService
     failures: FailureService
     send_attempts: SendAttemptRepo
+    transports: TransportService
     dispatcher: Dispatcher
     backup: BackupService
     restore: RestoreService
@@ -96,6 +100,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     batch_repo = BatchRepo(sessions)
     quota_repo = QuotaRepo(sessions)
     send_attempts = SendAttemptRepo(sessions)
+    transport_repo = TransportRepo(sessions)
     activity_repo = ActivityRepo(sessions)
     counter_repo = BatchCounterRepo(sessions)
     content = ContentStore(paths.data / "content")
@@ -123,6 +128,18 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings.inbound,
         settings.connect,
     )
+    transports = TransportService(
+        transport_repo,
+        account_repo,
+        providers,
+        CredentialResolver(account_repo, vault, tokens),
+        bus,
+        log,
+        settings.outbound,
+        settings.dispatch,
+    )
+    for account in account_repo.list(include_archived=True):
+        transports.ensure_defaults(account)
     accounts = AccountsService(
         account_repo,
         bus,
@@ -136,6 +153,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         inbound,
         content,
         stats,
+        transports,
     )
     outbound = OutboundService(
         job_repo,
@@ -150,6 +168,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings.outbound,
         settings.connect,
         send_attempts,
+        transports,
     )
     inbound.open()
     batches = BatchesService(
@@ -210,6 +229,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings,
         job_repo,
         account_repo,
+        transports,
         batch_repo,
         quota_repo,
         failures,
@@ -241,6 +261,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         retention=retention,
         failures=failures,
         send_attempts=send_attempts,
+        transports=transports,
         dispatcher=dispatcher,
         backup=backup,
         restore=restore,

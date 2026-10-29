@@ -278,6 +278,79 @@ def account(commands: argparse._SubParsersAction) -> None:
     watch.set_defaults(enabled=None)
     common(watch)
 
+    transport = actions.add_parser(
+        "transport",
+        help="inspect and tune the send transports of a mailbox",
+        epilog=(
+            "examples:\n"
+            "  downcroc account transport list acct_...\n"
+            "  downcroc account transport add acct_... --kind gmail_api\n"
+            "  downcroc account transport test acct_... trn_..."
+        ),
+    )
+    transport_actions = transport.add_subparsers(
+        dest="transport_action", required=False
+    )
+
+    transport_list = transport_actions.add_parser("list", help="list send transports")
+    transport_list.add_argument("account_id", nargs="?")
+    common(transport_list)
+
+    transport_add = transport_actions.add_parser("add", help="add a send transport")
+    transport_add.add_argument("account_id", nargs="?")
+    transport_add.add_argument(
+        "--kind",
+        choices=["smtp", "gmail_api"],
+        help="how the mailbox sends; asked when omitted",
+    )
+    transport_add.add_argument(
+        "--priority", type=int, default=0, help="higher is tried first"
+    )
+    transport_add.add_argument(
+        "--max-concurrency", type=int, help="parallel sends over the Gmail API"
+    )
+    transport_add.add_argument(
+        "--rate-per-min", type=int, help="cap API calls per minute"
+    )
+    transport_add.add_argument(
+        "--oauth-client", metavar="ID", help="OAuth client used for the API"
+    )
+    common(transport_add)
+
+    transport_set = transport_actions.add_parser("set", help="change a send transport")
+    transport_set.add_argument("account_id", nargs="?")
+    transport_set.add_argument("binding_id", nargs="?")
+    transport_set.add_argument("--priority", type=int, help="higher is tried first")
+    transport_set.add_argument(
+        "--max-concurrency", type=int, help="parallel sends over the Gmail API"
+    )
+    transport_set.add_argument(
+        "--rate-per-min", type=int, help="cap API calls per minute"
+    )
+    state = transport_set.add_mutually_exclusive_group()
+    state.add_argument(
+        "--on", action="store_true", dest="enabled", help="enable the transport"
+    )
+    state.add_argument(
+        "--off", action="store_false", dest="enabled", help="disable the transport"
+    )
+    transport_set.set_defaults(enabled=None)
+    common(transport_set)
+
+    transport_remove = transport_actions.add_parser(
+        "remove", help="remove a send transport"
+    )
+    transport_remove.add_argument("account_id", nargs="?")
+    transport_remove.add_argument("binding_id", nargs="?")
+    common(transport_remove, yes=True)
+
+    transport_test = transport_actions.add_parser(
+        "test", help="probe a send transport now"
+    )
+    transport_test.add_argument("account_id", nargs="?")
+    transport_test.add_argument("binding_id", nargs="?")
+    common(transport_test)
+
 
 def attach_auth(commands: argparse._SubParsersAction) -> None:
     auth = commands.add_parser(

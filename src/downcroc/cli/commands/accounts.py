@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-import sys
-import time
-
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, delete, get, patch, post, put
+from downcroc.cli.commands import account_transport, account_view
+from downcroc.cli.commands.account_connect import (
+    connect_now,
+    connected,
+    wait,
+)
 from downcroc.cli.commands.providers import show_list
 from downcroc.cli.context import load
-from downcroc.cli.errors import CliError, no_terminal
-from downcroc.cli.output import json_out, record, table
+from downcroc.cli.errors import CliError
+from downcroc.cli.output import json_out, record
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui, build
 
@@ -21,75 +24,7 @@ HOST_FLAGS = {
     "smtp_tls": "smtp_tls",
 }
 
-MAX_ATTEMPTS = 3
-
-
-def _list(rows: list[dict], ui: Ui) -> None:
-    table(
-        ["id", "address", "provider", "status", "credential", "watcher", "error"],
-        [
-            [
-                item["id"],
-                item["address"],
-                item["provider"],
-                item["status"],
-                "yes" if item["credential_present"] else "no",
-                "on" if item["watcher_enabled"] else "off",
-                item["last_error"],
-            ]
-            for item in rows
-        ],
-    )
-    attention = [item for item in rows if item["status"] != "connected"]
-    for item in attention:
-        print()
-        print(
-            f"{item['id']} is {item['status']}: run downcroc account connect {item['id']}"
-        )
-    if not ui.quiet:
-        print()
-        print("next: downcroc account add --provider gmail --address you@example.com")
-
-
-def _show(account: dict) -> None:
-    record(
-        {
-            "id": account["id"],
-            "provider": account["provider"],
-            "address": account["address"],
-            "label": account["label"],
-            "status": account["status"],
-            "credential": account["credential_present"],
-            "watcher": account["watcher_enabled"],
-            "created_at": account["created_at"],
-            "last_verified_at": account["last_verified_at"],
-            "last_error": account["last_error"],
-        }
-    )
-    record(
-        {
-            "last_uid": account["sync"]["last_uid"],
-            "uidvalidity": account["sync"]["uidvalidity"],
-            "last_sync_at": account["sync"]["last_sync_at"],
-            "failures": account["sync"]["consecutive_failures"],
-            "allowance": account["quota"]["daily_allowance"],
-            "window": (
-                f"{account['quota']['window_start']}..{account['quota']['window_end']}"
-            ),
-            "in_flight": account["quota"]["max_in_flight"],
-        }
-    )
-
-
-def _password(args: object, ui: Ui, *, flag: str = "--password-stdin") -> str:
-    path = getattr(args, "password_file", None)
-    if path:
-        return path_tools.read_secret(path)
-    if getattr(args, "password_stdin", False):
-        return path_tools.read_secret_stdin()
-    if not sys.stdin.isatty():
-        raise no_terminal(flag)
-    return prompts.ask_secret("App password", ui=ui, flag=flag)
+__all__ = ["connect_now", "run"]
 
 
 def _host_values(args: object) -> dict:
@@ -98,26 +33,6 @@ def _host_values(args: object) -> dict:
         for key in HOST_FLAGS
         if getattr(args, key, None) is not None
     }
-
-
-def _choose_account(client, ui: Ui, verb: str) -> str:
-    rows = get(client, "/api/accounts")
-    if not rows:
-        raise CliError(
-            "no accounts are configured",
-            code="usage",
-            hint="run downcroc account add",
-            exit_code=2,
-        )
-    chosen = prompts.choose(
-        f"Account to {verb}",
-        [prompts.Option(row["address"], row["id"], row["status"]) for row in rows],
-        ui=ui,
-        back=False,
-    )
-    if chosen is None:
-        raise CliError("cancelled", code="cancelled")
-    return str(chosen)
 
 
 def _choose_provider(client, ui: Ui) -> str:
@@ -165,103 +80,6 @@ def _add(client, args: object, ui: Ui) -> dict:
     )
 
 
-def _connect_password(
-    client, account: dict, provider: dict, args: object, ui: Ui
-) -> dict:
-    failures = 0
-    endpoint = f"{provider['imap_host']}:{provider['imap_port']}"
-    while True:
-        password = _password(args, ui)
-        if not ui.json_mode:
-            print(f"checking {endpoint} ...", file=sys.stderr)
-        started = time.monotonic()
-        try:
-            account = post(
-                client,
-                f"/api/accounts/{account['id']}/connect",
-                {"password": password},
-            )
-            if not ui.json_mode:
-                elapsed = time.monotonic() - started
-                print(f"  {elapsed:.1f}s", file=sys.stderr)
-            return account
-        except CliError as error:
-            failures += 1
-            if ui.json_mode:
-                raise
-            print(ui.result(False, error.label), file=sys.stderr)
-            if error.hint:
-                print(f"  hint: {error.hint}", file=sys.stderr)
-            if failures >= MAX_ATTEMPTS:
-                raise CliError(
-                    f"still not connected after {MAX_ATTEMPTS} attempts",
-                    code=error.code,
-                    hint="the provider may lock the mailbox after repeated failures; "
-                    "wait, then try `downcroc account connect` once",
-                ) from error
-            if not ui.interactive:
-                raise
-            choice = prompts.choose(
-                "what next",
-                [
-                    prompts.Option("Retry", "retry", "enter the password again"),
-                    prompts.Option("Stop", "stop", "leave the account pending"),
-                ],
-                ui=ui,
-            )
-            if choice != "retry":
-                raise CliError("not connected, nothing was stored", code="cancelled")
-        finally:
-            args.password_stdin = False
-            args.password_file = None
-
-
-def _wait(client, account_id: str, timeout: float) -> dict:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        account = get(client, f"/api/accounts/{account_id}")
-        if account["status"] in {"connected", "needs_reauth"}:
-            return account
-        time.sleep(0.5)
-    raise CliError(
-        "timed out waiting for the account to connect",
-        code="connect_timeout",
-        hint="finish the browser sign-in, then run downcroc account verify",
-    )
-
-
-def _connect_oauth(client, account: dict, args: object, ui: Ui) -> dict:
-    attempt = post(client, f"/api/accounts/{account['id']}/attempts")
-    if not ui.json_mode:
-        print(f"open {attempt['authorization_url']}", file=sys.stderr)
-        print(
-            f"the link expires at {attempt['expires_at']}",
-            file=sys.stderr,
-        )
-    account = _wait(client, account["id"], args.timeout)
-    if account["status"] != "connected":
-        raise CliError(
-            "the browser sign-in did not finish",
-            code="oauth_incomplete",
-            hint="run downcroc account connect again",
-        )
-    return account
-
-
-def _connected(account: dict, ui: Ui) -> None:
-    if ui.json_mode:
-        json_out(account)
-        return
-    record(
-        {
-            "account": f"{account['id']} {account['address']}",
-            "status": account["status"],
-            "watcher": "on" if account["watcher_enabled"] else "off",
-        }
-    )
-    print(ui.result(True, "connected"))
-
-
 def run(args: object) -> int:
     paths, _, _ = load()
     ui = build(args)
@@ -292,7 +110,7 @@ def run(args: object) -> int:
                     code="usage",
                     exit_code=2,
                 )
-            args.account_id = _choose_account(client, ui, action)
+            args.account_id = account_view.choose_account(client, ui, action)
         if action in {"list", "home"}:
             return _listing(client, args, ui)
         if action == "providers":
@@ -304,7 +122,7 @@ def run(args: object) -> int:
             return 0
         if action == "add":
             account = _add(client, args, ui)
-            return _added(account, ui)
+            return account_view.added(account, ui)
         if action == "delete":
             return _delete(client, args, ui)
         if action == "deletion":
@@ -327,7 +145,7 @@ def run(args: object) -> int:
             if ui.json_mode:
                 json_out(account)
             else:
-                _show(account)
+                account_view.show(account)
                 print(ui.result(True, "verified"))
             return 0
         if action == "sync":
@@ -339,11 +157,13 @@ def run(args: object) -> int:
             return 0
         if action == "watch":
             return _watch(client, args, ui)
+        if action == "transport":
+            return account_transport.run(client, args, ui)
         account = get(client, f"/api/accounts/{args.account_id}")
         if ui.json_mode:
             json_out(account)
         else:
-            _show(account)
+            account_view.show(account)
         return 0
 
 
@@ -359,21 +179,7 @@ def _listing(client, args: object, ui: Ui) -> int:
                 "next: downcroc account add --provider gmail --address you@example.com"
             )
         return 0
-    _list(rows, ui)
-    return 0
-
-
-def _added(account: dict, ui: Ui) -> int:
-    if ui.json_mode:
-        json_out(account)
-        return 0
-    record(
-        {
-            "account": f"{account['id']} {account['address']}",
-            "status": account["status"],
-        }
-    )
-    print(f"next: downcroc account connect {account['id']}")
+    account_view.listing(rows, ui)
     return 0
 
 
@@ -384,10 +190,10 @@ def _delete(client, args: object, ui: Ui) -> int:
         if ui.json_mode:
             json_out(preview)
         else:
-            _deletion_view(preview)
+            account_view.deletion_view(preview)
         return 0
     if not ui.json_mode:
-        _deletion_view(preview)
+        account_view.deletion_view(preview)
     prompts.confirm(
         f"delete {account_id} and its stored credential?",
         ui=ui,
@@ -414,29 +220,12 @@ def _delete(client, args: object, ui: Ui) -> int:
     return 0
 
 
-def _deletion_view(preview: dict) -> None:
-    counts = preview["counts"]
-    record(
-        {
-            "account": preview["account_id"],
-            "pinned_jobs": counts.get("pinned_jobs", 0),
-            "auto_jobs": counts.get("auto_jobs", 0),
-            "batches": counts.get("batches", 0),
-            "batches_pinned": counts.get("batches_pinned", 0),
-            "messages": counts.get("messages", 0),
-            "blockers": ", ".join(preview["blockers"]) or "none",
-        }
-    )
-    if counts.get("auto_jobs"):
-        print("  auto jobs keep routing after the delete")
-
-
 def _deletion(client, args: object, ui: Ui) -> int:
     preview = get(client, f"/api/accounts/{args.account_id}/deletion")
     if ui.json_mode:
         json_out(preview)
     else:
-        _deletion_view(preview)
+        account_view.deletion_view(preview)
     return 0
 
 
@@ -471,33 +260,19 @@ def _attempt(client, args: object, ui: Ui) -> int:
         if ui.json_mode:
             json_out(attempt)
         return 0
-    account = _wait(client, args.account_id, args.timeout)
+    account = wait(client, args.account_id, args.timeout)
     if ui.json_mode:
         json_out(account)
     else:
-        _show(account)
+        account_view.show(account)
         print(ui.result(True, "connected"))
     return 0
-
-
-def connect_now(client, account: dict, args: object, ui: Ui) -> dict:
-    provider = get(client, f"/api/providers/{account['provider']}")
-    if provider["auth_kind"] == "oauth2":
-        return _connect_oauth(client, account, args, ui)
-    if not provider["ready"]:
-        raise CliError(
-            "the provider is not ready",
-            code="provider_not_ready",
-            hint=f"run downcroc provider edit {provider['id']}",
-            fields={"missing": ", ".join(provider["missing"])},
-        )
-    return _connect_password(client, account, provider, args, ui)
 
 
 def _connect(client, args: object, ui: Ui) -> int:
     account = get(client, f"/api/accounts/{args.account_id}")
     updated = connect_now(client, account, args, ui)
-    _connected(updated, ui)
+    connected(updated, ui)
     return 0
 
 

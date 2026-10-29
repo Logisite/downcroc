@@ -81,6 +81,7 @@ class SendAttemptOut(BaseModel):
     id: str
     job_id: str
     account_id: str | None
+    binding_id: str | None
     transport: str
     started_at: str
     finished_at: str | None

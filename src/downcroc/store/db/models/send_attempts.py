@@ -17,6 +17,9 @@ class SendAttemptRow(Base):
     account_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("accounts.id", ondelete="SET NULL")
     )
+    binding_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("account_transports.id", ondelete="SET NULL")
+    )
     transport: Mapped[str] = mapped_column(Text, nullable=False)
     started_at: Mapped[str] = mapped_column(Text, nullable=False)
     finished_at: Mapped[str | None] = mapped_column(Text)

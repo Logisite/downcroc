@@ -51,11 +51,12 @@ def job_show(job: dict) -> None:
 
 def attempts_table(rows: list[dict]) -> None:
     table(
-        ["started", "transport", "account", "outcome", "accepted", "error"],
+        ["started", "transport", "binding", "account", "outcome", "accepted", "error"],
         [
             [
                 row["started_at"],
                 row["transport"],
+                row["binding_id"] or "-",
                 row["account_id"] or "-",
                 row["outcome"],
                 "-" if row["accepted"] is None else str(row["accepted"]).lower(),

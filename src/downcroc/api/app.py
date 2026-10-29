@@ -23,6 +23,7 @@ from downcroc.api.routes import (
     providers,
     service,
     stats,
+    transports,
     vault,
 )
 from downcroc.core.bootstrap import build
@@ -61,6 +62,7 @@ def create_app(
             await services.config.stop()
             await services.retention.stop()
             await services.dispatcher.stop()
+            await services.outbound.close_sessions("shutdown")
             services.inbound.stop_all("shutdown")
             services.accounts.close_flows("daemon_stopped")
             services.vault.lock("shutdown")
@@ -94,6 +96,7 @@ def create_app(
     app.include_router(vault.router)
     app.include_router(config.router)
     app.include_router(accounts.router)
+    app.include_router(transports.router)
     app.include_router(attempts.router)
     app.include_router(providers.router)
     app.include_router(messages.router)

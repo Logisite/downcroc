@@ -16,6 +16,7 @@ from downcroc.core.dispatch.failures import FailureService
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
 from downcroc.core.outbound import OutboundService
+from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.batches import Batch, BatchState
@@ -35,6 +36,7 @@ class Candidate:
     account: Account
     jobs: list[Job]
     remaining: int
+    lanes: int = 1
 
 
 class Dispatcher:
@@ -43,6 +45,7 @@ class Dispatcher:
         settings: Settings,
         jobs: JobRepo,
         accounts: AccountRepo,
+        transports: TransportService,
         batches: BatchRepo,
         quota: QuotaRepo,
         failures: FailureService,
@@ -57,6 +60,7 @@ class Dispatcher:
         self._followup_settings = settings.followups
         self._jobs = jobs
         self._accounts = accounts
+        self._transports = transports
         self._batches = batches
         self._quota = quota
         self._failures = failures
@@ -119,6 +123,7 @@ class Dispatcher:
     async def _cycle(self) -> None:
         if self._vault.status().state != "unlocked":
             return
+        await self._outbound.reap_sessions()
         await asyncio.to_thread(self._followups.cancel_stopped)
         if time.monotonic() >= self._next_followup:
             try:
@@ -161,7 +166,10 @@ class Dispatcher:
                 continue
             if time.monotonic() < self._next_allowed.get(account.id, 0.0):
                 continue
-            candidates.append(Candidate(account, due, remaining))
+            lanes = self._transports.lanes(account)
+            if lanes <= 0:
+                continue
+            candidates.append(Candidate(account, due, remaining, lanes))
         if not candidates:
             self._idle(due_accounts, blocked_window, blocked_allowance)
             self._log_cycle(0, 0, 0, started)
@@ -207,7 +215,8 @@ class Dispatcher:
                 1 for _, account in picked if account.id == candidate.account.id
             )
             if (
-                per_account >= candidate.account.policy.max_in_flight
+                per_account
+                >= min(candidate.account.policy.max_in_flight, candidate.lanes)
                 or candidate.remaining <= 0
                 or (not candidate.jobs and not auto_pool)
             ):
