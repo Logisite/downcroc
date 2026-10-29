@@ -18,4 +18,9 @@ oauth_scopes = ["https://mail.google.com/"]
 oauth_client_id = ""
 oauth_client_secret = ""
 oauth_extra_params = { access_type = "offline", prompt = "consent" }
-notes = "Gmail and Google Workspace. Set oauth_client_id in providers.toml."
+transport = "gmail_api"
+api_base_url = "https://gmail.googleapis.com"
+api_max_concurrency = 2
+api_rate_per_min = 120
+api_scopes = ["https://mail.google.com/"]
+notes = "Gmail and Google Workspace. Import a Desktop OAuth client JSON first."

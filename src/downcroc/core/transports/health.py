@@ -69,11 +69,12 @@ class BindingHealth:
         transient: bool,
         auth: bool = False,
         quota: bool = False,
+        retry_after_s: int | None = None,
     ) -> AccountTransport:
         if auth:
             return self._reauth(binding, code, message)
         if quota:
-            return self._quota(binding, code, message)
+            return self._quota(binding, code, message, retry_after_s)
         if not transient:
             return self._record(binding, binding.health, code, message, None)
         failures = self._failures.get(binding.id, 0) + 1
@@ -114,8 +115,13 @@ class BindingHealth:
         binding: AccountTransport,
         code: str,
         message: str,
+        retry_after_s: int | None,
     ) -> AccountTransport:
-        retry_s = self._dispatch.quota_cooldown_s
+        retry_s = (
+            retry_after_s
+            if retry_after_s is not None
+            else self._dispatch.quota_cooldown_s
+        )
         updated = self._record(
             binding,
             TransportHealth.QUOTA_EXHAUSTED,

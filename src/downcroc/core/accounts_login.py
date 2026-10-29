@@ -57,8 +57,9 @@ class AccountLoginMixin:
         self._login(spec, account, password=secret.value)
 
     def _access_token(self, account: Account, *, force: bool) -> str:
+        spec = self._clients.spec_for_account(account)
         try:
-            return self._tokens.access_token(account, force=force)
+            return self._tokens.access_token(account, spec=spec, force=force)
         except NeedsReauth as error:
             self._needs_reauth(account, error.reason)
             raise AccountNeedsReauth(

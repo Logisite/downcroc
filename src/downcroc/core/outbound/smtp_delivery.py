@@ -2,26 +2,23 @@ from __future__ import annotations
 
 from downcroc.core.events import EventBus
 from downcroc.core.outbound.attempts import AttemptRecorder
+from downcroc.core.outbound.result import AttemptResult
 from downcroc.core.transports import TransportService
 from downcroc.domain.accounts import Account
-from downcroc.domain.errors import AccountNeedsReauth, TransportUnavailable
 from downcroc.domain.jobs import Job
 from downcroc.domain.providers import ProviderSpec
-from downcroc.domain.transports import AccountTransport, TransportKind
+from downcroc.domain.transports import AccountTransport
 from downcroc.mail.smtp import sender
 from downcroc.mail.smtp.session import SmtpSessionPool
-from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import OutboundSettings
 from downcroc.runtime.logging.setup import EventLogger
-from downcroc.store.repositories.jobs import JobRepo
 
 
 class SmtpDelivery:
-    """Delivers a leased job across the mailbox's healthy SMTP bindings."""
+    """Runs one SMTP attempt through one binding."""
 
     def __init__(
         self,
-        jobs: JobRepo,
         transports: TransportService,
         pool: SmtpSessionPool,
         recorder: AttemptRecorder,
@@ -29,7 +26,6 @@ class SmtpDelivery:
         log: EventLogger,
         settings: OutboundSettings,
     ) -> None:
-        self._jobs = jobs
         self._transports = transports
         self._pool = pool
         self._recorder = recorder
@@ -37,47 +33,7 @@ class SmtpDelivery:
         self._log = log
         self._settings = settings
 
-    async def deliver(
-        self,
-        job: Job,
-        account: Account,
-        spec: ProviderSpec,
-        credentials: sender.SmtpCredentials,
-        wire: bytes,
-        started_at: str,
-    ) -> Job:
-        bindings = self._bindings(account)
-        if not bindings:
-            raise TransportUnavailable(
-                "the mailbox has no healthy send transport",
-                hint="add or test a transport binding for the account",
-            )
-        auth_error: sender.SmtpAuthFailure | None = None
-        last_error: sender.SmtpFailure | None = None
-        for binding in bindings:
-            result, error = await self._attempt(
-                job, account, spec, binding, credentials, wire, started_at
-            )
-            if result is not None:
-                return self._sent(job, account, result)
-            if isinstance(error, sender.SmtpAuthFailure):
-                auth_error = error
-                continue
-            if error is not None and not error.transient:
-                return self._jobs.get(job.id)
-            last_error = error
-        if auth_error is not None:
-            return self._auth_failed(job, account, auth_error)
-        return self._retry(job, last_error)
-
-    def _bindings(self, account: Account) -> list[AccountTransport]:
-        return [
-            binding
-            for binding in self._transports.usable(account)
-            if binding.kind is TransportKind.SMTP
-        ]
-
-    async def _attempt(
+    async def attempt(
         self,
         job: Job,
         account: Account,
@@ -86,7 +42,7 @@ class SmtpDelivery:
         credentials: sender.SmtpCredentials,
         wire: bytes,
         started_at: str,
-    ) -> tuple[sender.SmtpSendResult | None, sender.SmtpFailure | None]:
+    ) -> AttemptResult:
         self._bus.publish(
             "transport.selected",
             {
@@ -109,10 +65,14 @@ class SmtpDelivery:
             )
         except sender.SmtpAuthFailure as error:
             self._failed(job, account, binding, started_at, error, auth=True)
-            return None, error
+            return AttemptResult.failed(error.code, error.message, auth=True)
         except sender.SmtpFailure as error:
+            if error.uncertain:
+                return self._uncertain(job, account, binding, started_at, error)
             self._failed(job, account, binding, started_at, error)
-            return None, error
+            if error.transient:
+                return AttemptResult.deferred(error.code, error.message)
+            return AttemptResult.failed(error.code, error.message)
         self._recorder.record(
             job,
             account,
@@ -133,7 +93,56 @@ class SmtpDelivery:
                 "provider_message_id": None,
             },
         )
-        return result, None
+        self._log.info(
+            "smtp.accepted",
+            job=job.id,
+            message_id=job.message_id,
+            duration_ms=result.accepted_ms,
+        )
+        return AttemptResult.sent()
+
+    def _uncertain(
+        self,
+        job: Job,
+        account: Account,
+        binding: AccountTransport,
+        started_at: str,
+        error: sender.SmtpFailure,
+    ) -> AttemptResult:
+        self._recorder.record(
+            job,
+            account,
+            binding,
+            binding.kind.value,
+            started_at,
+            outcome="uncertain",
+            accepted=None,
+            code=error.code,
+            message=error.message,
+        )
+        self._transports.mark_failure(
+            binding,
+            code=error.code,
+            message=error.message,
+            transient=False,
+        )
+        self._bus.publish(
+            "transport.uncertain",
+            {
+                "job": job.id,
+                "account": account.id,
+                "binding": binding.id,
+                "transport": binding.kind.value,
+                "error_code": error.code,
+            },
+        )
+        self._log.warning(
+            "smtp.uncertain",
+            job=job.id,
+            account=account.id,
+            code=error.code,
+        )
+        return AttemptResult.uncertain(error.code, error.message)
 
     def _failed(
         self,
@@ -180,46 +189,3 @@ class SmtpDelivery:
             transient=error.transient,
             job=job.id,
         )
-
-    def _sent(
-        self,
-        job: Job,
-        account: Account,
-        result: sender.SmtpSendResult,
-    ) -> Job:
-        self._log.info(
-            "smtp.accepted",
-            job=job.id,
-            message_id=job.message_id,
-            duration_ms=result.accepted_ms,
-        )
-        return self._jobs.mark_sent(job.id, utc_now())
-
-    def _auth_failed(
-        self,
-        job: Job,
-        account: Account,
-        error: sender.SmtpAuthFailure,
-    ) -> Job:
-        self._jobs.mark_queued(
-            job.id,
-            code=error.code,
-            message=error.message,
-            retryable=False,
-        )
-        raise AccountNeedsReauth(
-            "the mailbox rejected the send credential",
-            hint="connect the account again",
-        ) from error
-
-    def _retry(self, job: Job, error: sender.SmtpFailure | None) -> Job:
-        code = error.code if error is not None else "transport_unavailable"
-        message = error.message if error is not None else ""
-        self._jobs.mark_retry(
-            job.id,
-            code=code,
-            message=message,
-            next_attempt_at=utc_now(),
-            retryable=True,
-        )
-        return self._jobs.get(job.id)

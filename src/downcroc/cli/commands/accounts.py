@@ -252,7 +252,10 @@ def _archive(client, args: object, ui: Ui, *, archived: bool) -> int:
 
 
 def _attempt(client, args: object, ui: Ui) -> int:
-    attempt = post(client, f"/api/accounts/{args.account_id}/attempts")
+    params = {}
+    if getattr(args, "client", None):
+        params["client_id"] = args.client
+    attempt = post(client, f"/api/accounts/{args.account_id}/attempts", **params)
     if not ui.json_mode:
         print(f"open {attempt['authorization_url']}")
         print(f"the link expires at {attempt['expires_at']}")

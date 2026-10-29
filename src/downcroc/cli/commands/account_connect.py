@@ -116,7 +116,10 @@ def _app_password(client, account: dict, provider: dict, args: object, ui: Ui) -
 
 
 def _oauth(client, account: dict, args: object, ui: Ui) -> dict:
-    attempt = post(client, f"/api/accounts/{account['id']}/attempts")
+    params = {}
+    if getattr(args, "client", None):
+        params["client_id"] = args.client
+    attempt = post(client, f"/api/accounts/{account['id']}/attempts", **params)
     if not ui.json_mode:
         print(f"open {attempt['authorization_url']}", file=sys.stderr)
         print(

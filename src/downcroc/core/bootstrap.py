@@ -14,6 +14,7 @@ from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
 from downcroc.core.inbound import InboundService
+from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound import OutboundService
 from downcroc.core.portability import PortabilityService
 from downcroc.core.retention import RetentionService
@@ -38,6 +39,7 @@ from downcroc.store.repositories.events import EventRepo
 from downcroc.store.repositories.failures import FailureRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
+from downcroc.store.repositories.oauth_clients import OAuthClientRepo
 from downcroc.store.repositories.quota import QuotaRepo
 from downcroc.store.repositories.send_attempts import SendAttemptRepo
 from downcroc.store.repositories.transports import TransportRepo
@@ -64,6 +66,7 @@ class Services:
     failures: FailureService
     send_attempts: SendAttemptRepo
     transports: TransportService
+    oauth_clients: OAuthClientService
     dispatcher: Dispatcher
     backup: BackupService
     restore: RestoreService
@@ -101,6 +104,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     quota_repo = QuotaRepo(sessions)
     send_attempts = SendAttemptRepo(sessions)
     transport_repo = TransportRepo(sessions)
+    oauth_client_repo = OAuthClientRepo(sessions)
     activity_repo = ActivityRepo(sessions)
     counter_repo = BatchCounterRepo(sessions)
     content = ContentStore(paths.data / "content")
@@ -128,11 +132,22 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings.inbound,
         settings.connect,
     )
+    clients = OAuthClientService(
+        oauth_client_repo,
+        transport_repo,
+        account_repo,
+        vault,
+        providers,
+        bus,
+        log,
+    )
+    credentials = CredentialResolver(account_repo, vault, tokens, clients)
     transports = TransportService(
         transport_repo,
         account_repo,
         providers,
-        CredentialResolver(account_repo, vault, tokens),
+        credentials,
+        clients,
         bus,
         log,
         settings.outbound,
@@ -154,6 +169,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         content,
         stats,
         transports,
+        clients,
     )
     outbound = OutboundService(
         job_repo,
@@ -161,6 +177,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         providers,
         vault,
         tokens,
+        clients,
         content,
         stats,
         bus,
@@ -262,6 +279,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         failures=failures,
         send_attempts=send_attempts,
         transports=transports,
+        oauth_clients=clients,
         dispatcher=dispatcher,
         backup=backup,
         restore=restore,

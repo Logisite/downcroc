@@ -40,10 +40,19 @@ class ProviderSpec:
     oauth_client_secret: str = ""
     oauth_tenant: str = "common"
     oauth_extra_params: tuple[tuple[str, str], ...] = ()
+    transport: str = "smtp"
+    api_base_url: str = ""
+    api_max_concurrency: int = 2
+    api_rate_per_min: int = 120
+    api_scopes: tuple[str, ...] = ()
 
     @property
     def oauth_configured(self) -> bool:
         return bool(self.oauth_client_id)
+
+    @property
+    def api_configured(self) -> bool:
+        return self.transport == "gmail_api" and bool(self.api_base_url)
 
     @property
     def imap_configured(self) -> bool:

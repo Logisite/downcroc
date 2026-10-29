@@ -78,8 +78,13 @@ def unarchive_account(
 
 
 @router.post("/{account_id}/attempts", response_model=AttemptOut, status_code=201)
-def start_attempt(account_id: str, request: Request) -> AttemptOut:
-    return AttemptOut.of(_service(request).start_attempt(account_id))
+def start_attempt(
+    account_id: str,
+    request: Request,
+    client_id: str | None = None,
+) -> AttemptOut:
+    attempt = _service(request).start_attempt(account_id, client_id)
+    return AttemptOut.of(attempt)
 
 
 @router.post("/{account_id}/connect", response_model=AccountOut)

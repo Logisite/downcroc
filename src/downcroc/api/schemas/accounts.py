@@ -233,6 +233,11 @@ class ProviderIn(BaseModel):
     oauth_client_id: str | None = None
     oauth_client_secret: str | None = None
     oauth_tenant: str | None = None
+    transport: str | None = None
+    api_base_url: str | None = None
+    api_max_concurrency: int | None = Field(default=None, ge=1)
+    api_rate_per_min: int | None = Field(default=None, ge=1)
+    api_scopes: list[str] | None = None
 
 
 class ProviderOut(BaseModel):
@@ -251,6 +256,11 @@ class ProviderOut(BaseModel):
     attachment_max_bytes: int
     notes: str
     oauth_configured: bool
+    transport: str
+    api_base_url: str
+    api_max_concurrency: int
+    api_rate_per_min: int
+    api_scopes: list[str]
     ready: bool = False
     missing: list[str] = Field(default_factory=list)
     source: str | None = None
@@ -274,6 +284,11 @@ class ProviderOut(BaseModel):
             attachment_max_bytes=spec.attachment_max_bytes,
             notes=spec.notes,
             oauth_configured=spec.oauth_configured,
+            transport=spec.transport,
+            api_base_url=spec.api_base_url,
+            api_max_concurrency=spec.api_max_concurrency,
+            api_rate_per_min=spec.api_rate_per_min,
+            api_scopes=list(spec.api_scopes),
             ready=ready,
             missing=missing,
             source=source,

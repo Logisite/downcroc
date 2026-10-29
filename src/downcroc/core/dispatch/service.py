@@ -2,23 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import random
 import time
 import uuid
-from dataclasses import dataclass
-from datetime import datetime
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from downcroc.core.dispatch import eligibility, retry
 from downcroc.core.dispatch.failures import FailureService
+from downcroc.core.dispatch.helpers import Candidate, DispatchHelpers
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
 from downcroc.core.outbound import OutboundService
 from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
-from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.domain.accounts import Account
 from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.errors import BatchNotFound, DomainError
 from downcroc.domain.jobs import Job, JobState
@@ -31,15 +29,7 @@ from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.quota import QuotaRepo
 
 
-@dataclass
-class Candidate:
-    account: Account
-    jobs: list[Job]
-    remaining: int
-    lanes: int = 1
-
-
-class Dispatcher:
+class Dispatcher(DispatchHelpers):
     def __init__(
         self,
         settings: Settings,
@@ -233,49 +223,6 @@ class Dispatcher:
         if failed:
             self._log.debug("dispatch.failed", count=failed)
 
-    def _can_send(self, account: Account) -> bool:
-        return (
-            account.status is AccountStatus.CONNECTED
-            and account.policy.enabled
-            and account.credential_present
-            and account.archived_at is None
-        )
-
-    def _batch_ready(
-        self, job: Job, now: datetime, cache: dict[str, Batch | None]
-    ) -> bool:
-        if job.batch_id not in cache:
-            try:
-                cache[job.batch_id] = self._batches.get(job.batch_id)
-            except BatchNotFound:
-                cache[job.batch_id] = None
-        batch = cache[job.batch_id]
-        if batch is None or batch.state is not BatchState.SENDING:
-            return False
-        try:
-            options = json.loads(batch.options_json or "{}")
-        except json.JSONDecodeError:
-            return True
-        floor = options.get("not_before")
-        if not floor:
-            return True
-        try:
-            return parse_utc(str(floor)) <= now
-        except ValueError:
-            return True
-
-    def _claim(self, account: Account, job: Job) -> Job | None:
-        return self._jobs.claim(
-            job.id,
-            self._owner,
-            utc_now(),
-            utc_after(self._outbound_settings.lease_seconds),
-        )
-
-    def _weighted(self, candidates: list[Candidate]) -> Candidate:
-        weights = [max(1, candidate.remaining) for candidate in candidates]
-        return self._rng.choices(candidates, weights=weights, k=1)[0]
-
     async def _send(self, job: Job, account: Account) -> str:
         try:
             result = await self._outbound.deliver(job, account)
@@ -342,41 +289,6 @@ class Dispatcher:
             code=job.last_error_code or "retry",
         )
         return "deferred"
-
-    def _apply_spacing(self, picked: list[tuple[Job, Account]]) -> None:
-        seen: set[str] = set()
-        for _, account in picked:
-            if account.id in seen:
-                continue
-            seen.add(account.id)
-            low = account.policy.jitter_min
-            high = account.policy.jitter_max
-            if high <= 0:
-                self._next_allowed.pop(account.id, None)
-                continue
-            delay = self._rng.uniform(low, high)
-            self._next_allowed[account.id] = time.monotonic() + delay
-            self._log.debug("dispatch.spacing", delay_ms=round(delay * 1000))
-
-    def _idle(self, due: int, window: int, allowance: int) -> None:
-        if due == 0:
-            reason = "nothing due"
-        elif window >= due:
-            reason = "window closed"
-        elif allowance >= due:
-            reason = "allowance spent"
-        else:
-            reason = "nothing due"
-        self._log.debug("dispatch.idle", reason=reason)
-
-    def _log_cycle(self, picked: int, sent: int, deferred: int, started: float) -> None:
-        self._log.debug(
-            "dispatch.cycle",
-            picked=picked,
-            sent=sent,
-            deferred=deferred,
-            duration_ms=round((time.monotonic() - started) * 1000, 2),
-        )
 
     def _finalize(self, batch_ids: set[str]) -> None:
         active = {

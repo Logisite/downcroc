@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, delete, get, put
+from downcroc.cli.commands import provider_credentials
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError, no_terminal
 from downcroc.cli.output import json_out, record, table
@@ -66,8 +67,17 @@ def _show(provider: dict, ui: Ui) -> None:
             "smtp_tls": provider["smtp_tls"],
             "sent_folder": provider["sent_folder"],
             "attachment_max_bytes": provider["attachment_max_bytes"],
+            "transport": provider["transport"],
         }
     )
+    if provider["transport"] == "gmail_api":
+        record(
+            {
+                "api_base_url": provider["api_base_url"],
+                "api_max_concurrency": provider["api_max_concurrency"],
+                "api_rate_per_min": provider["api_rate_per_min"],
+            }
+        )
     if provider["missing"]:
         record({"missing": ", ".join(provider["missing"])})
     if provider["notes"]:
@@ -92,6 +102,10 @@ def _flag_values(args: object) -> dict:
         "notes": getattr(args, "notes", None),
         "oauth_client_id": getattr(args, "oauth_client_id", None),
         "oauth_tenant": getattr(args, "oauth_tenant", None),
+        "transport": getattr(args, "transport", None),
+        "api_base_url": getattr(args, "api_base_url", None),
+        "api_max_concurrency": getattr(args, "api_max_concurrency", None),
+        "api_rate_per_min": getattr(args, "api_rate_per_min", None),
     }
 
 
@@ -157,26 +171,6 @@ def _auth(ui: Ui) -> str:
             back=False,
         )
     )
-
-
-def _choose_provider(client, ui: Ui, title: str) -> str:
-    rows = get(client, "/api/providers")
-    chosen = prompts.choose(
-        title,
-        [
-            prompts.Option(
-                row["label"],
-                row["id"],
-                "ready" if row["ready"] else "needs setup",
-            )
-            for row in rows
-        ],
-        ui=ui,
-        back=False,
-    )
-    if chosen is None:
-        raise CliError("cancelled", code="cancelled")
-    return str(chosen)
 
 
 def _write(args: object, client, ui: Ui, values: dict) -> dict:
@@ -325,6 +319,8 @@ def run(args: object) -> int:
     ui = build(args)
     paths, _, _ = load()
     action = args.action
+    if action == "credentials":
+        return provider_credentials.run(args, ui)
     if action is None and ui.interactive:
         from downcroc.cli.ui.menus import providers_menu
 
@@ -334,7 +330,9 @@ def run(args: object) -> int:
         if not ui.interactive:
             raise CliError(f"{action} needs a provider id", code="usage", exit_code=2)
         with api(paths) as client:
-            args.provider_id = _choose_provider(client, ui, f"Provider to {action}")
+            args.provider_id = provider_credentials.choose_provider(
+                client, ui, f"Provider to {action}"
+            )
     if action == "add":
         return _add(args, ui)
     if action == "edit":

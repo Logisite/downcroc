@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (
     AccountNeedsReauth,
     CredentialMissing,
     OAuthFailed,
+    OAuthNotConfigured,
     SmtpUnavailable,
     VaultSecretMissing,
 )
@@ -27,22 +29,68 @@ class CredentialResolver:
         accounts: AccountRepo,
         vault: VaultService,
         tokens: TokenManager,
+        clients: OAuthClientService | None = None,
     ) -> None:
         self._accounts = accounts
         self._vault = vault
         self._tokens = tokens
+        self._clients = clients
 
     def ensure_unlocked(self) -> None:
         self._vault.ensure_unlocked()
 
-    def resolve(self, account: Account, spec: ProviderSpec) -> sender.SmtpCredentials:
+    def resolve(
+        self,
+        account: Account,
+        spec: ProviderSpec,
+        *,
+        client_id: str | None = None,
+    ) -> sender.SmtpCredentials:
         if spec.auth_kind is AuthKind.OAUTH2:
-            return self._oauth(account)
+            return self._oauth(account, self._spec(account, spec, client_id))
         return self._app_password(account)
 
-    def _oauth(self, account: Account) -> sender.SmtpCredentials:
+    def access_token(
+        self,
+        account: Account,
+        spec: ProviderSpec,
+        *,
+        client_id: str | None = None,
+    ) -> str:
+        if spec.auth_kind is not AuthKind.OAUTH2:
+            raise OAuthNotConfigured(
+                "the mailbox does not use oauth",
+                hint="add a gmail api binding to an oauth mailbox",
+            )
+        resolved = self._spec(account, spec, client_id)
+        return self._token(account, resolved)
+
+    def _spec(
+        self,
+        account: Account,
+        spec: ProviderSpec,
+        client_id: str | None,
+    ) -> ProviderSpec:
+        if self._clients is None or spec.auth_kind is not AuthKind.OAUTH2:
+            return spec
+        resolved = client_id or self._clients.account_client(account)
+        return self._clients.overlay(spec, resolved)
+
+    def _oauth(
+        self,
+        account: Account,
+        spec: ProviderSpec,
+    ) -> sender.SmtpCredentials:
+        token = self._token(account, spec)
+        return sender.SmtpCredentials(
+            address=account.address,
+            auth_kind=AuthKind.OAUTH2,
+            access_token=token,
+        )
+
+    def _token(self, account: Account, spec: ProviderSpec) -> str:
         try:
-            token = self._tokens.access_token(account)
+            return self._tokens.access_token(account, spec=spec)
         except NeedsReauth as error:
             self._accounts.mark_needs_reauth(account.id, error.reason)
             raise AccountNeedsReauth(
@@ -65,11 +113,6 @@ class CredentialResolver:
                 "the refresh token is missing from the vault",
                 hint="start a new connect attempt",
             ) from error
-        return sender.SmtpCredentials(
-            address=account.address,
-            auth_kind=AuthKind.OAUTH2,
-            access_token=token,
-        )
 
     def _app_password(self, account: Account) -> sender.SmtpCredentials:
         key = account.credential_key or secret_key(account.id, "app_password")

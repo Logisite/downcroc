@@ -48,8 +48,14 @@ class TokenManager:
         self._guard = threading.Lock()
         self._locks: dict[str, threading.Lock] = {}
 
-    def access_token(self, account: Account, *, force: bool = False) -> str:
-        spec = self._registry.get(account.provider)
+    def access_token(
+        self,
+        account: Account,
+        *,
+        spec: ProviderSpec | None = None,
+        force: bool = False,
+    ) -> str:
+        spec = spec or self._registry.get(account.provider)
         self._require_oauth(spec)
         with self._lock_for(account.id):
             if not force:

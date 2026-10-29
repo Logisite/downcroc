@@ -60,6 +60,22 @@ class JobStateRepo:
     def mark_reconciled(self, job_id: str, sent_at: str) -> Job:
         return self.mark_sent(job_id, sent_at)
 
+    def mark_sent_unconfirmed(
+        self,
+        job_id: str,
+        *,
+        code: str,
+        message: str,
+    ) -> Job:
+        with self._sessions.begin() as session:
+            row = self._row(session, job_id)
+            row.state = JobState.SENT_UNCONFIRMED.value
+            row.sent_at = None
+            row.next_attempt_at = None
+            _release(row)
+            _error(row, code, message, True)
+        return self.get(job_id)
+
     def mark_retry(
         self,
         job_id: str,
@@ -167,7 +183,14 @@ class JobStateRepo:
     def list_sending(self) -> list[Job]:
         with self._sessions() as session:
             rows = session.scalars(
-                select(JobRow).where(JobRow.state == JobState.SENDING.value)
+                select(JobRow).where(
+                    JobRow.state.in_(
+                        (
+                            JobState.SENDING.value,
+                            JobState.SENT_UNCONFIRMED.value,
+                        )
+                    )
+                )
             )
             return [to_job(row) for row in rows]
 

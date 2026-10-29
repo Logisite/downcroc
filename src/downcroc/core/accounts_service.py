@@ -3,6 +3,7 @@ from __future__ import annotations
 from downcroc.core.accounts_login import AccountLoginMixin
 from downcroc.core.events import EventBus
 from downcroc.core.inbound import InboundService
+from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.stats import StatsService
 from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
@@ -47,6 +48,7 @@ class AccountsService(AccountLoginMixin):
         content: ContentStore,
         stats: StatsService,
         transports: TransportService,
+        clients: OAuthClientService,
     ) -> None:
         self._accounts = accounts
         self._bus = bus
@@ -60,6 +62,7 @@ class AccountsService(AccountLoginMixin):
         self._content = content
         self._stats = stats
         self._transports = transports
+        self._clients = clients
         self._flow = OAuthFlow(attempts, settings, log, self._complete_oauth)
 
     def create(self, provider: str, address: str, label: str) -> Account:
@@ -166,9 +169,11 @@ class AccountsService(AccountLoginMixin):
             blockers.append("history_requires_force_history")
         return {"account_id": account_id, "counts": counts, "blockers": blockers}
 
-    def start_attempt(self, account_id: str) -> ConnectAttempt:
+    def start_attempt(
+        self, account_id: str, client_id: str | None = None
+    ) -> ConnectAttempt:
         account = self._accounts.get(account_id)
-        spec = self._registry.get(account.provider)
+        spec = self._clients.spec_for(account.provider, client_id)
         self._vault.ensure_unlocked()
         return self._flow.start(account, spec)
 
@@ -197,7 +202,7 @@ class AccountsService(AccountLoginMixin):
 
     def verify(self, account_id: str, *, refresh: bool = False) -> Account:
         account = self._accounts.get(account_id)
-        spec = self._registry.get(account.provider)
+        spec = self._clients.spec_for_account(account)
         if account.credential_key is None:
             raise CredentialMissing(
                 "the account has no credential",

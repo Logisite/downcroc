@@ -5,14 +5,13 @@ import tomllib
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from downcroc.domain.errors import ProviderConfigError, ProviderUnknown
-from downcroc.domain.providers import AuthKind, ProviderSpec, TlsMode
-from downcroc.providers import writer
+from downcroc.domain.providers import AuthKind, ProviderSpec
+from downcroc.providers import declaration, writer
+from downcroc.providers.declaration import REQUIRED
 from downcroc.runtime.logging.setup import EventLogger
 
-REQUIRED = frozenset({"id", "label", "imap_host", "imap_port", "imap_tls", "auth_kind"})
 OPTIONAL = frozenset(
     {
         "smtp_host",
@@ -31,6 +30,11 @@ OPTIONAL = frozenset(
         "oauth_client_secret",
         "oauth_tenant",
         "oauth_extra_params",
+        "transport",
+        "api_base_url",
+        "api_max_concurrency",
+        "api_rate_per_min",
+        "api_scopes",
     }
 )
 FIELDS = REQUIRED | OPTIONAL
@@ -229,140 +233,7 @@ class ProviderRegistry:
     def _spec(
         cls, provider_id: str, values: dict[str, Any], path: Path | None
     ) -> ProviderSpec:
-        missing = sorted(REQUIRED - set(values))
-        if missing:
-            raise ProviderConfigError(
-                "a declaration is incomplete", path=path, field=missing[0]
-            )
-        for field in ("label", "imap_host"):
-            if not isinstance(values[field], str):
-                raise ProviderConfigError(
-                    "field must be a string", path=path, field=field
-                )
-        for field in ("imap_port", "smtp_port", "attachment_max_bytes"):
-            value = values.get(field)
-            if value is not None and (
-                isinstance(value, bool) or not isinstance(value, int)
-            ):
-                raise ProviderConfigError(
-                    "field must be an integer", path=path, field=field
-                )
-        for field in (
-            "smtp_host",
-            "smtp_auth_mechanism",
-            "sent_folder",
-            "notes",
-            "oauth_authorize_url",
-            "oauth_token_url",
-            "oauth_client_id",
-            "oauth_client_secret",
-            "oauth_tenant",
-        ):
-            value = values.get(field)
-            if value is not None and not isinstance(value, str):
-                raise ProviderConfigError(
-                    "field must be a string", path=path, field=field
-                )
-        for field in ("supports_idle", "requires_user_agent"):
-            value = values.get(field)
-            if value is not None and not isinstance(value, bool):
-                raise ProviderConfigError(
-                    "field must be a boolean", path=path, field=field
-                )
-        try:
-            imap_tls = TlsMode(values["imap_tls"])
-        except ValueError as error:
-            raise ProviderConfigError(
-                "field has an unknown value", path=path, field="imap_tls"
-            ) from error
-        try:
-            smtp_tls = TlsMode(values.get("smtp_tls", "starttls"))
-        except ValueError as error:
-            raise ProviderConfigError(
-                "field has an unknown value", path=path, field="smtp_tls"
-            ) from error
-        try:
-            auth_kind = AuthKind(values["auth_kind"])
-        except ValueError as error:
-            raise ProviderConfigError(
-                "field has an unknown value", path=path, field="auth_kind"
-            ) from error
-        scopes = values.get("oauth_scopes", [])
-        if not isinstance(scopes, list) or not all(
-            isinstance(item, str) and item for item in scopes
-        ):
-            raise ProviderConfigError(
-                "field must be a list of strings", path=path, field="oauth_scopes"
-            )
-        extra = values.get("oauth_extra_params", {})
-        if not isinstance(extra, dict) or not all(
-            isinstance(key, str) and isinstance(item, str)
-            for key, item in extra.items()
-        ):
-            raise ProviderConfigError(
-                "field must be a table of strings",
-                path=path,
-                field="oauth_extra_params",
-            )
-        imap_port = values["imap_port"]
-        smtp_port = values.get("smtp_port", 587)
-        for field, port in (("imap_port", imap_port), ("smtp_port", smtp_port)):
-            if not 1 <= port <= 65535:
-                raise ProviderConfigError(
-                    "port is out of range", path=path, field=field
-                )
-        spec = ProviderSpec(
-            id=provider_id,
-            label=values["label"],
-            imap_host=values["imap_host"],
-            imap_port=imap_port,
-            imap_tls=imap_tls,
-            smtp_host=values.get("smtp_host", ""),
-            smtp_port=smtp_port,
-            smtp_tls=smtp_tls,
-            auth_kind=auth_kind,
-            smtp_auth_mechanism=values.get("smtp_auth_mechanism", "PLAIN").upper(),
-            sent_folder=values.get("sent_folder", "Sent"),
-            supports_idle=values.get("supports_idle", True),
-            requires_user_agent=values.get("requires_user_agent", False),
-            attachment_max_bytes=values.get("attachment_max_bytes", 26214400),
-            notes=values.get("notes", ""),
-            oauth_authorize_url=values.get("oauth_authorize_url", ""),
-            oauth_token_url=values.get("oauth_token_url", ""),
-            oauth_scopes=tuple(scopes),
-            oauth_client_id=values.get("oauth_client_id", ""),
-            oauth_client_secret=values.get("oauth_client_secret", ""),
-            oauth_tenant=values.get("oauth_tenant", "common"),
-            oauth_extra_params=tuple(sorted(extra.items())),
-        )
-        if spec.auth_kind is AuthKind.OAUTH2:
-            for field in ("oauth_authorize_url", "oauth_token_url"):
-                value = getattr(spec, field)
-                if not value:
-                    raise ProviderConfigError(
-                        "an oauth provider needs this field", path=path, field=field
-                    )
-                if not _secure_url(value):
-                    raise ProviderConfigError(
-                        "oauth urls must use https unless loopback",
-                        path=path,
-                        field=field,
-                    )
-            if not spec.oauth_scopes:
-                raise ProviderConfigError(
-                    "an oauth provider needs scopes", path=path, field="oauth_scopes"
-                )
-        if spec.smtp_auth_mechanism not in {"XOAUTH2", "PLAIN"}:
-            raise ProviderConfigError(
-                "unknown SMTP mechanism", path=path, field="smtp_auth_mechanism"
-            )
-        if spec.imap_tls is TlsMode.NONE and not _loopback(spec.imap_host):
-            raise ProviderConfigError(
-                "plaintext IMAP is only allowed on loopback",
-                path=path,
-                field="imap_tls",
-            )
-        return spec
+        return declaration.parse_spec(provider_id, values, path)
 
     @classmethod
     def _secure(cls, path: Path, log: EventLogger) -> None:
@@ -408,16 +279,3 @@ def readiness(spec: ProviderSpec) -> tuple[bool, list[str]]:
         if spec.oauth_tenant == "" and "microsoft" in spec.id:
             missing.append("oauth_tenant")
     return (not missing, missing)
-
-
-def _loopback(host: str) -> bool:
-    return host in {"127.0.0.1", "::1", "localhost"}
-
-
-def _secure_url(value: str) -> bool:
-    parsed = urlparse(value)
-    if not parsed.hostname:
-        return False
-    if parsed.scheme == "https":
-        return True
-    return parsed.scheme == "http" and _loopback(parsed.hostname)

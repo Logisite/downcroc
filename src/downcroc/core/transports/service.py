@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import asyncio
+
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.events import EventBus
+from downcroc.core.oauth_clients import OAuthClientService
+from downcroc.core.transports import validation
 from downcroc.core.transports.health import BindingHealth
+from downcroc.core.transports.limiter import TransportLimiter
 from downcroc.domain.accounts import Account
-from downcroc.domain.providers import AuthKind, ProviderSpec
+from downcroc.domain.errors import AccountNeedsReauth
+from downcroc.domain.providers import ProviderSpec
 from downcroc.domain.transports import (
     AccountTransport,
     TransportHealth,
     TransportKind,
 )
+from downcroc.mail.gmail import api as gmail_api
 from downcroc.mail.smtp import sender
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.runtime.clock import utc_now
@@ -30,6 +37,7 @@ class TransportService:
         accounts: AccountRepo,
         registry: ProviderRegistry,
         credentials: CredentialResolver,
+        clients: OAuthClientService,
         bus: EventBus,
         log: EventLogger,
         outbound: OutboundSettings,
@@ -39,10 +47,16 @@ class TransportService:
         self._accounts = accounts
         self._registry = registry
         self._credentials = credentials
+        self._clients = clients
         self._bus = bus
         self._log = log
         self._outbound = outbound
         self._health = BindingHealth(transports, bus, log, dispatch)
+        self._limiter = TransportLimiter(dispatch.global_in_flight)
+
+    @property
+    def limiter(self) -> TransportLimiter:
+        return self._limiter
 
     def ensure_defaults(self, account: Account) -> AccountTransport | None:
         spec = self._registry.get(account.provider)
@@ -81,7 +95,11 @@ class TransportService:
     ) -> AccountTransport:
         account = self._accounts.get(account_id)
         spec = self._registry.get(account.provider)
-        self._validate(kind, spec, max_concurrency, rate_per_min)
+        validation.validate_binding(kind, spec, max_concurrency, rate_per_min)
+        if kind is TransportKind.GMAIL_API:
+            oauth_client_id = validation.resolve_client_id(
+                self._clients, account, oauth_client_id
+            )
         now = utc_now()
         binding = AccountTransport(
             id=new_id("trn"),
@@ -185,6 +203,7 @@ class TransportService:
         binding = self.get(account_id, binding_id)
         removed = self._transports.delete(binding.id)
         self._health.forget(binding.id)
+        self._limiter.forget(binding.id)
         self._bus.publish(
             "transport.binding_removed",
             {
@@ -229,6 +248,7 @@ class TransportService:
         transient: bool,
         auth: bool = False,
         quota: bool = False,
+        retry_after_s: int | None = None,
     ) -> AccountTransport:
         return self._health.mark_failure(
             binding,
@@ -237,17 +257,15 @@ class TransportService:
             transient=transient,
             auth=auth,
             quota=quota,
+            retry_after_s=retry_after_s,
         )
 
     async def test(self, account_id: str, binding_id: str) -> dict[str, object]:
         binding = self.get(account_id, binding_id)
         account = self._accounts.get(account_id)
         spec = self._registry.get(account.provider)
-        if binding.kind is not TransportKind.SMTP:
-            raise TransportInvalid(
-                "gmail_api probes are not available yet",
-                hint="authorize the mailbox and use the API binding",
-            )
+        if binding.kind is TransportKind.GMAIL_API:
+            return await self._test_api(binding, account, spec)
         self._credentials.ensure_unlocked()
         try:
             credentials = self._credentials.resolve(account, spec)
@@ -279,30 +297,59 @@ class TransportService:
             "health": updated.health.value,
         }
 
-    def _validate(
+    async def _test_api(
         self,
-        kind: TransportKind,
+        binding: AccountTransport,
+        account: Account,
         spec: ProviderSpec,
-        max_concurrency: int | None,
-        rate_per_min: int | None,
-    ) -> None:
-        if kind is TransportKind.SMTP:
-            if not spec.smtp_host or not spec.smtp_port:
-                raise TransportInvalid(
-                    "the provider has no smtp host",
-                    hint="declare smtp_host and smtp_port first",
-                )
-            if rate_per_min is not None:
-                raise TransportInvalid("rate_per_min applies to gmail_api bindings")
-        if kind is TransportKind.GMAIL_API:
-            if spec.id != "gmail":
-                raise TransportInvalid(
-                    "gmail_api bindings are only supported for gmail",
-                    hint="use an smtp binding for this provider",
-                )
-            if spec.auth_kind is not AuthKind.OAUTH2:
-                raise TransportInvalid("gmail_api requires an oauth2 provider")
-        if max_concurrency is not None and max_concurrency < 1:
-            raise TransportInvalid("max_concurrency must be at least 1")
-        if rate_per_min is not None and rate_per_min < 1:
-            raise TransportInvalid("rate_per_min must be at least 1")
+    ) -> dict[str, object]:
+        self._credentials.ensure_unlocked()
+        client = validation.client_of(self._clients, binding)
+        project_id = client.project_id if client is not None else None
+        try:
+            token = self._credentials.access_token(
+                account, spec, client_id=binding.oauth_client_id
+            )
+            profile = await asyncio.to_thread(
+                gmail_api.profile,
+                spec,
+                token,
+                timeout_s=self._outbound.smtp_timeout_s,
+                project_id=project_id,
+            )
+        except AccountNeedsReauth as error:
+            updated = self.mark_failure(
+                binding,
+                code="account_needs_reauth",
+                message="the mailbox must be reconnected",
+                transient=False,
+                auth=True,
+            )
+            return {
+                "ok": False,
+                "code": "account_needs_reauth",
+                "message": error.message,
+                "health": updated.health.value,
+            }
+        except gmail_api.GmailApiFailure as error:
+            updated = self.mark_failure(
+                binding,
+                code=error.code,
+                message=error.message,
+                transient=error.transient,
+                auth=error.auth,
+                quota=error.quota,
+            )
+            return {
+                "ok": False,
+                "code": error.code,
+                "message": validation.api_message(error, project_id),
+                "health": updated.health.value,
+            }
+        updated = self.mark_success(binding)
+        return {
+            "ok": True,
+            "code": None,
+            "message": f"the gmail api answered for {profile.address}",
+            "health": updated.health.value,
+        }

@@ -114,7 +114,6 @@ class SmtpSession:
         try:
             await client.mail(self._account.address, timeout=self._timeout_s)
             await client.rcpt(recipient, timeout=self._timeout_s)
-            response = await client.data(message, timeout=self._timeout_s)
         except aiosmtplib.SMTPAuthenticationError as error:
             raise SmtpAuthFailure(f"smtp_{error.code}", _text(error.message)) from error
         except aiosmtplib.SMTPResponseException as error:
@@ -124,6 +123,17 @@ class SmtpSession:
                 "smtp_network",
                 str(error) or error.__class__.__name__,
                 transient=True,
+            ) from error
+        try:
+            response = await client.data(message, timeout=self._timeout_s)
+        except aiosmtplib.SMTPResponseException as error:
+            raise _response_failure(error.code, _text(error.message)) from error
+        except (aiosmtplib.SMTPException, OSError, TimeoutError) as error:
+            raise SmtpFailure(
+                "smtp_uncertain",
+                str(error) or error.__class__.__name__,
+                transient=True,
+                uncertain=True,
             ) from error
         accepted_at = time.monotonic()
         self.messages += 1

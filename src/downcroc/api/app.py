@@ -20,6 +20,7 @@ from downcroc.api.routes import (
     health,
     jobs,
     messages,
+    oauth_clients,
     providers,
     service,
     stats,
@@ -97,6 +98,7 @@ def create_app(
     app.include_router(config.router)
     app.include_router(accounts.router)
     app.include_router(transports.router)
+    app.include_router(oauth_clients.router)
     app.include_router(attempts.router)
     app.include_router(providers.router)
     app.include_router(messages.router)

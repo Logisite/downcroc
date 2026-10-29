@@ -26,11 +26,19 @@ class SmtpSendResult:
 
 
 class SmtpFailure(Exception):
-    def __init__(self, code: str, message: str, *, transient: bool) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        transient: bool,
+        uncertain: bool = False,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.transient = transient
+        self.uncertain = uncertain
 
 
 class SmtpAuthFailure(SmtpFailure):
