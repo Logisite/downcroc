@@ -8,6 +8,7 @@ from downcroc.cli.commands.account_connect import (
     connected,
     wait,
 )
+from downcroc.cli.commands.policy import account_policy
 from downcroc.cli.commands.providers import show_list
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
@@ -103,6 +104,7 @@ def run(args: object) -> int:
             "verify",
             "sync",
             "watch",
+            "policy",
         } and not getattr(args, "account_id", None):
             if not ui.interactive:
                 raise CliError(
@@ -159,6 +161,8 @@ def run(args: object) -> int:
             return _watch(client, args, ui)
         if action == "transport":
             return account_transport.run(client, args, ui)
+        if action == "policy":
+            return account_policy(client, args, ui)
         account = get(client, f"/api/accounts/{args.account_id}")
         if ui.json_mode:
             json_out(account)

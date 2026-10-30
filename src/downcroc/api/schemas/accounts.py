@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from downcroc.domain.accounts import Account
 from downcroc.domain.attempts import ConnectAttempt
+from downcroc.domain.policy import SendPolicy
 from downcroc.domain.providers import ProviderSpec
 from downcroc.domain.transports import AccountTransport
 from downcroc.providers.registry import readiness
@@ -63,7 +64,7 @@ class AccountOut(BaseModel):
     quota: QuotaOut
 
     @classmethod
-    def of(cls, account: Account) -> AccountOut:
+    def of(cls, account: Account, policy: SendPolicy) -> AccountOut:
         return cls(
             id=account.id,
             provider=account.provider,
@@ -84,13 +85,13 @@ class AccountOut(BaseModel):
                 consecutive_failures=account.consecutive_failures,
             ),
             quota=QuotaOut(
-                daily_allowance=account.policy.daily_allowance,
-                window_start=account.policy.window_start,
-                window_end=account.policy.window_end,
-                jitter_min=account.policy.jitter_min,
-                jitter_max=account.policy.jitter_max,
-                max_in_flight=account.policy.max_in_flight,
-                enabled=account.policy.enabled,
+                daily_allowance=policy.daily_allowance,
+                window_start=policy.window_start,
+                window_end=policy.window_end,
+                jitter_min=policy.jitter_min,
+                jitter_max=policy.jitter_max,
+                max_in_flight=policy.max_in_flight,
+                enabled=policy.enabled,
             ),
         )
 

@@ -10,6 +10,7 @@ from pydantic import (
     model_validator,
 )
 
+from downcroc.runtime.clock import zone_for
 from downcroc.runtime.config.schema_common import LOOPBACK, RESTART
 
 
@@ -114,6 +115,25 @@ class SendingSettings(BaseModel):
         default=True,
         description="Whether automatic sending is enabled.",
     )
+    enforcement_mode: Literal["permissive", "strict"] = Field(
+        default="permissive",
+        description="Permissive lets account overrides win; strict uses the global values.",
+    )
+    timezone: str = Field(
+        default="UTC",
+        description="IANA name or UTC offset like +1 or -3 used for the send day.",
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def known_timezone(cls, value: str) -> str:
+        try:
+            zone_for(value)
+        except (KeyError, ValueError) as error:
+            raise ValueError(
+                "timezone must be an IANA name like UTC or an offset like +1"
+            ) from error
+        return value
 
     @model_validator(mode="after")
     def ordered_jitter(self) -> SendingSettings:

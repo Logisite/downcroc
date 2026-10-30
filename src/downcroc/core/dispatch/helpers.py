@@ -9,6 +9,7 @@ from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.errors import BatchNotFound
 from downcroc.domain.jobs import Job
+from downcroc.domain.policy import SendPolicy
 from downcroc.runtime.clock import parse_utc, utc_after, utc_now
 
 
@@ -26,7 +27,7 @@ class DispatchHelpers:
     def _can_send(self, account: Account) -> bool:
         return (
             account.status is AccountStatus.CONNECTED
-            and account.policy.enabled
+            and self._policy.effective(account).enabled
             and account.credential_present
             and account.archived_at is None
         )
@@ -66,14 +67,17 @@ class DispatchHelpers:
         weights = [max(1, candidate.remaining) for candidate in candidates]
         return self._rng.choices(candidates, weights=weights, k=1)[0]
 
-    def _apply_spacing(self, picked: list[tuple[Job, Account]]) -> None:
+    def _apply_spacing(
+        self, picked: list[tuple[Job, Account]], policies: dict[str, SendPolicy]
+    ) -> None:
         seen: set[str] = set()
         for _, account in picked:
             if account.id in seen:
                 continue
             seen.add(account.id)
-            low = account.policy.jitter_min
-            high = account.policy.jitter_max
+            policy = policies[account.id]
+            low = policy.jitter_min
+            high = policy.jitter_max
             if high <= 0:
                 self._next_allowed.pop(account.id, None)
                 continue

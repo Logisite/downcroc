@@ -20,11 +20,17 @@ from downcroc.api.app import create_app
 from downcroc.backup.restore import log_outcome, perform_pending
 from downcroc.domain.errors import RestoreFailed
 from downcroc.runtime.config.loader import ConfigError, load_or_create
+from downcroc.runtime.config.loader import read as load_settings
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import setup_logging
 from downcroc.runtime.paths import Paths, ensure
 from downcroc.runtime.service import token as service_token
-from downcroc.runtime.service.lock import AlreadyRunning, InstanceLock, running
+from downcroc.runtime.service.lock import (
+    AlreadyRunning,
+    InstanceLock,
+    lock_pid,
+    running,
+)
 from downcroc.runtime.service.process import (
     detached_kwargs,
     is_alive,
@@ -78,11 +84,36 @@ def _check_port(host: str, port: int) -> None:
             raise PortInUse(f"port {port} is not free: {error.strerror}") from error
 
 
-def _log_tail(path: Path, limit: int = 2000) -> str:
+def _log_size(path: Path) -> int:
     try:
-        return path.read_text(encoding="utf-8", errors="replace")[-limit:].strip()
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _log_since(path: Path, offset: int, limit: int = 1200) -> str:
+    try:
+        with path.open("rb") as handle:
+            handle.seek(offset)
+            data = handle.read()
     except OSError:
         return ""
+    text = data.decode("utf-8", errors="replace").strip()
+    return text[-limit:] if text else ""
+
+
+def _lock_info(paths: Paths, settings: Settings, pid: int) -> ServiceInfo:
+    info = read(paths.service_file)
+    if info is not None and info.pid == pid:
+        return info
+    return ServiceInfo(
+        pid=pid,
+        host=settings.daemon.host,
+        port=settings.daemon.port,
+        started_at="",
+        version=__version__,
+        api_version=API_VERSION,
+    )
 
 
 def _health(info: ServiceInfo, timeout: float = 1.0) -> dict | None:
@@ -261,6 +292,9 @@ def start(
     existing = running(paths.service_file)
     if existing is not None:
         raise AlreadyRunning(existing)
+    held = lock_pid(paths.lock_file)
+    if held is not None:
+        raise AlreadyRunning(_lock_info(paths, settings, held))
     _cleanup(paths)
     _check_port(settings.daemon.host, settings.daemon.port)
     if progress is not None:
@@ -268,6 +302,7 @@ def start(
             f"starting on {settings.daemon.host}:{settings.daemon.port} ...",
             0.0,
         )
+    offset = _log_size(paths.log_file)
     process = subprocess.Popen(
         [*launcher(), "serve"],
         stdin=subprocess.DEVNULL,
@@ -301,7 +336,7 @@ def start(
                     None,
                 )
             time.sleep(0.1)
-        tail = _log_tail(paths.log_file)
+        tail = _log_since(paths.log_file, offset)
         detail = f"\n{tail}" if tail else ""
         raise TimeoutError(
             f"daemon did not answer within {limit:.0f}s "
@@ -319,8 +354,11 @@ def start(
 def stop(paths: Paths, settings: Settings) -> bool:
     info = read(paths.service_file)
     if info is None or not is_alive(info.pid):
-        _cleanup(paths)
-        return False
+        held = lock_pid(paths.lock_file)
+        if held is None:
+            _cleanup(paths)
+            return False
+        info = _lock_info(paths, settings, held)
     token = service_token.read(paths.token_file)
     if _request_stop(info, token):
         deadline = time.monotonic() + settings.daemon.stop_timeout_s
@@ -340,6 +378,14 @@ def stop(paths: Paths, settings: Settings) -> bool:
 
 def status(paths: Paths) -> dict:
     info = read(paths.service_file)
+    if info is None or not is_alive(info.pid):
+        held = lock_pid(paths.lock_file)
+        if held is not None:
+            try:
+                settings = load_settings(paths.config_file)
+            except OSError, ConfigError:
+                settings = Settings()
+            info = _lock_info(paths, settings, held)
     if info is None:
         return {"state": "stopped"}
     if not is_alive(info.pid):

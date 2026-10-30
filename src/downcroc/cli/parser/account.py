@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from downcroc.cli.parser.common import common
+from downcroc.cli.parser.common import common, policy_flags
 from downcroc.cli.parser.provider import IMAP_TLS, SMTP_TLS
 
 
@@ -293,6 +293,38 @@ def account(commands: argparse._SubParsersAction) -> None:
     transport_test.add_argument("account_id", nargs="?")
     transport_test.add_argument("binding_id", nargs="?")
     common(transport_test)
+
+    policy = actions.add_parser(
+        "policy",
+        help="show or override the send policy of a mailbox",
+        epilog=(
+            "examples:\n"
+            "  downcroc account policy show acct_...\n"
+            "  downcroc account policy set acct_... --daily-allowance 50\n"
+            "  downcroc account policy set acct_... --off --for 2h\n"
+            "  downcroc account policy clear acct_..."
+        ),
+    )
+    policy_actions = policy.add_subparsers(dest="policy_action", required=False)
+
+    policy_show = policy_actions.add_parser("show", help="show the effective policy")
+    policy_show.add_argument("account_id", nargs="?")
+    common(policy_show)
+
+    policy_set = policy_actions.add_parser("set", help="set a policy override")
+    policy_set.add_argument("account_id", nargs="?")
+    policy_flags(policy_set)
+    common(policy_set)
+
+    policy_clear = policy_actions.add_parser("clear", help="remove the override")
+    policy_clear.add_argument("account_id", nargs="?")
+    common(policy_clear)
+
+    policy_clear_temp = policy_actions.add_parser(
+        "clear-temporary", help="remove the temporary override only"
+    )
+    policy_clear_temp.add_argument("account_id", nargs="?")
+    common(policy_clear_temp)
 
 
 def attach_auth(commands: argparse._SubParsersAction) -> None:

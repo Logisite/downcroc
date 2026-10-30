@@ -14,12 +14,14 @@ from downcroc.core.dispatch.helpers import Candidate, DispatchHelpers
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
 from downcroc.core.outbound import OutboundService
+from downcroc.core.policy import PolicyResolver
 from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account
 from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.errors import BatchNotFound, DomainError
 from downcroc.domain.jobs import Job, JobState
+from downcroc.domain.policy import SendPolicy
 from downcroc.runtime.clock import parse_utc, utc_after, utc_now
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
@@ -42,6 +44,7 @@ class Dispatcher(DispatchHelpers):
         followups: FollowUpService,
         outbound: OutboundService,
         vault: VaultService,
+        policy: PolicyResolver,
         bus: EventBus,
         log: EventLogger,
     ) -> None:
@@ -57,6 +60,7 @@ class Dispatcher(DispatchHelpers):
         self._followups = followups
         self._outbound = outbound
         self._vault = vault
+        self._policy = policy
         self._bus = bus
         self._log = log
         self._owner = f"dispatch-{uuid.uuid4().hex[:12]}"
@@ -121,11 +125,12 @@ class Dispatcher(DispatchHelpers):
             finally:
                 self._next_followup = time.monotonic() + self._followup_settings.check_s
         started = time.monotonic()
-        moment = eligibility.local_now()
-        day = eligibility.day_key(moment)
+        moment = self._policy.now()
+        day = self._policy.day(moment)
         now = utc_now()
         now_utc = parse_utc(now)
         cache: dict[str, Batch | None] = {}
+        policies: dict[str, SendPolicy] = {}
         candidates: list[Candidate] = []
         due_accounts = 0
         blocked_window = 0
@@ -138,6 +143,8 @@ class Dispatcher(DispatchHelpers):
         for account in self._accounts.list():
             if not self._can_send(account):
                 continue
+            policy = self._policy.effective(account)
+            policies[account.id] = policy
             due = [
                 job
                 for job in self._jobs.due(account.id, now)
@@ -146,11 +153,10 @@ class Dispatcher(DispatchHelpers):
             if not due and not auto_pool:
                 continue
             due_accounts += 1
-            if not eligibility.inside_window(account.policy, moment):
+            if not eligibility.inside_window(policy, moment):
                 blocked_window += 1
                 continue
-            used = self._quota.used(account.id, day)
-            remaining = account.policy.daily_allowance - used
+            remaining = self._quota.available(account.id, day, policy.daily_allowance)
             if remaining <= 0:
                 blocked_allowance += 1
                 continue
@@ -179,34 +185,19 @@ class Dispatcher(DispatchHelpers):
                 if not candidate.jobs:
                     candidates.remove(candidate)
                 continue
-            used = self._quota.consume(
-                candidate.account.id,
-                day,
-                candidate.account.policy.daily_allowance,
-            )
-            if used is None:
-                self._jobs.mark_queued(claimed.id, code="allowance_spent")
-                candidates.remove(candidate)
-                continue
             self._log.debug(
                 "job.leased",
                 job=claimed.id,
                 account=candidate.account.id,
             )
-            self._log.info(
-                "quota.consumed",
-                account=candidate.account.id,
-                used=used,
-                limit=candidate.account.policy.daily_allowance,
-            )
             picked.append((claimed, candidate.account))
             candidate.remaining -= 1
+            policy = policies[candidate.account.id]
             per_account = sum(
                 1 for _, account in picked if account.id == candidate.account.id
             )
             if (
-                per_account
-                >= min(candidate.account.policy.max_in_flight, candidate.lanes)
+                per_account >= min(policy.max_in_flight, candidate.lanes)
                 or candidate.remaining <= 0
                 or (not candidate.jobs and not auto_pool)
             ):
@@ -217,7 +208,7 @@ class Dispatcher(DispatchHelpers):
         sent = sum(1 for result in results if result == "sent")
         failed = sum(1 for result in results if result == "failed")
         deferred = len(results) - sent - failed
-        self._apply_spacing(picked)
+        self._apply_spacing(picked, policies)
         self._log_cycle(len(picked), sent, deferred, started)
         self._finalize({job.batch_id for job, _ in picked})
         if failed:

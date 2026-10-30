@@ -5,6 +5,7 @@ import random
 from dataclasses import dataclass
 from json import dumps
 
+from downcroc.core.policy import PolicyResolver
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.campaign import Campaign, RoutingPolicy
 from downcroc.domain.errors import AccountUnavailable
@@ -36,47 +37,53 @@ class RoutingPlan:
         )
 
 
-def resolve(campaign: Campaign, accounts: list[Account]) -> RoutingPlan:
-    policy = campaign.routing
-    eligible = _eligible(policy, accounts)
+def resolve(
+    campaign: Campaign, accounts: list[Account], policy: PolicyResolver
+) -> RoutingPlan:
+    routing = campaign.routing
+    eligible = _eligible(routing, accounts, policy)
     if not eligible:
         raise AccountUnavailable(
             "no connected account matches the routing policy",
             hint="connect an account or widen campaign.routing",
         )
-    if policy.mode == "fixed":
-        chosen = _find(eligible, policy.account or "")
+    if routing.mode == "fixed":
+        chosen = _find(eligible, routing.account or "")
         if chosen is None:
             raise AccountUnavailable(
-                f"account {policy.account} is not connected or is excluded",
+                f"account {routing.account} is not connected or is excluded",
             )
         assignments = {message.key: chosen.id for message in campaign.messages}
         return RoutingPlan(
-            mode=policy.mode,
+            mode=routing.mode,
             account_id=chosen.id,
-            include=policy.include,
-            exclude=policy.exclude,
+            include=routing.include,
+            exclude=routing.exclude,
             assignments=assignments,
         )
     assignments = {
-        message.key: _pick(campaign.key, message.key, eligible).id
+        message.key: _pick(campaign.key, message.key, eligible, policy).id
         for message in campaign.messages
     }
     return RoutingPlan(
-        mode=policy.mode,
+        mode=routing.mode,
         account_id=None,
-        include=policy.include,
-        exclude=policy.exclude,
+        include=routing.include,
+        exclude=routing.exclude,
         assignments=assignments,
     )
 
 
-def _eligible(policy: RoutingPolicy, accounts: list[Account]) -> list[Account]:
+def _eligible(
+    policy: RoutingPolicy, accounts: list[Account], resolver: PolicyResolver
+) -> list[Account]:
     result = []
     for account in accounts:
         if account.archived_at is not None:
             continue
-        if account.status is not AccountStatus.CONNECTED or not account.policy.enabled:
+        if account.status is not AccountStatus.CONNECTED:
+            continue
+        if not resolver.effective(account).enabled:
             continue
         if policy.include and not _matches(policy.include, account):
             continue
@@ -99,8 +106,15 @@ def _find(accounts: list[Account], wanted: str) -> Account | None:
     return None
 
 
-def _pick(campaign_key: str, message_key: str, accounts: list[Account]) -> Account:
+def _pick(
+    campaign_key: str,
+    message_key: str,
+    accounts: list[Account],
+    resolver: PolicyResolver,
+) -> Account:
     digest = hashlib.sha256(f"{campaign_key}:{message_key}".encode()).digest()
     seed = int.from_bytes(digest[:8], "big")
-    weights = [max(1, account.policy.daily_allowance) for account in accounts]
+    weights = [
+        max(1, resolver.effective(account).daily_allowance) for account in accounts
+    ]
     return random.Random(seed).choices(accounts, weights=weights, k=1)[0]

@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch.job(commands)
     batch.failed(commands)
     other.config(commands)
+    other.sending(commands)
     other.stats(commands)
     other.mail(commands)
     other.logs(commands)

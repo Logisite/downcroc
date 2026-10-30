@@ -14,6 +14,7 @@ from downcroc.core.outbound.transport_delivery import (
     DeliveryOutcome,
     TransportDelivery,
 )
+from downcroc.core.policy import PolicyResolver
 from downcroc.core.stats import StatsService
 from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
@@ -38,6 +39,7 @@ from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.jobs import JobRepo
+from downcroc.store.repositories.quota import QuotaRepo
 from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 
@@ -58,6 +60,8 @@ class OutboundService:
         connect: ConnectSettings,
         send_attempts: SendAttemptRepo,
         transports: TransportService,
+        policy: PolicyResolver,
+        quota: QuotaRepo,
     ) -> None:
         self._jobs = jobs
         self._accounts = accounts
@@ -68,6 +72,8 @@ class OutboundService:
         self._log = log
         self._settings = settings
         self._transports = transports
+        self._policy = policy
+        self._quota = quota
         self._credentials = CredentialResolver(accounts, vault, tokens, clients)
         self._pool = SmtpSessionPool(settings, log)
         self._recorder = AttemptRecorder(send_attempts)
@@ -196,7 +202,7 @@ class OutboundService:
                 "the job is not ready to send",
                 hint="only queued or retry_wait jobs can be sent",
             )
-        return await self.deliver(claimed, account)
+        return await self.deliver(claimed, account, manual=True)
 
     def _sender_for(self, job: Job) -> Account:
         if job.account_id is not None:
@@ -204,7 +210,7 @@ class OutboundService:
         for account in self._accounts.list():
             if (
                 account.status is AccountStatus.CONNECTED
-                and account.policy.enabled
+                and self._policy.effective(account).enabled
                 and self._transports.lanes(account) > 0
             ):
                 return account
@@ -213,13 +219,39 @@ class OutboundService:
             hint="connect an account before sending",
         )
 
-    async def deliver(self, job: Job, account: Account | None = None) -> Job:
+    async def deliver(
+        self, job: Job, account: Account | None = None, *, manual: bool = False
+    ) -> Job:
         self._credentials.ensure_unlocked()
         claimed = job
         if claimed.state is not JobState.SENDING or claimed.lease_owner is None:
             raise JobNotSendable("the job is not leased for sending")
         account = account or self._accounts.get(claimed.account_id)
         self._require_connected(account)
+        policy = self._policy.effective(account)
+        day = self._policy.day()
+        reserved = self._quota.reserve(
+            account.id,
+            day,
+            policy.daily_allowance,
+            force=manual,
+        )
+        if reserved is None:
+            queued = self._jobs.mark_queued(claimed.id, code="allowance_spent")
+            self._log.info(
+                "quota.exhausted",
+                account=account.id,
+                day=day,
+                limit=policy.daily_allowance,
+            )
+            return queued
+        self._log.info(
+            "quota.reserved",
+            account=account.id,
+            day=day,
+            limit=policy.daily_allowance,
+            in_flight=reserved,
+        )
         spec = self._providers.get(account.provider)
         started = time.monotonic()
         started_at = utc_now()
@@ -248,9 +280,16 @@ class OutboundService:
                 message=error.__class__.__name__,
                 retryable=False,
             )
+            self._release(account.id, day, "send_preparation_failed")
             raise
-        outcome = await self._delivery.deliver(claimed, account, spec, wire, started_at)
-        return self._apply(claimed, account, outcome, started)
+        try:
+            outcome = await self._delivery.deliver(
+                claimed, account, spec, wire, started_at
+            )
+        except BaseException:
+            self._release(account.id, day, "send_exception")
+            raise
+        return self._apply(claimed, account, outcome, started, day)
 
     def _apply(
         self,
@@ -258,10 +297,12 @@ class OutboundService:
         account: Account,
         outcome: DeliveryOutcome,
         started: float,
+        day: str,
     ) -> Job:
         if outcome.status == "sent":
             sent = self._jobs.mark_sent(job.id, utc_now())
             self._sent(sent, account, started)
+            self._commit(account.id, day)
             return sent
         if outcome.status == "uncertain":
             result = self._jobs.mark_sent_unconfirmed(
@@ -275,6 +316,7 @@ class OutboundService:
                 account=account.id,
                 code=outcome.code,
             )
+            self._commit(account.id, day)
             return result
         if outcome.status == "reauth":
             self._accounts.mark_needs_reauth(
@@ -286,6 +328,7 @@ class OutboundService:
                 message=outcome.message,
                 retryable=False,
             )
+            self._release(account.id, day, outcome.code or "account_needs_reauth")
             raise AccountNeedsReauth(
                 "the mailbox must be reconnected",
                 hint="connect the account again",
@@ -296,6 +339,7 @@ class OutboundService:
                 if outcome.retry_after_s is not None
                 else utc_now()
             )
+            self._release(account.id, day, outcome.code or "send_deferred")
             return self._jobs.mark_retry(
                 job.id,
                 code=outcome.code or "send_deferred",
@@ -303,11 +347,25 @@ class OutboundService:
                 next_attempt_at=next_attempt,
                 retryable=True,
             )
+        self._release(account.id, day, outcome.code or "send_failed")
         return self._jobs.mark_failed(
             job.id,
             code=outcome.code or "send_failed",
             message=outcome.message or "",
             retryable=False,
+        )
+
+    def _commit(self, account_id: str, day: str) -> None:
+        used = self._quota.commit(account_id, day)
+        self._log.info("quota.committed", account=account_id, day=day, used=used)
+
+    def _release(self, account_id: str, day: str, reason: str) -> None:
+        self._quota.release(account_id, day)
+        self._log.info(
+            "quota.released",
+            account=account_id,
+            day=day,
+            reason=reason,
         )
 
     def _prepare_failed(

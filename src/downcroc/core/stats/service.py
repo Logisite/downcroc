@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from downcroc.core.policy import PolicyResolver
 from downcroc.core.stats.counters import BatchCounterUpdater
-from downcroc.core.stats.range import StatsRange, local_today, parse_range
+from downcroc.core.stats.range import StatsRange, parse_range
 from downcroc.core.stats.rebuild import RebuildResult, RebuildService
 from downcroc.domain.accounts import Account
 from downcroc.domain.activity import (
@@ -40,6 +41,7 @@ class StatsService:
         messages: MessageRepo,
         accounts: AccountRepo,
         quota: QuotaRepo,
+        policy: PolicyResolver,
         log: EventLogger,
     ) -> None:
         self._settings = settings
@@ -50,6 +52,7 @@ class StatsService:
         self._messages = messages
         self._accounts = accounts
         self._quota = quota
+        self._policy = policy
         self._log = log
         self._updater = BatchCounterUpdater(batches, jobs, messages, counters)
         self._rebuilder = RebuildService(
@@ -58,6 +61,7 @@ class StatsService:
             jobs,
             messages,
             self._updater,
+            policy,
             log,
         )
 
@@ -149,18 +153,19 @@ class StatsService:
         chosen = parse_range(from_value, to_value)
         summary = self._activity.summary(chosen.start_day, chosen.end_day)
         by_id = {item.account_id: item.totals for item in summary.accounts}
-        today = local_today().isoformat()
+        today = self._policy.day()
         rows = []
         for account in self._accounts.list():
             if account_id is not None and account.id != account_id:
                 continue
             used = self._quota.used(account.id, today)
+            allowance = self._policy.effective(account).daily_allowance
             rows.append(
                 AccountStats(
                     account_id=account.id,
                     address=account.address,
                     totals=by_id.get(account.id, ActivityTotals()),
-                    remaining_allowance=max(0, account.policy.daily_allowance - used),
+                    remaining_allowance=max(0, allowance - used),
                 )
             )
         return chosen, tuple(rows)
@@ -219,7 +224,7 @@ class StatsService:
             account: Account = self._accounts.get(account_id)
         except AccountNotFound:
             return self._settings.sending.daily_allowance
-        return account.policy.daily_allowance
+        return self._policy.effective(account).daily_allowance
 
 
 def _inside(created_at: str, chosen: StatsRange) -> bool:

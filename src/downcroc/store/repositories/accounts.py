@@ -4,8 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from downcroc.domain.accounts import Account, AccountStatus, SendPolicy
+from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.errors import AccountExists, AccountNotFound
+from downcroc.domain.policy import POLICY_FIELDS, PolicyOverride
 from downcroc.store.db.models import AccountRow, AccountStateRow
 from downcroc.store.repositories.account_deletion import (
     HISTORY,
@@ -35,7 +36,7 @@ def _to_account(row: AccountRow, state: AccountStateRow | None) -> Account:
         created_at=row.created_at,
         last_verified_at=row.last_verified_at,
         archived_at=row.archived_at,
-        policy=SendPolicy(
+        policy=PolicyOverride(
             daily_allowance=row.daily_allowance,
             window_start=row.window_start,
             window_end=row.window_end,
@@ -106,6 +107,13 @@ class AccountRepo(AccountDeletionRepo):
             ) from error
         return account
 
+    def update_policy(self, account_id: str, policy: PolicyOverride) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            for field in POLICY_FIELDS:
+                setattr(row, field, getattr(policy, field))
+        return self.get(account_id)
+
     def mark_connected(
         self,
         account_id: str,
@@ -153,29 +161,6 @@ class AccountRepo(AccountDeletionRepo):
             state = self._state(session, account_id)
             state.watcher_enabled = enabled
         return self.get(account_id)
-
-    def update_policy_matching(self, old: SendPolicy, new: SendPolicy) -> int:
-        with self._sessions.begin() as session:
-            rows = session.scalars(
-                select(AccountRow).where(
-                    AccountRow.daily_allowance == old.daily_allowance,
-                    AccountRow.window_start == old.window_start,
-                    AccountRow.window_end == old.window_end,
-                    AccountRow.jitter_min == old.jitter_min,
-                    AccountRow.jitter_max == old.jitter_max,
-                    AccountRow.max_in_flight == old.max_in_flight,
-                    AccountRow.enabled == old.enabled,
-                )
-            ).all()
-            for row in rows:
-                row.daily_allowance = new.daily_allowance
-                row.window_start = new.window_start
-                row.window_end = new.window_end
-                row.jitter_min = new.jitter_min
-                row.jitter_max = new.jitter_max
-                row.max_in_flight = new.max_in_flight
-                row.enabled = new.enabled
-            return len(rows)
 
     def reset_cursor(self, account_id: str, uidvalidity: int) -> None:
         with self._sessions.begin() as session:

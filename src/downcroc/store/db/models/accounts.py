@@ -21,13 +21,13 @@ class AccountRow(Base):
     created_at: Mapped[str] = mapped_column(Text, nullable=False)
     last_verified_at: Mapped[str | None] = mapped_column(Text)
     archived_at: Mapped[str | None] = mapped_column(Text)
-    daily_allowance: Mapped[int] = mapped_column(Integer, nullable=False)
-    window_start: Mapped[int] = mapped_column(Integer, nullable=False)
-    window_end: Mapped[int] = mapped_column(Integer, nullable=False)
-    jitter_min: Mapped[int] = mapped_column(Integer, nullable=False)
-    jitter_max: Mapped[int] = mapped_column(Integer, nullable=False)
-    max_in_flight: Mapped[int] = mapped_column(Integer, nullable=False)
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    daily_allowance: Mapped[int | None] = mapped_column(Integer)
+    window_start: Mapped[int | None] = mapped_column(Integer)
+    window_end: Mapped[int | None] = mapped_column(Integer)
+    jitter_min: Mapped[int | None] = mapped_column(Integer)
+    jitter_max: Mapped[int | None] = mapped_column(Integer)
+    max_in_flight: Mapped[int | None] = mapped_column(Integer)
+    enabled: Mapped[bool | None] = mapped_column(Boolean)
 
 
 class AccountStateRow(Base):

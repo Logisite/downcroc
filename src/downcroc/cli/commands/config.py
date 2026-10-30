@@ -57,7 +57,9 @@ def _range(field: dict) -> str:
     return ", ".join(f"{key}={value}" for key, value in limits.items())
 
 
-def _value(text: str) -> Any:
+def _value(text: str, kind: str | None = None) -> Any:
+    if kind == "string":
+        return text
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -85,6 +87,8 @@ def _restart_keys(fields: list[dict]) -> set[str]:
 def _set(client, args: object, ui) -> int:
     current = get(client, "/api/config")
     schema = get(client, "/api/config/schema")
+    fields = {field["path"]: field for field in schema["fields"]}
+    kind = fields.get(args.key, {}).get("type")
     before = flatten(current["config"]).get(args.key)
     text = getattr(args, "value", None)
     if text is None:
@@ -93,7 +97,7 @@ def _set(client, args: object, ui) -> int:
         if not text or text == default:
             print(ui.dim(f"{args.key} is unchanged"))
             return 0
-    result = patch(client, "/api/config", _patch(args.key, _value(text)))
+    result = patch(client, "/api/config", _patch(args.key, _value(text, kind)))
     after = flatten(result["config"]).get(args.key)
     body = {
         "key": args.key,

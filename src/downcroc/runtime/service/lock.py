@@ -74,3 +74,15 @@ def running(path: Path) -> ServiceInfo | None:
     if not is_alive(info.pid):
         return None
     return info
+
+
+def lock_pid(path: Path) -> int | None:
+    """Return the live pid holding the instance lock, or None."""
+    try:
+        text = path.read_text(encoding="ascii").strip()
+    except OSError:
+        return None
+    if not text.isdigit():
+        return None
+    pid = int(text)
+    return pid if is_alive(pid) else None

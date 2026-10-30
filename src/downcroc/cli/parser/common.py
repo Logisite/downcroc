@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from datetime import date
 
 from downcroc.cli.errors import UsageError
@@ -51,6 +52,40 @@ def day(value: str) -> str:
     except ValueError as error:
         raise argparse.ArgumentTypeError("use YYYY-MM-DD") from error
     return value
+
+
+def duration(value: str) -> int:
+    match = re.fullmatch(r"(\d+)([smhd])", value.strip().lower())
+    if match is None:
+        raise argparse.ArgumentTypeError("use a duration like 30s, 15m, 2h, or 7d")
+    amount = int(match.group(1))
+    if amount < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    unit = match.group(2)
+    seconds = amount * {"s": 1, "m": 60, "h": 3_600, "d": 86_400}[unit]
+    if seconds > 2_592_000:
+        raise argparse.ArgumentTypeError("must be 30 days or less")
+    return seconds
+
+
+def policy_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--daily-allowance", type=positive)
+    parser.add_argument("--window-start", type=non_negative)
+    parser.add_argument("--window-end", type=non_negative)
+    parser.add_argument("--jitter-min", type=non_negative)
+    parser.add_argument("--jitter-max", type=non_negative)
+    parser.add_argument("--max-in-flight", type=positive)
+    state = parser.add_mutually_exclusive_group()
+    state.add_argument("--on", action="store_true", dest="enabled")
+    state.add_argument("--off", action="store_false", dest="enabled")
+    parser.set_defaults(enabled=None)
+    parser.add_argument(
+        "--for",
+        dest="for_s",
+        type=duration,
+        metavar="DURATION",
+        help="set a temporary override, for example 2h or 7d",
+    )
 
 
 def common(

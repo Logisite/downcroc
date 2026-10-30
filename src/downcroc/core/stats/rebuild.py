@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
+from downcroc.core.policy import PolicyResolver
 from downcroc.core.stats.counters import BatchCounterUpdater
 from downcroc.core.stats.range import local_today, parse_day
 from downcroc.domain.activity import ACTIVITY_FIELDS
@@ -32,6 +33,7 @@ class RebuildService:
         jobs: JobRepo,
         messages: MessageRepo,
         counters: BatchCounterUpdater,
+        policy: PolicyResolver,
         log: EventLogger,
     ) -> None:
         self._activity = activity
@@ -39,6 +41,7 @@ class RebuildService:
         self._jobs = jobs
         self._messages = messages
         self._counters = counters
+        self._policy = policy
         self._log = log
 
     def run(self, since: str | None) -> RebuildResult:
@@ -61,7 +64,7 @@ class RebuildService:
                 )
 
         allowances = {
-            account.id: account.policy.daily_allowance
+            account.id: self._policy.effective(account).daily_allowance
             for account in self._accounts.list()
         }
         if covered is None:

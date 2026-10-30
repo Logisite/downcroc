@@ -11,12 +11,10 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from downcroc.core.accounts_service import AccountsService
 from downcroc.core.followups import FollowUpService
-from downcroc.domain.accounts import SendPolicy
 from downcroc.domain.errors import ConfigRejected
 from downcroc.runtime.config.loader import ConfigError, read, write
-from downcroc.runtime.config.schema import SendingSettings, Settings
+from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.config.spec import changed_paths, describe, merge
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
@@ -25,18 +23,6 @@ from downcroc.runtime.paths import Paths
 @dataclass(frozen=True)
 class ConfigApply:
     changed: list[str]
-
-
-def _policy(settings: SendingSettings) -> SendPolicy:
-    return SendPolicy(
-        daily_allowance=settings.daily_allowance,
-        window_start=settings.window_start,
-        window_end=settings.window_end,
-        jitter_min=settings.jitter_min,
-        jitter_max=settings.jitter_max,
-        max_in_flight=settings.max_in_flight,
-        enabled=settings.enabled,
-    )
 
 
 def _assign(target: BaseModel, source: BaseModel) -> None:
@@ -61,13 +47,11 @@ class ConfigService:
         paths: Paths,
         settings: Settings,
         log: EventLogger,
-        accounts: AccountsService,
         followups: FollowUpService,
     ) -> None:
         self._paths = paths
         self._settings = settings
         self._log = log
-        self._accounts = accounts
         self._followups = followups
         self._lock = threading.RLock()
         self._digest: str | None = None
@@ -191,11 +175,7 @@ class ConfigService:
             ) from error
 
     def _apply(self, candidate: Settings) -> None:
-        old_sending = _policy(self._settings.sending)
-        new_sending = _policy(candidate.sending)
         old_level = self._settings.logging.level
-        if old_sending != new_sending:
-            self._accounts.apply_sending_defaults(old_sending, new_sending)
         _assign(self._settings, candidate)
         self._followups.reload_limits()
         if old_level != candidate.logging.level:

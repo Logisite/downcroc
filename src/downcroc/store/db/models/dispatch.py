@@ -14,6 +14,7 @@ class QuotaBucketRow(Base):
     )
     day: Mapped[str] = mapped_column(Text, primary_key=True)
     used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reserved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class FailedJobRow(Base):

@@ -7,7 +7,7 @@ from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.stats import StatsService
 from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
-from downcroc.domain.accounts import Account, AccountStatus, SendPolicy
+from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.attempts import ConnectAttempt
 from downcroc.domain.errors import (
     AccountNeedsReauth,
@@ -17,6 +17,7 @@ from downcroc.domain.errors import (
     ProviderAuthMismatch,
     VaultLocked,
 )
+from downcroc.domain.policy import PolicyOverride
 from downcroc.domain.providers import AuthKind
 from downcroc.domain.secrets import secret_key
 from downcroc.domain.validators import validate_account
@@ -38,7 +39,6 @@ class AccountsService(AccountLoginMixin):
         accounts: AccountRepo,
         bus: EventBus,
         log: EventLogger,
-        policy: SendPolicy,
         registry: ProviderRegistry,
         vault: VaultService,
         tokens: TokenManager,
@@ -53,7 +53,6 @@ class AccountsService(AccountLoginMixin):
         self._accounts = accounts
         self._bus = bus
         self._log = log
-        self._policy = policy
         self._registry = registry
         self._vault = vault
         self._tokens = tokens
@@ -82,7 +81,7 @@ class AccountsService(AccountLoginMixin):
             credential_present=False,
             created_at=utc_now(),
             last_verified_at=None,
-            policy=self._policy,
+            policy=PolicyOverride(),
         )
         self._accounts.create(account)
         self._transports.ensure_defaults(account)
@@ -92,11 +91,6 @@ class AccountsService(AccountLoginMixin):
 
     def list(self) -> list[Account]:
         return self._accounts.list()
-
-    def apply_sending_defaults(self, old: SendPolicy, new: SendPolicy) -> int:
-        updated = self._accounts.update_policy_matching(old, new)
-        self._policy = new
-        return updated
 
     def get(self, account_id: str) -> Account:
         return self._accounts.get(account_id)

@@ -13,6 +13,8 @@ from downcroc.api.schemas.accounts import (
     WatcherToggle,
 )
 from downcroc.core.accounts_service import AccountsService
+from downcroc.core.policy import PolicyResolver
+from downcroc.domain.accounts import Account
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
@@ -21,20 +23,28 @@ def _service(request: Request) -> AccountsService:
     return request.app.state.services.accounts
 
 
+def _policy(request: Request) -> PolicyResolver:
+    return request.app.state.services.policy
+
+
+def _out(request: Request, account: Account) -> AccountOut:
+    return AccountOut.of(account, _policy(request).effective(account))
+
+
 @router.get("", response_model=list[AccountOut])
 def list_accounts(request: Request) -> list[AccountOut]:
-    return [AccountOut.of(account) for account in _service(request).list()]
+    return [_out(request, account) for account in _service(request).list()]
 
 
 @router.post("", response_model=AccountOut, status_code=201)
 def create_account(body: AccountCreate, request: Request) -> AccountOut:
     account = _service(request).create(body.provider, body.address, body.label)
-    return AccountOut.of(account)
+    return _out(request, account)
 
 
 @router.get("/{account_id}", response_model=AccountOut)
 def get_account(account_id: str, request: Request) -> AccountOut:
-    return AccountOut.of(_service(request).get(account_id))
+    return _out(request, _service(request).get(account_id))
 
 
 @router.get("/{account_id}/deletion", response_model=AccountDeletionOut)
@@ -66,7 +76,7 @@ def archive_account(
     account_id: str, request: Request, confirm: bool = Query(default=False)
 ) -> AccountOut:
     require(confirm)
-    return AccountOut.of(_service(request).archive(account_id))
+    return _out(request, _service(request).archive(account_id))
 
 
 @router.post("/{account_id}/unarchive", response_model=AccountOut)
@@ -74,7 +84,7 @@ def unarchive_account(
     account_id: str, request: Request, confirm: bool = Query(default=False)
 ) -> AccountOut:
     require(confirm)
-    return AccountOut.of(_service(request).unarchive(account_id))
+    return _out(request, _service(request).unarchive(account_id))
 
 
 @router.post("/{account_id}/attempts", response_model=AttemptOut, status_code=201)
@@ -92,21 +102,21 @@ def connect_password(
     account_id: str, body: AppPasswordConnect, request: Request
 ) -> AccountOut:
     account = _service(request).connect_password(account_id, body.password)
-    return AccountOut.of(account)
+    return _out(request, account)
 
 
 @router.post("/{account_id}/verify", response_model=AccountOut)
 def verify_account(
     account_id: str, request: Request, refresh: bool = False
 ) -> AccountOut:
-    return AccountOut.of(_service(request).verify(account_id, refresh=refresh))
+    return _out(request, _service(request).verify(account_id, refresh=refresh))
 
 
 @router.patch("/{account_id}/watcher", response_model=AccountOut)
 def set_watcher(account_id: str, body: WatcherToggle, request: Request) -> AccountOut:
-    return AccountOut.of(_service(request).set_watcher(account_id, body.enabled))
+    return _out(request, _service(request).set_watcher(account_id, body.enabled))
 
 
 @router.post("/{account_id}/sync", response_model=AccountOut, status_code=202)
 def sync_account(account_id: str, request: Request) -> AccountOut:
-    return AccountOut.of(_service(request).sync(account_id))
+    return _out(request, _service(request).sync(account_id))

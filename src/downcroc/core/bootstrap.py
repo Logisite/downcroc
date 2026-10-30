@@ -16,12 +16,13 @@ from downcroc.core.followups import FollowUpService
 from downcroc.core.inbound import InboundService
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound import OutboundService
+from downcroc.core.policy import PolicyResolver
+from downcroc.core.policy_service import PolicyService
 from downcroc.core.portability import PortabilityService
 from downcroc.core.retention import RetentionService
 from downcroc.core.stats import StatsService
 from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
-from downcroc.domain.accounts import SendPolicy
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.providers.token import TokenManager
 from downcroc.runtime.config.schema import Settings
@@ -40,6 +41,7 @@ from downcroc.store.repositories.failures import FailureRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
 from downcroc.store.repositories.oauth_clients import OAuthClientRepo
+from downcroc.store.repositories.policy import PolicyRepo
 from downcroc.store.repositories.quota import QuotaRepo
 from downcroc.store.repositories.send_attempts import SendAttemptRepo
 from downcroc.store.repositories.transports import TransportRepo
@@ -56,6 +58,8 @@ class Services:
     providers: ProviderRegistry
     messages: MessageRepo
     content: ContentStore
+    policy: PolicyResolver
+    policy_overrides: PolicyService
     inbound: InboundService
     outbound: OutboundService
     batches: BatchesService
@@ -83,25 +87,21 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     sessions = sessions_for(engine)
     events = EventRepo(sessions, settings.events.ring_size)
     bus = EventBus(events, settings.events.queue_size)
-    policy = SendPolicy(
-        daily_allowance=settings.sending.daily_allowance,
-        window_start=settings.sending.window_start,
-        window_end=settings.sending.window_end,
-        jitter_min=settings.sending.jitter_min,
-        jitter_max=settings.sending.jitter_max,
-        max_in_flight=settings.sending.max_in_flight,
-        enabled=settings.sending.enabled,
-    )
+    policy_repo = PolicyRepo(sessions)
+    policy = PolicyResolver(settings, policy_repo)
+    policy_repo.clear_expired()
     vault = VaultService(paths.data / "vault.enc", settings.vault, bus, log)
     providers = ProviderRegistry.load(paths.config, log)
     attempts = AttemptRepo(sessions)
     attempts.expire_pending("daemon_restart")
     tokens = TokenManager(vault, providers, settings.connect, log)
     account_repo = AccountRepo(sessions)
+    policy_service = PolicyService(account_repo, policy_repo, policy, bus, log)
     message_repo = MessageRepo(sessions)
     job_repo = JobRepo(sessions)
     batch_repo = BatchRepo(sessions)
     quota_repo = QuotaRepo(sessions)
+    quota_repo.reset_reservations()
     send_attempts = SendAttemptRepo(sessions)
     transport_repo = TransportRepo(sessions)
     oauth_client_repo = OAuthClientRepo(sessions)
@@ -117,6 +117,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         message_repo,
         account_repo,
         quota_repo,
+        policy,
         log,
     )
     inbound = InboundService(
@@ -159,7 +160,6 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         account_repo,
         bus,
         log,
-        policy,
         providers,
         vault,
         tokens,
@@ -186,6 +186,8 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings.connect,
         send_attempts,
         transports,
+        policy,
+        quota_repo,
     )
     inbound.open()
     batches = BatchesService(
@@ -198,6 +200,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         content,
         outbound,
         stats,
+        policy,
         bus,
         log,
     )
@@ -253,12 +256,13 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         followups,
         outbound,
         vault,
+        policy,
         bus,
         log,
     )
     backup = BackupService(paths, log)
     restore = RestoreService(paths, log)
-    config = ConfigService(paths, settings, log, accounts, followups)
+    config = ConfigService(paths, settings, log, followups)
     return Services(
         engine=engine,
         sessions=sessions,
@@ -269,6 +273,8 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         providers=providers,
         messages=message_repo,
         content=content,
+        policy=policy,
+        policy_overrides=policy_service,
         inbound=inbound,
         outbound=outbound,
         batches=batches,

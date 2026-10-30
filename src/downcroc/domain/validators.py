@@ -25,3 +25,14 @@ def validate_account(provider: str, address: str, label: str) -> tuple[str, str,
     if fields:
         raise InvalidAccount("the account fields are not valid", fields=fields)
     return provider, address, label
+
+
+def validate_policy(values: dict[str, object]) -> None:
+    low = values.get("jitter_min")
+    high = values.get("jitter_max")
+    if isinstance(low, int) and isinstance(high, int) and high < low:
+        raise ValueError("jitter_max must be at least jitter_min")
+    start = values.get("window_start")
+    end = values.get("window_end")
+    if isinstance(start, int) and isinstance(end, int) and start == end:
+        raise ValueError("window_start and window_end must differ")

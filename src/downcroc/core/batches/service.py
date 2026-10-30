@@ -18,6 +18,7 @@ from downcroc.core.inputs import routing
 from downcroc.core.inputs.override import fixed_account
 from downcroc.core.inputs.routing import RoutingPlan
 from downcroc.core.outbound import OutboundService
+from downcroc.core.policy import PolicyResolver
 from downcroc.core.stats import StatsService
 from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.campaign import Campaign
@@ -52,6 +53,7 @@ class BatchesService:
         content: ContentStore,
         outbound: OutboundService,
         stats: StatsService,
+        policy: PolicyResolver,
         bus: EventBus,
         log: EventLogger,
     ) -> None:
@@ -63,6 +65,7 @@ class BatchesService:
         self._content = content
         self._outbound = outbound
         self._stats = stats
+        self._policy = policy
         self._bus = bus
         self._log = log
         self._reader = CampaignReader(settings, paths, log)
@@ -102,7 +105,7 @@ class BatchesService:
                 )
                 return replace(self.detail(existing.id), reused=True)
 
-        plan = routing.resolve(campaign, self._accounts.list())
+        plan = routing.resolve(campaign, self._accounts.list(), self._policy)
         batch_id = new_id("bat")
         approval = campaign.options.approval
         job_state = (
@@ -173,7 +176,7 @@ class BatchesService:
             campaign = fixed_account(campaign, account)
         plan: RoutingPlan | None = None
         try:
-            plan = routing.resolve(campaign, self._accounts.list())
+            plan = routing.resolve(campaign, self._accounts.list(), self._policy)
         except AccountUnavailable:
             plan = None
         assignments = plan.assignments if plan else {}

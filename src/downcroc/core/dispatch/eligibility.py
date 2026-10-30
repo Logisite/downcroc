@@ -2,15 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from downcroc.domain.accounts import SendPolicy
-
-
-def local_now() -> datetime:
-    return datetime.now().astimezone()
-
-
-def day_key(moment: datetime) -> str:
-    return moment.date().isoformat()
+from downcroc.domain.policy import SendPolicy
 
 
 def inside_window(policy: SendPolicy, moment: datetime) -> bool:

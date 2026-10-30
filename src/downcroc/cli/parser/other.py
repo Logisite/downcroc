@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from downcroc.cli.parser.common import LEVELS, common, day, limit
+from downcroc.cli.parser.common import LEVELS, common, day, limit, policy_flags
 
 
 def top(commands: argparse._SubParsersAction) -> None:
@@ -156,6 +156,31 @@ def config(commands: argparse._SubParsersAction) -> None:
         "value", nargs="?", help="JSON literal or plain text; asked when omitted"
     )
     common(set_value)
+
+
+def sending(commands: argparse._SubParsersAction) -> None:
+    parser = commands.add_parser(
+        "sending",
+        help="inspect and override the global send policy",
+        epilog=(
+            "examples:\n"
+            "  downcroc sending show\n"
+            "  downcroc sending set --daily-allowance 100\n"
+            "  downcroc sending set --off --for 1h\n"
+            "  downcroc sending clear"
+        ),
+    )
+    actions = parser.add_subparsers(dest="action", required=False)
+
+    show = actions.add_parser("show", help="show the effective policy")
+    common(show)
+
+    set_value = actions.add_parser("set", help="set a service override")
+    policy_flags(set_value)
+    common(set_value)
+
+    clear = actions.add_parser("clear", help="remove the service override")
+    common(clear)
 
 
 def stats(commands: argparse._SubParsersAction) -> None:

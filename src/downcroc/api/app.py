@@ -21,6 +21,7 @@ from downcroc.api.routes import (
     jobs,
     messages,
     oauth_clients,
+    policy,
     providers,
     service,
     stats,
@@ -97,6 +98,7 @@ def create_app(
     app.include_router(vault.router)
     app.include_router(config.router)
     app.include_router(accounts.router)
+    app.include_router(policy.router)
     app.include_router(transports.router)
     app.include_router(oauth_clients.router)
     app.include_router(attempts.router)
