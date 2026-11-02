@@ -1,11 +1,15 @@
 param(
     [string]$Wheel = "",
+    [string]$Version = "1.2.2",
     [string]$Prefix = "$env:LOCALAPPDATA\downcroc",
     [switch]$NoInit
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "1.2.2"
+if ($Version -notmatch "^[0-9A-Za-z.+_-]+$") {
+    Write-Error "invalid version: $Version"
+    exit 2
+}
 $ReleaseWheel = "https://github.com/Logisite/downcroc/releases/download/v$Version/downcroc-$Version-py3-none-any.whl"
 
 function Find-Python {

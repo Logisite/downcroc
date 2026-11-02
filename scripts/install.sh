@@ -5,7 +5,6 @@ VERSION="1.2.2"
 PREFIX="${DOWNCROC_PREFIX:-$HOME/.local}"
 WHEEL=""
 RUN_INIT=1
-RELEASE_WHEEL="https://github.com/Logisite/downcroc/releases/download/v${VERSION}/downcroc-${VERSION}-py3-none-any.whl"
 
 usage() {
     cat <<'EOF'
@@ -15,6 +14,7 @@ usage: install.sh [options]
 
 options:
   --wheel PATH    install this .whl file
+  --version VER   install a release version (default: 1.2.2)
   --prefix DIR    install under DIR (default: ~/.local)
   --no-init       do not run downcroc init
   -h, --help      show this help
@@ -29,6 +29,11 @@ while [ $# -gt 0 ]; do
         --wheel)
             [ $# -ge 2 ] || { echo "install.sh: --wheel needs a path" >&2; exit 2; }
             WHEEL="$2"
+            shift 2
+            ;;
+        --version)
+            [ $# -ge 2 ] || { echo "install.sh: --version needs a version" >&2; exit 2; }
+            VERSION="$2"
             shift 2
             ;;
         --prefix)
@@ -62,10 +67,19 @@ for candidate in python3.14 python3 python; do
     fi
 done
 
+case "$VERSION" in
+    ""|*[!0-9A-Za-z.+_-]*)
+        echo "install.sh: invalid version: $VERSION" >&2
+        exit 2
+        ;;
+esac
+
 case "$PREFIX" in
     /*) ;;
     *) PREFIX="$(pwd)/$PREFIX" ;;
 esac
+
+RELEASE_WHEEL="https://github.com/Logisite/downcroc/releases/download/v${VERSION}/downcroc-${VERSION}-py3-none-any.whl"
 
 if [ -z "$PYTHON" ]; then
     echo "install.sh: Python 3.14 or newer is required" >&2
