@@ -33,7 +33,16 @@ def submit_batch(
     )
     if detail.reused:
         response.status_code = 200
-    return BatchDetailOut.from_detail(detail)
+    capacity = _services(request).capacity
+    return BatchDetailOut.from_detail(
+        detail,
+        capacity.batch_eta(detail.batch),
+        capacity.selection(
+            sum(detail.counts.values()),
+            account_ids=[detail.batch.account_id] if detail.batch.account_id else None,
+            pinned=detail.batch.account_id is not None,
+        ),
+    )
 
 
 @router.post("/preview", response_model=PreviewOut)
@@ -46,7 +55,16 @@ def preview_batch(
     preview = _services(request).batches.preview(
         body.path, body.template, key, body.account, all
     )
-    return PreviewOut.of(preview)
+    capacity = _services(request).capacity
+    account_ids = [body.account] if body.account else None
+    return PreviewOut.of(
+        preview,
+        capacity.selection(
+            preview.valid,
+            account_ids=account_ids,
+            pinned=body.account is not None,
+        ),
+    )
 
 
 @router.get("", response_model=list[BatchOut])
@@ -59,15 +77,27 @@ def list_batches(
 ) -> list[BatchOut]:
     service = _services(request).batches
     response.headers["X-Total-Count"] = str(service.count(state=state))
+    capacity = _services(request).capacity
     return [
-        BatchOut.of(batch, service.counts(batch.id))
+        BatchOut.of(batch, service.counts(batch.id), capacity.batch_eta(batch))
         for batch in service.list(state=state, limit=limit, offset=offset)
     ]
 
 
 @router.get("/{batch_id}", response_model=BatchDetailOut)
 def get_batch(batch_id: str, request: Request) -> BatchDetailOut:
-    return BatchDetailOut.from_detail(_services(request).batches.detail(batch_id))
+    services = _services(request)
+    detail = services.batches.detail(batch_id)
+    capacity = services.capacity
+    return BatchDetailOut.from_detail(
+        detail,
+        capacity.batch_eta(detail.batch),
+        capacity.selection(
+            sum(detail.counts.values()),
+            account_ids=[detail.batch.account_id] if detail.batch.account_id else None,
+            pinned=detail.batch.account_id is not None,
+        ),
+    )
 
 
 @router.post("/{batch_id}/approve", response_model=BatchDetailOut)

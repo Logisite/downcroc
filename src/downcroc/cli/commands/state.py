@@ -4,6 +4,8 @@ import time
 from pathlib import Path
 
 from downcroc.cli.client import api, get
+from downcroc.cli.commands.doctor_transports import capacity as doctor_capacity
+from downcroc.cli.commands.doctor_transports import transports as doctor_transports
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
@@ -163,7 +165,18 @@ def _writable(path: Path) -> bool:
     return path.is_dir()
 
 
+def _doctor_remote(selected: str, args: object, ui: Ui) -> int:
+    paths, _, _ = load()
+    with api(paths, timeout=getattr(args, "timeout", None)) as client:
+        if selected == "transports":
+            return doctor_transports(client, ui)
+        return doctor_capacity(client, ui)
+
+
 def doctor(args: object, ui: Ui) -> int:
+    selected = getattr(args, "doctor_command", None)
+    if selected in {"transports", "capacity"}:
+        return _doctor_remote(selected, args, ui)
     checks = _checks(args, ui)
     failed = [item for item in checks if not item["ok"]]
     if ui.json_mode:

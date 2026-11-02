@@ -43,7 +43,8 @@ def list_jobs(
     response.headers["X-Total-Count"] = str(
         service.count(batch_id=batch, account_id=account, state=state)
     )
-    return [JobOut.of(job) for job in jobs]
+    capacity = _services(request).capacity
+    return [JobOut.of(job, capacity.job_eta(job)) for job in jobs]
 
 
 @router.post("", response_model=JobOut, status_code=201)
@@ -132,10 +133,13 @@ def delete_job(
 
 @router.get("/{job_id}", response_model=JobOut)
 def get_job(job_id: str, request: Request) -> JobOut:
-    return JobOut.of(_services(request).outbound.get(job_id))
+    services = _services(request)
+    job = services.outbound.get(job_id)
+    return JobOut.of(job, services.capacity.job_eta(job))
 
 
 @router.post("/{job_id}/send", response_model=JobOut)
 async def send_job(job_id: str, request: Request) -> JobOut:
-    job = await _services(request).outbound.send(job_id)
-    return JobOut.of(job)
+    services = _services(request)
+    job = await services.outbound.send(job_id)
+    return JobOut.of(job, services.capacity.job_eta(job))

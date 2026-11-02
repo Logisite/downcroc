@@ -60,12 +60,32 @@ class OAuthFlow:
             )
         with self._start_lock:
             pending = self.attempts.pending_for_account(account.id)
+            if pending is not None and self._expired(pending):
+                self._expire(pending, "expired")
+                self._stop(pending.id)
+                pending = None
             if pending is not None:
                 raise AttemptPending(
                     "an attempt is already waiting for this account",
                     hint=f"cancel attempt {pending.id} first",
                 )
             return self._start(account, spec)
+
+    @staticmethod
+    def _expired(attempt: ConnectAttempt) -> bool:
+        try:
+            return parse_utc(utc_now()) >= parse_utc(attempt.expires_at)
+        except ValueError:
+            return True
+
+    def _expire(self, attempt: ConnectAttempt, reason: str) -> None:
+        if self.attempts.set_state(attempt.id, AttemptState.EXPIRED, reason):
+            self.log.warning(
+                "oauth.failed",
+                code=reason,
+                attempt=attempt.id,
+                account=attempt.account_id,
+            )
 
     def _start(self, account: Account, spec: ProviderSpec) -> ConnectAttempt:
         try:
@@ -193,6 +213,17 @@ class OAuthFlow:
                     break
                 listener.server.handle_request()
         except (OSError, ValueError, SQLAlchemyError) as failure:
+            self.attempts.set_state(
+                listener.attempt.id, AttemptState.FAILED, "oauth_failed"
+            )
+            self.log.error(
+                "oauth.failed",
+                code="listener_error",
+                attempt=listener.attempt.id,
+                account=listener.attempt.account_id,
+                error=type(failure).__name__,
+            )
+        except Exception as failure:  # noqa: BLE001 - the listener must never die
             self.attempts.set_state(
                 listener.attempt.id, AttemptState.FAILED, "oauth_failed"
             )

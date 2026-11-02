@@ -20,6 +20,7 @@ from downcroc.domain.errors import (
 from downcroc.domain.policy import PolicyOverride
 from downcroc.domain.providers import AuthKind
 from downcroc.domain.secrets import secret_key
+from downcroc.domain.transports import TransportKind
 from downcroc.domain.validators import validate_account
 from downcroc.providers.oauth.flow import OAuthFlow
 from downcroc.providers.registry import ProviderRegistry
@@ -62,6 +63,7 @@ class AccountsService(AccountLoginMixin):
         self._stats = stats
         self._transports = transports
         self._clients = clients
+        self._attempt_transports: dict[str, TransportKind] = {}
         self._flow = OAuthFlow(attempts, settings, log, self._complete_oauth)
 
     def create(self, provider: str, address: str, label: str) -> Account:
@@ -164,12 +166,32 @@ class AccountsService(AccountLoginMixin):
         return {"account_id": account_id, "counts": counts, "blockers": blockers}
 
     def start_attempt(
-        self, account_id: str, client_id: str | None = None
+        self,
+        account_id: str,
+        client_id: str | None = None,
+        transport: str | None = None,
     ) -> ConnectAttempt:
         account = self._accounts.get(account_id)
+        kind = self._transport_kind(transport)
         spec = self._clients.spec_for(account.provider, client_id)
         self._vault.ensure_unlocked()
-        return self._flow.start(account, spec)
+        attempt = self._flow.start(account, spec)
+        if kind is not None:
+            self._attempt_transports[attempt.id] = kind
+        return attempt
+
+    @staticmethod
+    def _transport_kind(value: str | None) -> TransportKind | None:
+        if not value:
+            return None
+        try:
+            return TransportKind(value)
+        except ValueError as error:
+            raise InvalidAccount(
+                "unknown transport",
+                hint="use smtp or gmail_api",
+                fields={"transport": value},
+            ) from error
 
     def attempt(self, attempt_id: str) -> ConnectAttempt:
         return self._flow.get(attempt_id)

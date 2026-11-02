@@ -3,11 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Query, Request
 
 from downcroc.api.confirm import require
+from downcroc.api.schemas.accounts import AttemptOut
 from downcroc.api.schemas.oauth_clients import (
+    OAuthAuthorize,
     OAuthClientDependentOut,
     OAuthClientImport,
     OAuthClientOut,
 )
+from downcroc.core.accounts_service import AccountsService
 from downcroc.core.oauth_clients import OAuthClientService
 
 router = APIRouter(prefix="/api/oauth-clients", tags=["oauth-clients"])
@@ -39,6 +42,20 @@ def get_client(client_id: str, request: Request) -> OAuthClientOut:
 def list_dependents(client_id: str, request: Request) -> list[OAuthClientDependentOut]:
     rows = _service(request).dependent_rows(client_id)
     return [OAuthClientDependentOut(**row) for row in rows]
+
+
+@router.post("/{client_id}/authorize", response_model=AttemptOut, status_code=201)
+def authorize(
+    client_id: str, body: OAuthAuthorize, request: Request
+) -> AttemptOut:
+    """Start or resume the mailbox OAuth flow for an imported client."""
+    accounts: AccountsService = request.app.state.services.accounts
+    attempt = accounts.start_attempt(
+        body.account_id,
+        client_id,
+        body.transport,
+    )
+    return AttemptOut.of(attempt)
 
 
 @router.post("/{client_id}/revoke", response_model=OAuthClientOut)

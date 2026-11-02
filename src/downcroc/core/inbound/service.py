@@ -15,6 +15,7 @@ from downcroc.core.inbound.signals import (
 )
 from downcroc.core.inbound.watcher import WatcherRunner
 from downcroc.core.inbound.worker import QueueWorker
+from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.stats import StatsService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import AccountStatus
@@ -36,6 +37,7 @@ class InboundService:
         registry: ProviderRegistry,
         vault: VaultService,
         tokens: TokenManager,
+        clients: OAuthClientService,
         content: ContentStore,
         bus: EventBus,
         log: EventLogger,
@@ -59,6 +61,7 @@ class InboundService:
             registry,
             vault,
             tokens,
+            clients,
             log,
             settings,
             connect,

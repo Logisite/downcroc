@@ -48,6 +48,21 @@ class EventRepo:
             ).all()
             return [_to_event(row) for row in rows]
 
+    def recent(self, prefix: str, limit: int) -> list[Event]:
+        """Return the newest events whose type starts with ``prefix``.
+
+        The result is chronological so a caller can render a timeline without
+        reversing it again.
+        """
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(EventRow)
+                .where(EventRow.type.like(f"{prefix}%"))
+                .order_by(EventRow.seq.desc())
+                .limit(limit)
+            ).all()
+            return [_to_event(row) for row in reversed(rows)]
+
     def bounds(self) -> tuple[int | None, int | None]:
         with self._sessions() as session:
             oldest, newest = session.execute(

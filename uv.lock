@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 
 [[package]]
@@ -310,7 +310,7 @@ wheels = [
 
 [[package]]
 name = "downcroc"
-version = "1.0.0rc1"
+version = "1.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiosmtplib" },

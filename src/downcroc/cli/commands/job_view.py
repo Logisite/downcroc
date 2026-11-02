@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from downcroc.cli.commands import when
 from downcroc.cli.output import record, table
+from downcroc.cli.ui.session import Ui
 
 
 def sender_label(job: dict) -> str:
@@ -11,7 +13,7 @@ def sender_label(job: dict) -> str:
 
 def job_list(rows: list[dict]) -> None:
     table(
-        ["id", "recipient", "state", "sender", "attempts", "subject", "sent"],
+        ["id", "recipient", "state", "sender", "attempts", "eta", "subject", "sent"],
         [
             [
                 item["id"],
@@ -19,6 +21,7 @@ def job_list(rows: list[dict]) -> None:
                 item["state"],
                 sender_label(item),
                 item["attempts"],
+                when.cell(item.get("eta")),
                 item["subject"],
                 item["sent_at"],
             ]
@@ -27,7 +30,7 @@ def job_list(rows: list[dict]) -> None:
     )
 
 
-def job_show(job: dict) -> None:
+def job_show(job: dict, ui: Ui) -> None:
     error = job.get("last_error") or {}
     record(
         {
@@ -47,6 +50,7 @@ def job_show(job: dict) -> None:
             "error_message": error.get("message"),
         }
     )
+    when.show_eta(job.get("eta"), ui)
 
 
 def attempts_table(rows: list[dict]) -> None:

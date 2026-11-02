@@ -92,8 +92,9 @@ def start_attempt(
     account_id: str,
     request: Request,
     client_id: str | None = None,
+    transport: str | None = None,
 ) -> AttemptOut:
-    attempt = _service(request).start_attempt(account_id, client_id)
+    attempt = _service(request).start_attempt(account_id, client_id, transport)
     return AttemptOut.of(attempt)
 
 

@@ -41,3 +41,10 @@ class OAuthClientDependentOut(BaseModel):
     address: str
     kind: str
     health: str
+
+
+class OAuthAuthorize(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    account_id: str = Field(min_length=1, max_length=64)
+    transport: str | None = Field(default=None, max_length=16)

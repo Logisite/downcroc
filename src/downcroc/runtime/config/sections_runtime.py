@@ -189,6 +189,31 @@ class DispatchSettings(BaseModel):
         le=256,
         description="Maximum concurrent sends across all accounts.",
     )
+    parallel_sends: bool = Field(
+        default=False,
+        description=(
+            "Allow more than one send in flight. Off by default; one send at a "
+            "time is the recommended and safest mode."
+        ),
+    )
+    api_max_concurrency: int = Field(
+        default=1,
+        ge=1,
+        le=16,
+        description=(
+            "Maximum parallel Gmail API sends when parallel_sends is on. "
+            "Ignored while parallel_sends is off."
+        ),
+    )
+    smtp_seats: int = Field(
+        default=1,
+        ge=1,
+        le=10,
+        description=(
+            "Distinct SMTP mailboxes in the serial send rotation. This is not "
+            "parallel sending. Values above 3 are risky and strongly warned."
+        ),
+    )
     network_cooldown_after: int = Field(
         default=2,
         ge=1,

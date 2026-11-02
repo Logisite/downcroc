@@ -7,6 +7,7 @@ from downcroc.domain.attempts import ConnectAttempt
 from downcroc.domain.errors import (
     AccountNeedsReauth,
     CredentialMissing,
+    DomainError,
     ImapAuthFailed,
     ImapTlsFailed,
     ImapUnreachable,
@@ -17,6 +18,7 @@ from downcroc.domain.errors import (
 )
 from downcroc.domain.providers import ProviderSpec
 from downcroc.domain.secrets import secret_key
+from downcroc.mail.gmail import api as gmail_api
 from downcroc.mail.imap import connection as imap
 from downcroc.providers.oauth import client as oauth_client
 from downcroc.providers.token import (
@@ -117,9 +119,10 @@ class AccountLoginMixin:
                 "the provider did not return a refresh token",
                 hint="start the attempt again and grant offline access",
             )
-        self._login(spec, account, access_token=tokens.access_token)
         refresh_key = secret_key(account.id, "refresh_token")
         access_key = secret_key(account.id, "access_token")
+        # Store the token before any probe so a disabled API or a flaky IMAP
+        # login never forces the user to repeat the browser consent.
         self._vault.set_secrets(
             {
                 refresh_key: (tokens.refresh_token, None, ()),
@@ -130,8 +133,72 @@ class AccountLoginMixin:
                 ),
             }
         )
+        self._check_api(spec, account, tokens.access_token)
+        self._login(spec, account, access_token=tokens.access_token)
         updated = self._accounts.mark_connected(account.id, refresh_key, utc_now())
         self._connected(account, updated)
+        kind = self._attempt_transports.pop(attempt.id, None)
+        if kind is not None:
+            try:
+                self._transports.ensure_kind(updated, kind)
+            except DomainError as error:
+                self._log.warning(
+                    "transport.default_failed",
+                    account=updated.id,
+                    code=error.code,
+                )
+
+    def _check_api(
+        self,
+        spec: ProviderSpec,
+        account: Account,
+        access_token: str,
+    ) -> None:
+        """Prove the token and the Gmail API enablement right after consent."""
+        if not spec.api_configured:
+            return
+        project_id = self._project_id(account)
+        try:
+            gmail_api.profile(
+                spec,
+                access_token,
+                timeout_s=self._settings.oauth_timeout_s,
+                project_id=project_id,
+            )
+        except gmail_api.GmailApiFailure as error:
+            if error.code == "gmail_api_disabled":
+                project = error.project_id or project_id
+                link = (
+                    "https://console.cloud.google.com/apis/library/"
+                    f"gmail.googleapis.com?project={project}"
+                    if project
+                    else "https://console.cloud.google.com/apis/library/"
+                    "gmail.googleapis.com"
+                )
+                raise OAuthFailed(
+                    "the gmail api is disabled for this project",
+                    hint=f"enable it at {link}, then retry the connection",
+                    fields={"project_id": project} if project else None,
+                ) from error
+            if error.auth:
+                raise OAuthFailed(
+                    "the provider rejected the access token",
+                    hint="start the connect attempt again",
+                ) from error
+            self._log.warning(
+                "gmail.api_check_failed",
+                account=account.id,
+                code=error.code,
+            )
+
+    def _project_id(self, account: Account) -> str | None:
+        client_id = self._clients.account_client(account)
+        if client_id is None:
+            return None
+        try:
+            return self._clients.get(client_id).project_id
+        except DomainError:
+            return None
 
     def _login(
         self,
@@ -206,6 +273,14 @@ class AccountLoginMixin:
         self._log.warning("account.needs_reauth", account=updated.id, reason=reason)
 
     def _connected(self, previous: Account, updated: Account) -> None:
+        try:
+            self._transports.ensure_defaults(updated)
+        except DomainError as error:
+            self._log.warning(
+                "transport.default_failed",
+                account=updated.id,
+                code=error.code,
+            )
         self._inbound.account_connected(updated.id)
         if previous.status is AccountStatus.CONNECTED:
             return

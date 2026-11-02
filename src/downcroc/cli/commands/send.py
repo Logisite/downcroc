@@ -10,6 +10,7 @@ from downcroc.cli import inputs
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, get, post
 from downcroc.cli.commands.batch_view import show_preview, show_validation
+from downcroc.cli.commands.when import show_capacity
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
@@ -322,6 +323,7 @@ def run(args: object) -> int:
             "draft": draft,
         }
     )
+    show_capacity(batch.get("capacity"), ui)
     if not ui.quiet:
         if batch["state"] == "awaiting_approval":
             print(f"next: downcroc review, or downcroc batch approve {batch['id']}")

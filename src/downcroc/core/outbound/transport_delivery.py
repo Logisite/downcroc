@@ -101,13 +101,29 @@ class TransportDelivery:
         spec: ProviderSpec,
         wire: bytes,
         started_at: str,
+        allowed_kinds: frozenset[TransportKind] | None = None,
     ) -> DeliveryOutcome:
-        bindings = self._order(self._transports.usable(account))
+        healthy = self._transports.usable(account)
+        bindings = self._order(
+            [
+                binding
+                for binding in healthy
+                if allowed_kinds is None or binding.kind in allowed_kinds
+            ]
+        )
         if not bindings:
+            for binding in healthy:
+                self._log.warning(
+                    "transport.seat_denied",
+                    account=account.id,
+                    binding=binding.id,
+                    kind=binding.kind.value,
+                    reason="slot_plan",
+                )
             return DeliveryOutcome.deferred(
                 None,
                 "transport_unavailable",
-                "the mailbox has no healthy send transport",
+                "the slot plan allows no healthy send transport",
             )
         busy = False
         last: DeliveryOutcome | None = None

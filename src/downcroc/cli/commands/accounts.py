@@ -148,6 +148,7 @@ def run(args: object) -> int:
                 json_out(account)
             else:
                 account_view.show(account)
+                account_view.transports(client, account["id"], ui)
                 print(ui.result(True, "verified"))
             return 0
         if action == "sync":
@@ -168,6 +169,7 @@ def run(args: object) -> int:
             json_out(account)
         else:
             account_view.show(account)
+            account_view.transports(client, account["id"], ui)
         return 0
 
 
@@ -267,7 +269,7 @@ def _attempt(client, args: object, ui: Ui) -> int:
         if ui.json_mode:
             json_out(attempt)
         return 0
-    account = wait(client, args.account_id, args.timeout)
+    account = wait(client, args.account_id, args.timeout, attempt.get("id"))
     if ui.json_mode:
         json_out(account)
     else:

@@ -20,7 +20,7 @@ from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account
 from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.errors import BatchNotFound, DomainError
-from downcroc.domain.jobs import Job, JobState
+from downcroc.domain.jobs import Job, JobState, SenderPolicy
 from downcroc.domain.policy import SendPolicy
 from downcroc.runtime.clock import parse_utc, utc_after, utc_now
 from downcroc.runtime.config.schema import Settings
@@ -117,6 +117,7 @@ class Dispatcher(DispatchHelpers):
     async def _cycle(self) -> None:
         if self._vault.status().state != "unlocked":
             return
+        self._notice_seats()
         await self._outbound.reap_sessions()
         await asyncio.to_thread(self._followups.cancel_stopped)
         if time.monotonic() >= self._next_followup:
@@ -162,16 +163,29 @@ class Dispatcher(DispatchHelpers):
                 continue
             if time.monotonic() < self._next_allowed.get(account.id, 0.0):
                 continue
-            lanes = self._transports.lanes(account)
+            usable = self._transports.bindings(account)
+            lanes = sum(self._transports.limiter.effective_limit(b) for b in usable)
             if lanes <= 0:
                 continue
-            candidates.append(Candidate(account, due, remaining, lanes))
+            pinned = any(job.sender_policy is SenderPolicy.PINNED for job in due)
+            candidates.append(
+                Candidate(
+                    account,
+                    due,
+                    remaining,
+                    lanes,
+                    has_smtp=any(binding.seat for binding in usable),
+                    has_api=any(not binding.seat for binding in usable),
+                    pinned=pinned,
+                )
+            )
         if not candidates:
             self._idle(due_accounts, blocked_window, blocked_allowance)
             self._log_cycle(0, 0, 0, started)
             return
-        capacity = self._dispatch.global_in_flight
-        picked: list[tuple[Job, Account]] = []
+        candidates = self._limit_seats(candidates)
+        capacity = self._transports.limiter.effective_global()
+        picked: list[tuple[Job, Account, frozenset]] = []
         while candidates and len(picked) < capacity:
             candidate = self._weighted(candidates)
             job = candidate.jobs.pop(0) if candidate.jobs else None
@@ -190,11 +204,11 @@ class Dispatcher(DispatchHelpers):
                 job=claimed.id,
                 account=candidate.account.id,
             )
-            picked.append((claimed, candidate.account))
+            picked.append((claimed, candidate.account, candidate.kinds))
             candidate.remaining -= 1
             policy = policies[candidate.account.id]
             per_account = sum(
-                1 for _, account in picked if account.id == candidate.account.id
+                1 for _, account, _ in picked if account.id == candidate.account.id
             )
             if (
                 per_account >= min(policy.max_in_flight, candidate.lanes)
@@ -203,20 +217,25 @@ class Dispatcher(DispatchHelpers):
             ):
                 candidates.remove(candidate)
         results = await asyncio.gather(
-            *(self._send(job, account) for job, account in picked)
+            *(self._send(job, account, kinds) for job, account, kinds in picked)
         )
         sent = sum(1 for result in results if result == "sent")
         failed = sum(1 for result in results if result == "failed")
         deferred = len(results) - sent - failed
-        self._apply_spacing(picked, policies)
+        self._apply_spacing([(job, account) for job, account, _ in picked], policies)
         self._log_cycle(len(picked), sent, deferred, started)
-        self._finalize({job.batch_id for job, _ in picked})
+        self._finalize({job.batch_id for job, _, _ in picked})
         if failed:
             self._log.debug("dispatch.failed", count=failed)
 
-    async def _send(self, job: Job, account: Account) -> str:
+    async def _send(
+        self,
+        job: Job,
+        account: Account,
+        kinds: frozenset,
+    ) -> str:
         try:
-            result = await self._outbound.deliver(job, account)
+            result = await self._outbound.deliver(job, account, allowed_kinds=kinds)
         except DomainError as error:
             self._log.debug("dispatch.error", job=job.id, code=error.code)
             result = self._jobs.get(job.id)

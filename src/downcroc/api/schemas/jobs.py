@@ -121,9 +121,10 @@ class JobOut(BaseModel):
     created_at: str
     updated_at: str
     sent_at: str | None
+    eta: dict[str, object] | None = None
 
     @classmethod
-    def of(cls, job: Job) -> JobOut:
+    def of(cls, job: Job, eta: dict[str, object] | None = None) -> JobOut:
         error = None
         if job.last_error_code is not None:
             error = JobErrorOut(
@@ -154,4 +155,5 @@ class JobOut(BaseModel):
             created_at=job.created_at,
             updated_at=job.updated_at,
             sent_at=job.sent_at,
+            eta=eta,
         )

@@ -198,6 +198,16 @@ def account(commands: argparse._SubParsersAction) -> None:
     connect.add_argument(
         "--password-file", metavar="PATH", help="read the app password from a file"
     )
+    connect.add_argument(
+        "--client",
+        metavar="ID",
+        help="use this imported oauth client",
+    )
+    connect.add_argument(
+        "--transport",
+        choices=("smtp", "gmail_api"),
+        help="binding to create after an oauth connect",
+    )
     common(connect)
 
     verify = actions.add_parser("verify", help="verify an account login")

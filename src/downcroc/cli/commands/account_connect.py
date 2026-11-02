@@ -11,6 +11,8 @@ from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui
 
 MAX_ATTEMPTS = 3
+DEFAULT_WAIT_S = 300.0
+_ATTEMPT_FAILED = {"failed", "cancelled", "expired"}
 
 
 def password(args: object, ui: Ui, *, flag: str = "--password-stdin") -> str:
@@ -24,9 +26,32 @@ def password(args: object, ui: Ui, *, flag: str = "--password-stdin") -> str:
     return prompts.ask_secret("App password", ui=ui, flag=flag)
 
 
-def wait(client, account_id: str, timeout: float) -> dict:
-    deadline = time.monotonic() + timeout
+def wait(
+    client,
+    account_id: str,
+    timeout: float | None,
+    attempt_id: str | None = None,
+) -> dict:
+    """Wait for an OAuth attempt without crashing when no timeout was given.
+
+    ``args.timeout`` is ``None`` for commands that inherit the root parser's
+    default. Treat that as the documented default wait instead of doing
+    arithmetic on ``None``.
+    """
+    budget = DEFAULT_WAIT_S if timeout is None else float(timeout)
+    if budget <= 0:
+        budget = DEFAULT_WAIT_S
+    deadline = time.monotonic() + budget
     while time.monotonic() < deadline:
+        if attempt_id:
+            attempt = get(client, f"/api/attempts/{attempt_id}")
+            state = attempt.get("state")
+            if state in _ATTEMPT_FAILED:
+                raise CliError(
+                    f"the sign-in attempt ended as {state}",
+                    code=f"oauth_{state}",
+                    hint="run `downcroc account connect` again",
+                )
         account = get(client, f"/api/accounts/{account_id}")
         if account["status"] in {"connected", "needs_reauth"}:
             return account
@@ -67,6 +92,17 @@ def connected(account: dict, ui: Ui) -> None:
 
 
 def _app_password(client, account: dict, provider: dict, args: object, ui: Ui) -> dict:
+    if not ui.json_mode:
+        print(
+            ui.paint(
+                "app password: one SMTP seat, roughly 5 messages in 2-6 minutes "
+                "at default pacing, and Gmail may throttle the mailbox. OAuth is "
+                "recommended because it adds API lanes and avoids the SMTP "
+                "firewall.",
+                "warn",
+            ),
+            file=sys.stderr,
+        )
     failures = 0
     endpoint = f"{provider['imap_host']}:{provider['imap_port']}"
     while True:
@@ -119,6 +155,8 @@ def _oauth(client, account: dict, args: object, ui: Ui) -> dict:
     params = {}
     if getattr(args, "client", None):
         params["client_id"] = args.client
+    if getattr(args, "transport", None):
+        params["transport"] = args.transport
     attempt = post(client, f"/api/accounts/{account['id']}/attempts", **params)
     if not ui.json_mode:
         print(f"open {attempt['authorization_url']}", file=sys.stderr)
@@ -126,7 +164,12 @@ def _oauth(client, account: dict, args: object, ui: Ui) -> dict:
             f"the link expires at {attempt['expires_at']}",
             file=sys.stderr,
         )
-    account = wait(client, account["id"], args.timeout)
+    account = wait(
+        client,
+        account["id"],
+        getattr(args, "timeout", None),
+        attempt.get("id"),
+    )
     if account["status"] != "connected":
         raise CliError(
             "the browser sign-in did not finish",

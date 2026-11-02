@@ -75,11 +75,12 @@ def _list(client, account_id: str, ui: Ui) -> int:
             print(f"next: downcroc account transport add {account_id} --kind smtp")
         return 0
     table(
-        ["id", "kind", "priority", "health", "lanes", "rate", "error"],
+        ["id", "kind", "slot", "priority", "health", "lanes", "rate", "error"],
         [
             [
                 item["id"],
                 item["kind"],
+                item.get("slot") or "-",
                 item["priority"],
                 item["health"],
                 item["max_concurrency"],

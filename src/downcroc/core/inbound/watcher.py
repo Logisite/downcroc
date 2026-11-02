@@ -16,6 +16,7 @@ from downcroc.core.inbound.signals import (
     WatcherState,
     WatchFailure,
 )
+from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account
 from downcroc.domain.errors import OAuthNotConfigured, VaultLocked, VaultSecretMissing
@@ -42,6 +43,7 @@ class WatcherRunner:
         registry: ProviderRegistry,
         vault: VaultService,
         tokens: TokenManager,
+        clients: OAuthClientService,
         log: EventLogger,
         settings: InboundSettings,
         connect: ConnectSettings,
@@ -51,6 +53,7 @@ class WatcherRunner:
         self._registry = registry
         self._vault = vault
         self._tokens = tokens
+        self._clients = clients
         self._log = log
         self._settings = settings
         self._connect_settings = connect
@@ -155,7 +158,7 @@ class WatcherRunner:
 
     def _watch(self, handle: WatcherHandle) -> None:
         account = handle.account
-        spec = self._registry.get(account.provider)
+        spec = self._clients.spec_for_account(account)
         box = self._connect(spec, account)
         try:
             state = imap.select_inbox(box)
@@ -204,7 +207,7 @@ class WatcherRunner:
         password: str | None = None
         access_token: str | None = None
         if spec.auth_kind is AuthKind.OAUTH2:
-            access_token = self._tokens.access_token(account)
+            access_token = self._tokens.access_token(account, spec=spec)
         elif spec.auth_kind is AuthKind.APP_PASSWORD:
             if account.credential_key is None:
                 raise VaultSecretMissing("the account has no credential")

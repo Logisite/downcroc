@@ -26,8 +26,9 @@ from downcroc.domain.errors import (
     InvalidJob,
     JobNotSendable,
 )
-from downcroc.domain.jobs import Job, JobState, NewJob
+from downcroc.domain.jobs import Job, JobState, NewJob, SenderPolicy
 from downcroc.domain.validators import ADDRESS
+from downcroc.mail.gmail import api as gmail_api
 from downcroc.mail.mime.builder import build_message, mint_message_id, prepare_for_send
 from downcroc.mail.smtp.session import SmtpSessionPool
 from downcroc.providers.registry import ProviderRegistry
@@ -207,11 +208,19 @@ class OutboundService:
     def _sender_for(self, job: Job) -> Account:
         if job.account_id is not None:
             return self._accounts.get(job.account_id)
+        plan = self._transports.pick_slots()
+        ordered = list(plan.active) + [
+            account_id for account_id in plan.queue if account_id not in plan.active_set
+        ]
+        for account_id in ordered:
+            account = self._accounts.get(account_id)
+            if self._transports.allowed_kinds(account, plan):
+                return account
         for account in self._accounts.list():
             if (
                 account.status is AccountStatus.CONNECTED
                 and self._policy.effective(account).enabled
-                and self._transports.lanes(account) > 0
+                and self._transports.allowed_kinds(account, plan)
             ):
                 return account
         raise AccountNeedsReauth(
@@ -220,7 +229,12 @@ class OutboundService:
         )
 
     async def deliver(
-        self, job: Job, account: Account | None = None, *, manual: bool = False
+        self,
+        job: Job,
+        account: Account | None = None,
+        *,
+        manual: bool = False,
+        allowed_kinds: frozenset | None = None,
     ) -> Job:
         self._credentials.ensure_unlocked()
         claimed = job
@@ -228,6 +242,11 @@ class OutboundService:
             raise JobNotSendable("the job is not leased for sending")
         account = account or self._accounts.get(claimed.account_id)
         self._require_connected(account)
+        if allowed_kinds is None:
+            allowed_kinds = self._transports.allowed_kinds(
+                account,
+                pinned=claimed.sender_policy is SenderPolicy.PINNED,
+            )
         policy = self._policy.effective(account)
         day = self._policy.day()
         reserved = self._quota.reserve(
@@ -284,7 +303,7 @@ class OutboundService:
             raise
         try:
             outcome = await self._delivery.deliver(
-                claimed, account, spec, wire, started_at
+                claimed, account, spec, wire, started_at, allowed_kinds
             )
         except BaseException:
             self._release(account.id, day, "send_exception")
@@ -411,6 +430,7 @@ class OutboundService:
 
     async def close_sessions(self, reason: str) -> None:
         await self._pool.close_all(reason)
+        gmail_api.close()
 
     async def reap_sessions(self) -> None:
         await self._pool.reap()

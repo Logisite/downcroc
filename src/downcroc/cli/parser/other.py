@@ -37,6 +37,15 @@ def top(commands: argparse._SubParsersAction) -> None:
         help="check the installation and name fixes",
         epilog="example:\n  downcroc doctor",
     )
+    doctor_actions = doctor.add_subparsers(dest="doctor_command")
+    transports = doctor_actions.add_parser(
+        "transports", help="check send bindings and oauth clients"
+    )
+    common(transports)
+    capacity = doctor_actions.add_parser(
+        "capacity", help="report fleet lanes, seats, and smtp-only mailboxes"
+    )
+    common(capacity)
     common(doctor)
 
     send = commands.add_parser(
@@ -203,6 +212,9 @@ def stats(commands: argparse._SubParsersAction) -> None:
         view.add_argument("--to", type=day, help="YYYY-MM-DD")
         view.add_argument("--account", dest="account_id", help="filter by account")
         common(view)
+
+    pending = actions.add_parser("pending", help="show pending work and its ETA")
+    common(pending)
 
     rebuild = actions.add_parser("rebuild", help="rebuild activity rows")
     rebuild.add_argument("--since", type=day, help="first date, YYYY-MM-DD")

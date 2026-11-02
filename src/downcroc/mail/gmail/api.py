@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC
@@ -15,6 +16,8 @@ from downcroc.runtime.clock import parse_utc, utc_now
 
 SEND_PATH = "/gmail/v1/users/me/messages/send"
 PROFILE_PATH = "/gmail/v1/users/me/profile"
+_CLIENT_LOCK = threading.Lock()
+_CLIENT: httpx.Client | None = None
 RATE_REASONS = frozenset(
     {
         "rateLimitExceeded",
@@ -157,7 +160,7 @@ def _request(
     if json is not None:
         headers["Content-Type"] = "application/json"
     try:
-        response = httpx.request(
+        response = _client().request(
             method,
             url,
             headers=headers,
@@ -182,6 +185,28 @@ def _request(
     if response.status_code >= 400:
         raise _failure(response, project_id)
     return response
+
+
+def _client() -> httpx.Client:
+    """One pooled client, honouring proxy environment variables."""
+    global _CLIENT
+    with _CLIENT_LOCK:
+        if _CLIENT is None or _CLIENT.is_closed:
+            _CLIENT = httpx.Client(
+                trust_env=True,
+                follow_redirects=False,
+                limits=httpx.Limits(max_connections=16, max_keepalive_connections=8),
+            )
+        return _CLIENT
+
+
+def close() -> None:
+    """Close the shared client on daemon shutdown."""
+    global _CLIENT
+    with _CLIENT_LOCK:
+        client, _CLIENT = _CLIENT, None
+    if client is not None and not client.is_closed:
+        client.close()
 
 
 def _failure(response: httpx.Response, project_id: str | None) -> GmailApiFailure:

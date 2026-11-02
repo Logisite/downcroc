@@ -1,29 +1,32 @@
 from __future__ import annotations
 
-import asyncio
+import random
 
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
+from downcroc.core.policy import PolicyResolver
 from downcroc.core.transports import validation
 from downcroc.core.transports.health import BindingHealth
 from downcroc.core.transports.limiter import TransportLimiter
+from downcroc.core.transports.probe import TransportProbe
+from downcroc.core.transports.provision import Provisioner
+from downcroc.core.transports.seats import SlotPlan
+from downcroc.core.transports.slots import SlotResolver
 from downcroc.domain.accounts import Account
-from downcroc.domain.errors import AccountNeedsReauth
-from downcroc.domain.providers import ProviderSpec
 from downcroc.domain.transports import (
     AccountTransport,
     TransportHealth,
     TransportKind,
 )
-from downcroc.mail.gmail import api as gmail_api
-from downcroc.mail.smtp import sender
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import DispatchSettings, OutboundSettings
 from downcroc.runtime.ids import new_id
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.accounts import AccountRepo
+from downcroc.store.repositories.events import EventRepo
+from downcroc.store.repositories.quota import QuotaRepo
 from downcroc.store.repositories.transports import (
     TransportInvalid,
     TransportRepo,
@@ -40,8 +43,11 @@ class TransportService:
         clients: OAuthClientService,
         bus: EventBus,
         log: EventLogger,
+        events: EventRepo,
         outbound: OutboundSettings,
         dispatch: DispatchSettings,
+        policy: PolicyResolver,
+        quota: QuotaRepo,
     ) -> None:
         self._transports = transports
         self._accounts = accounts
@@ -50,29 +56,45 @@ class TransportService:
         self._clients = clients
         self._bus = bus
         self._log = log
+        self._events = events
         self._outbound = outbound
+        self._dispatch = dispatch
+        self._policy = policy
+        self._quota = quota
         self._health = BindingHealth(transports, bus, log, dispatch)
-        self._limiter = TransportLimiter(dispatch.global_in_flight)
+        self._limiter = TransportLimiter(dispatch)
+        self._slots = SlotResolver(
+            accounts,
+            registry,
+            policy,
+            quota,
+            dispatch,
+            self._health,
+            self._limiter,
+        )
+        self._provision = Provisioner(transports, registry, clients, dispatch, self.add)
 
     @property
     def limiter(self) -> TransportLimiter:
         return self._limiter
 
     def ensure_defaults(self, account: Account) -> AccountTransport | None:
-        spec = self._registry.get(account.provider)
-        existing = self._transports.list_for_account(account.id)
-        if any(binding.kind is TransportKind.SMTP for binding in existing):
-            return None
-        if not spec.smtp_host or not spec.smtp_port:
-            return None
-        return self.add(
-            account.id,
-            kind=TransportKind.SMTP,
-            priority=0,
-            max_concurrency=1,
-            rate_per_min=None,
-            credential_ref=account.credential_key,
-        )
+        return self._provision.defaults(account)
+
+    def ensure_kind(
+        self, account: Account, kind: TransportKind
+    ) -> AccountTransport | None:
+        return self._provision.kind(account, kind)
+
+    def slot_status(
+        self,
+        account_id: str,
+        plan: SlotPlan | None = None,
+    ) -> str:
+        return self._slots.status(self._accounts.get(account_id), plan)
+
+    def is_password(self, account: Account) -> bool:
+        return self._slots.is_password(account)
 
     def list(self, account_id: str) -> list[AccountTransport]:
         self._accounts.get(account_id)
@@ -96,10 +118,19 @@ class TransportService:
         account = self._accounts.get(account_id)
         spec = self._registry.get(account.provider)
         validation.validate_binding(kind, spec, max_concurrency, rate_per_min)
+        if kind is TransportKind.SMTP and max_concurrency and max_concurrency > 1:
+            raise TransportInvalid(
+                "smtp is one connection per account",
+                hint="add another mailbox as a seat, or raise dispatch.smtp_seats",
+            )
         if kind is TransportKind.GMAIL_API:
             oauth_client_id = validation.resolve_client_id(
                 self._clients, account, oauth_client_id
             )
+            if max_concurrency is None:
+                max_concurrency = self._api_default(spec)
+        elif max_concurrency is None:
+            max_concurrency = 1
         now = utc_now()
         binding = AccountTransport(
             id=new_id("trn"),
@@ -163,6 +194,11 @@ class TransportService:
         if max_concurrency is not None:
             if max_concurrency < 1:
                 raise TransportInvalid("max_concurrency must be at least 1")
+            if binding.kind is TransportKind.SMTP and max_concurrency > 1:
+                raise TransportInvalid(
+                    "smtp is one connection per account",
+                    hint="add another mailbox as a seat, or raise dispatch.smtp_seats",
+                )
             changes["max_concurrency"] = max_concurrency
         if rate_per_min is not None:
             if binding.kind is TransportKind.SMTP:
@@ -230,9 +266,37 @@ class TransportService:
     def usable(self, account: Account) -> list[AccountTransport]:
         return self._health.usable(account)
 
+    def bindings(self, account: Account) -> list[AccountTransport]:
+        """Healthy bindings, regardless of the slot plan."""
+        return self._health.usable(account)
+
+    def pick_slots(
+        self,
+        *,
+        day: str | None = None,
+        pinned_ids: frozenset[str] = frozenset(),
+        account_ids: list[str] | None = None,
+        rng: random.Random | None = None,
+    ) -> SlotPlan:
+        return self._slots.pick(
+            day=day,
+            pinned_ids=pinned_ids,
+            account_ids=account_ids,
+            rng=rng,
+        )
+
+    def allowed_kinds(
+        self,
+        account: Account,
+        plan: SlotPlan | None = None,
+        *,
+        pinned: bool = False,
+    ) -> frozenset[TransportKind]:
+        return self._slots.allowed_kinds(account, plan, pinned=pinned)
+
     def lanes(self, account: Account) -> int:
         return sum(
-            1 if binding.seat else max(1, binding.max_concurrency)
+            self._limiter.effective_limit(binding)
             for binding in self.usable(account)
         )
 
@@ -260,96 +324,38 @@ class TransportService:
             retry_after_s=retry_after_s,
         )
 
-    async def test(self, account_id: str, binding_id: str) -> dict[str, object]:
-        binding = self.get(account_id, binding_id)
-        account = self._accounts.get(account_id)
-        spec = self._registry.get(account.provider)
-        if binding.kind is TransportKind.GMAIL_API:
-            return await self._test_api(binding, account, spec)
-        self._credentials.ensure_unlocked()
-        try:
-            credentials = self._credentials.resolve(account, spec)
-            await sender.test(
-                spec,
-                account,
-                credentials,
-                timeout_s=self._outbound.smtp_timeout_s,
-            )
-        except sender.SmtpFailure as error:
-            updated = self.mark_failure(
-                binding,
-                code=error.code,
-                message=error.message,
-                transient=error.transient,
-                auth=isinstance(error, sender.SmtpAuthFailure),
-            )
-            return {
-                "ok": False,
-                "code": error.code,
-                "message": error.message,
-                "health": updated.health.value,
-            }
-        updated = self.mark_success(binding)
-        return {
-            "ok": True,
-            "code": None,
-            "message": "the smtp session connected and authenticated",
-            "health": updated.health.value,
-        }
-
-    async def _test_api(
+    def history(
         self,
-        binding: AccountTransport,
-        account: Account,
-        spec: ProviderSpec,
-    ) -> dict[str, object]:
-        self._credentials.ensure_unlocked()
-        client = validation.client_of(self._clients, binding)
-        project_id = client.project_id if client is not None else None
-        try:
-            token = self._credentials.access_token(
-                account, spec, client_id=binding.oauth_client_id
-            )
-            profile = await asyncio.to_thread(
-                gmail_api.profile,
-                spec,
-                token,
-                timeout_s=self._outbound.smtp_timeout_s,
-                project_id=project_id,
-            )
-        except AccountNeedsReauth as error:
-            updated = self.mark_failure(
-                binding,
-                code="account_needs_reauth",
-                message="the mailbox must be reconnected",
-                transient=False,
-                auth=True,
-            )
-            return {
-                "ok": False,
-                "code": "account_needs_reauth",
-                "message": error.message,
-                "health": updated.health.value,
+        account_id: str,
+        binding_id: str,
+        limit: int = 20,
+    ) -> list[dict[str, object]]:
+        """Recent state transitions for one binding, newest last."""
+        binding = self.get(account_id, binding_id)
+        events = self._events.recent("transport.", max(200, limit * 20))
+        rows = [
+            {
+                "seq": event.seq,
+                "type": event.type,
+                "ts": event.ts,
+                "reason": event.data.get("reason")
+                or event.data.get("code")
+                or event.data.get("changed"),
+                "retry_s": event.data.get("retry_s"),
             }
-        except gmail_api.GmailApiFailure as error:
-            updated = self.mark_failure(
-                binding,
-                code=error.code,
-                message=error.message,
-                transient=error.transient,
-                auth=error.auth,
-                quota=error.quota,
-            )
-            return {
-                "ok": False,
-                "code": error.code,
-                "message": validation.api_message(error, project_id),
-                "health": updated.health.value,
-            }
-        updated = self.mark_success(binding)
-        return {
-            "ok": True,
-            "code": None,
-            "message": f"the gmail api answered for {profile.address}",
-            "health": updated.health.value,
-        }
+            for event in events
+            if event.data.get("binding") == binding.id
+            and event.data.get("account") == binding.account_id
+        ]
+        return rows[-limit:]
+
+    async def test(self, account_id: str, binding_id: str) -> dict[str, object]:
+        probe = TransportProbe(
+            self,
+            self._accounts,
+            self._registry,
+            self._credentials,
+            self._clients,
+            self._outbound,
+        )
+        return await probe.test(account_id, binding_id)

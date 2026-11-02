@@ -88,9 +88,15 @@ class BatchOut(BaseModel):
     counts: dict[str, int]
     created_at: str
     approved_at: str | None
+    eta: dict[str, object] | None = None
 
     @classmethod
-    def of(cls, batch: Batch, counts: dict[str, int]) -> BatchOut:
+    def of(
+        cls,
+        batch: Batch,
+        counts: dict[str, int],
+        eta: dict[str, object] | None = None,
+    ) -> BatchOut:
         return cls(
             id=batch.id,
             kind=batch.kind.value,
@@ -110,6 +116,7 @@ class BatchOut(BaseModel):
             counts=counts,
             created_at=batch.created_at,
             approved_at=batch.approved_at,
+            eta=eta,
         )
 
 
@@ -147,10 +154,16 @@ class BatchDetailOut(BatchOut):
     ignored: list[str]
     warnings: list[str]
     reused: bool = False
+    capacity: dict[str, object] | None = None
 
     @classmethod
-    def from_detail(cls, detail: BatchDetail) -> BatchDetailOut:
-        base = BatchOut.of(detail.batch, detail.counts)
+    def from_detail(
+        cls,
+        detail: BatchDetail,
+        eta: dict[str, object] | None = None,
+        capacity: dict[str, object] | None = None,
+    ) -> BatchDetailOut:
+        base = BatchOut.of(detail.batch, detail.counts, eta)
         return cls(
             **base.model_dump(),
             samples=[SampleOut.of(sample) for sample in detail.samples],
@@ -158,6 +171,7 @@ class BatchDetailOut(BatchOut):
             ignored=list(detail.batch.ignored),
             warnings=list(detail.batch.warnings),
             reused=detail.reused,
+            capacity=capacity,
         )
 
 
@@ -250,9 +264,14 @@ class PreviewOut(BaseModel):
     followups: list[PreviewFollowUpOut]
     duplicates: int
     attachments: PreviewAttachmentsOut | None
+    capacity: dict[str, object] | None = None
 
     @classmethod
-    def of(cls, preview: Preview) -> PreviewOut:
+    def of(
+        cls,
+        preview: Preview,
+        capacity: dict[str, object] | None = None,
+    ) -> PreviewOut:
         return cls(
             source_kind=preview.source_kind,
             campaign_key=preview.campaign_key,
@@ -275,4 +294,5 @@ class PreviewOut(BaseModel):
                 if preview.attachments
                 else None
             ),
+            capacity=capacity,
         )

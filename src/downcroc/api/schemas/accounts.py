@@ -187,9 +187,10 @@ class TransportOut(BaseModel):
     last_success_at: str | None
     created_at: str
     updated_at: str
+    slot: str | None = None
 
     @classmethod
-    def of(cls, binding: AccountTransport) -> TransportOut:
+    def of(cls, binding: AccountTransport, slot: str | None = None) -> TransportOut:
         return cls(
             id=binding.id,
             account_id=binding.account_id,
@@ -207,6 +208,7 @@ class TransportOut(BaseModel):
             last_success_at=binding.last_success_at,
             created_at=binding.created_at,
             updated_at=binding.updated_at,
+            slot=slot,
         )
 
 
@@ -215,6 +217,14 @@ class TransportTestOut(BaseModel):
     code: str | None
     message: str
     health: str
+
+
+class TransportEventOut(BaseModel):
+    seq: int
+    type: str
+    ts: str
+    reason: object | None = None
+    retry_s: object | None = None
 
 
 class ProviderIn(BaseModel):

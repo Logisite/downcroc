@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from downcroc.cli.client import api, get, post
+from downcroc.cli.commands import when
 from downcroc.cli.context import load
 from downcroc.cli.output import json_out, record, table
+from downcroc.cli.ui.session import Ui, build
 
 TOTAL_KEYS = ["sent", "failed", "received", "replies", "bounces", "suppressed"]
 
@@ -90,6 +92,22 @@ def _accounts(data: dict) -> None:
     )
 
 
+def _pending(data: dict, ui: Ui) -> None:
+    when.show_eta(
+        {
+            "state": data.get("state")
+            or ("blocked" if data.get("blocked_reason") else "draining"),
+            "remaining": data.get("remaining"),
+            "lanes": data.get("lanes"),
+            "seats": data.get("seats"),
+            "serial": data.get("serial"),
+            "finish_at": data.get("finish_at"),
+            "blocked_reason": data.get("blocked_reason"),
+        },
+        ui,
+    )
+
+
 def _range(args: object) -> dict:
     return {
         "from": getattr(args, "from_value", None),
@@ -100,13 +118,23 @@ def _range(args: object) -> dict:
 
 def run(args: object) -> int:
     paths, _, _ = load()
+    ui = build(args)
     with api(paths) as client:
         if args.action == "summary":
             data = get(client, "/api/stats/summary", **_range(args))
+            pending = get(client, "/api/stats/pending")
+            if args.json:
+                json_out({**data, "pending_eta": pending})
+            else:
+                _summary(data)
+                _pending(pending, ui)
+            return 0
+        if args.action == "pending":
+            data = get(client, "/api/stats/pending")
             if args.json:
                 json_out(data)
             else:
-                _summary(data)
+                _pending(data, ui)
             return 0
         if args.action == "hourly":
             data = get(client, "/api/stats/hourly", **_range(args))

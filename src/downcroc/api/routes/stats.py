@@ -66,6 +66,11 @@ def daily(
     )
 
 
+@router.get("/pending", response_model=dict)
+def pending(request: Request) -> dict[str, object]:
+    return _services(request).capacity.pending()
+
+
 @router.get("/batches", response_model=BatchesOut)
 def batches(
     request: Request,

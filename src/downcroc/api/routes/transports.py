@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Request
 from downcroc.api.confirm import require
 from downcroc.api.schemas.accounts import (
     TransportCreate,
+    TransportEventOut,
     TransportOut,
     TransportTestOut,
     TransportUpdate,
@@ -25,7 +26,17 @@ def _service(request: Request) -> TransportService:
 
 @router.get("", response_model=list[TransportOut])
 def list_transports(account_id: str, request: Request) -> list[TransportOut]:
-    return [TransportOut.of(item) for item in _service(request).list(account_id)]
+    service = _service(request)
+    plan = service.pick_slots()
+    status = service.slot_status(account_id, plan)
+    rows: list[TransportOut] = []
+    for item in service.list(account_id):
+        if item.kind is TransportKind.SMTP:
+            slot = "active" if status == "active" else "waiting"
+        else:
+            slot = "api_only" if status == "api_only" else "standby"
+        rows.append(TransportOut.of(item, slot))
+    return rows
 
 
 @router.post("", response_model=TransportOut, status_code=201)
@@ -36,7 +47,11 @@ def add_transport(
         kind = TransportKind(body.kind)
     except ValueError as error:
         raise TransportInvalid(f"unknown transport {body.kind}") from error
-    binding = _service(request).add(
+    service = _service(request)
+    for existing in service.list(account_id):
+        if existing.kind is kind:
+            return TransportOut.of(existing)
+    binding = service.add(
         account_id,
         kind=kind,
         priority=body.priority,
@@ -79,6 +94,19 @@ def remove_transport(
 ) -> TransportOut:
     require(confirm)
     return TransportOut.of(_service(request).remove(account_id, binding_id))
+
+
+@router.get("/{binding_id}/events", response_model=list[TransportEventOut])
+def transport_events(
+    account_id: str,
+    binding_id: str,
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=200),
+) -> list[TransportEventOut]:
+    return [
+        TransportEventOut(**row)
+        for row in _service(request).history(account_id, binding_id, limit)
+    ]
 
 
 @router.post("/{binding_id}/test", response_model=TransportTestOut)

@@ -4,6 +4,7 @@ import json
 
 from downcroc.cli import inputs, schema
 from downcroc.cli import paths as path_tools
+from downcroc.cli.commands import when
 from downcroc.cli.output import json_out, record, table
 from downcroc.cli.ui import card
 from downcroc.cli.ui.frame import columns
@@ -36,7 +37,7 @@ def counts(counts: dict) -> dict:
 
 def listing(rows: list[dict], ui: Ui) -> None:
     table(
-        ["id", "name", "kind", "state", "approval", "sent", "replies", "created"],
+        ["id", "name", "kind", "state", "approval", "sent", "replies", "eta", "created"],
         [
             [
                 item["id"],
@@ -46,6 +47,7 @@ def listing(rows: list[dict], ui: Ui) -> None:
                 item["approval"],
                 item["counts"].get("sent", 0),
                 item["counts"].get("replies", 0),
+                when.cell(item.get("eta")),
                 item["created_at"],
             ]
             for item in rows
@@ -62,7 +64,7 @@ def listing(rows: list[dict], ui: Ui) -> None:
         print(f"next: downcroc review ({len(waiting)} waiting)")
 
 
-def show_batch(batch: dict, all_rows: bool) -> None:
+def show_batch(batch: dict, all_rows: bool, ui: Ui) -> None:
     record(
         {
             "id": batch["id"],
@@ -78,6 +80,7 @@ def show_batch(batch: dict, all_rows: bool) -> None:
         }
     )
     record(counts(batch["counts"]))
+    when.show_eta(batch.get("eta"), ui)
     options = batch.get("options") or {}
     if options:
         record(
@@ -137,6 +140,7 @@ def show_preview(
     messages = preview["messages"]
     if not table_view:
         cards(preview, messages[:1] if key is not None else messages, ui, key)
+        when.show_capacity(preview.get("capacity"), ui)
         return
     record(
         {
@@ -158,6 +162,7 @@ def show_preview(
             for item in preview["messages"]
         ],
     )
+    when.show_capacity(preview.get("capacity"), ui)
     for field in preview.get("ignored") or []:
         print(f"ignored: {field}")
     for warning in preview.get("warnings") or []:

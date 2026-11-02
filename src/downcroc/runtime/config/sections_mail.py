@@ -209,6 +209,12 @@ class OutboundSettings(BaseModel):
         le=300,
         description="Seconds to wait for SMTP network calls.",
     )
+    api_timeout_s: float = Field(
+        default=60.0,
+        gt=0,
+        le=300,
+        description="Seconds to wait for Gmail API requests.",
+    )
     lease_seconds: int = Field(
         default=120,
         ge=10,

@@ -5,7 +5,7 @@ from pathlib import Path
 from downcroc.cli import inputs
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, delete, get, get_page, post
-from downcroc.cli.commands import batch_view
+from downcroc.cli.commands import batch_view, when
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, page_footer, record, table
@@ -67,7 +67,7 @@ def run(args: object) -> int:
     if ui.json_mode:
         json_out(batch)
     else:
-        batch_view.show_batch(batch, bool(args.all))
+        batch_view.show_batch(batch, bool(args.all), ui)
     return 0
 
 
@@ -167,6 +167,7 @@ def _submit(client, args: object, ui: Ui) -> int:
                 "approval": batch["approval"],
             }
         )
+        when.show_capacity(batch.get("capacity"), ui)
         if not ui.quiet:
             if batch["state"] == "awaiting_approval":
                 print(f"next: downcroc batch approve {batch['id']} --mode all")

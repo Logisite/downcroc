@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from downcroc.cli.client import get
+from downcroc.cli.commands import when
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record, table
 from downcroc.cli.ui import prompts
@@ -96,6 +97,69 @@ def added(account: dict, ui: Ui) -> int:
     )
     print(f"next: downcroc account connect {account['id']}")
     return 0
+
+
+def transports(client, account_id: str, ui: Ui) -> None:
+    rows = get(client, f"/api/accounts/{account_id}/transports")
+    if not rows:
+        print()
+        print("this mailbox has no send transports")
+        if not ui.quiet:
+            print(f"next: downcroc account transport add {account_id} --kind gmail_api")
+        return
+    print()
+    print(ui.heading("send transports"))
+    table(
+        [
+            "id",
+            "kind",
+            "slot",
+            "priority",
+            "health",
+            "lanes",
+            "rate",
+            "cooldown",
+            "last error",
+            "last success",
+        ],
+        [
+            [
+                item["id"],
+                item["kind"],
+                item.get("slot") or "-",
+                item["priority"],
+                item["health"],
+                item["max_concurrency"],
+                item["rate_per_min"] or "-",
+                item["cooldown_until"] or "-",
+                item["last_error_code"] or "-",
+                item["last_success_at"] or "-",
+            ]
+            for item in rows
+        ],
+    )
+    for item in rows:
+        history = get(
+            client,
+            f"/api/accounts/{account_id}/transports/{item['id']}/events",
+            limit=5,
+        )
+        if not history:
+            continue
+        print()
+        print(ui.dim(f"timeline {item['id']} ({item['kind']})"))
+        table(
+            ["when", "event", "reason", "retry"],
+            [
+                [
+                    row["ts"],
+                    str(row["type"]).removeprefix("transport."),
+                    row.get("reason") or "-",
+                    when.duration(row.get("retry_s")),
+                ]
+                for row in history
+            ],
+        )
 
 
 def deletion_view(preview: dict) -> None:

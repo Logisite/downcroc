@@ -248,5 +248,5 @@ def run(args: object) -> int:
         if ui.json_mode:
             json_out(job)
         else:
-            job_show(job)
+            job_show(job, ui)
         return 0

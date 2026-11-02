@@ -193,7 +193,27 @@ def handle_callback(listener: Listener, handler: BaseHTTPRequestHandler) -> None
             "oauth_unavailable",
         )
         return
-    except (SQLAlchemyError, OSError, RuntimeError) as failure:
+    except (SQLAlchemyError, OSError, RuntimeError, ValueError, TypeError, KeyError) as failure:
+        flow.log.error(
+            "oauth.failed",
+            code="unexpected",
+            attempt=listener.attempt.id,
+            account=listener.attempt.account_id,
+            error=type(failure).__name__,
+        )
+        flow.attempts.set_state(
+            listener.attempt.id, AttemptState.FAILED, "oauth_failed"
+        )
+        listener.stop.set()
+        respond(
+            handler,
+            500,
+            "Connection failed",
+            "downcroc hit an unexpected error. Return and try again.",
+            "oauth_failed",
+        )
+        return
+    except Exception as failure:  # noqa: BLE001 - never leave the browser hanging
         flow.log.error(
             "oauth.failed",
             code="unexpected",

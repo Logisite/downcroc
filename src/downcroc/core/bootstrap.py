@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from downcroc.backup import BackupService, RestoreService
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.batches import BatchesService
+from downcroc.core.capacity import CapacityService
 from downcroc.core.config_service import ConfigService
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
+from downcroc.core.doctor import DoctorService
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
 from downcroc.core.inbound import InboundService
@@ -63,6 +65,8 @@ class Services:
     inbound: InboundService
     outbound: OutboundService
     batches: BatchesService
+    capacity: CapacityService
+    doctor: DoctorService
     portability: PortabilityService
     followups: FollowUpService
     stats: StatsService
@@ -120,19 +124,6 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         policy,
         log,
     )
-    inbound = InboundService(
-        account_repo,
-        message_repo,
-        stats,
-        providers,
-        vault,
-        tokens,
-        content,
-        bus,
-        log,
-        settings.inbound,
-        settings.connect,
-    )
     clients = OAuthClientService(
         oauth_client_repo,
         transport_repo,
@@ -141,6 +132,20 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         providers,
         bus,
         log,
+    )
+    inbound = InboundService(
+        account_repo,
+        message_repo,
+        stats,
+        providers,
+        vault,
+        tokens,
+        clients,
+        content,
+        bus,
+        log,
+        settings.inbound,
+        settings.connect,
     )
     credentials = CredentialResolver(account_repo, vault, tokens, clients)
     transports = TransportService(
@@ -151,8 +156,11 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         clients,
         bus,
         log,
+        events,
         settings.outbound,
         settings.dispatch,
+        policy,
+        quota_repo,
     )
     for account in account_repo.list(include_archived=True):
         transports.ensure_defaults(account)
@@ -203,6 +211,23 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         policy,
         bus,
         log,
+    )
+    capacity = CapacityService(
+        settings,
+        account_repo,
+        transports,
+        policy,
+        quota_repo,
+        job_repo,
+        batch_repo,
+    )
+    doctor = DoctorService(
+        settings,
+        account_repo,
+        transports,
+        clients,
+        capacity,
+        vault,
     )
     portability = PortabilityService(
         job_repo,
@@ -278,6 +303,8 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         inbound=inbound,
         outbound=outbound,
         batches=batches,
+        capacity=capacity,
+        doctor=doctor,
         portability=portability,
         followups=followups,
         stats=stats,

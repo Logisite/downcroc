@@ -15,6 +15,7 @@ from downcroc.api.routes import (
     backups,
     batches,
     config,
+    doctor,
     events,
     failed,
     health,
@@ -102,6 +103,7 @@ def create_app(
     app.include_router(transports.router)
     app.include_router(oauth_clients.router)
     app.include_router(attempts.router)
+    app.include_router(doctor.router)
     app.include_router(providers.router)
     app.include_router(messages.router)
     app.include_router(jobs.router)
