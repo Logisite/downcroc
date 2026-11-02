@@ -256,7 +256,12 @@ class FakeGmail:
         handler.end_headers()
         handler.wfile.write(body)
 
-    def provider_toml(self, fakes: FakeMailServers) -> str:
+    def provider_toml(self, fakes: FakeMailServers, *, client: bool = True) -> str:
+        builtin = (
+            'oauth_client_id = "test-client"\noauth_client_secret = "test-secret"\n'
+            if client
+            else ""
+        )
         return (
             "[providers.gmail]\n"
             'label = "Gmail (fake)"\n'
@@ -280,6 +285,5 @@ class FakeGmail:
             'api_scopes = ["https://mail.google.com/"]\n'
             f'oauth_authorize_url = "{self.base_url}/authorize"\n'
             f'oauth_token_url = "{self.base_url}/token"\n'
-            'oauth_client_id = "test-client"\n'
-            'oauth_client_secret = "test-secret"\n'
+            f"{builtin}"
         )
