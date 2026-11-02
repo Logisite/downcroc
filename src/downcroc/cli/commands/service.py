@@ -8,8 +8,8 @@ from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
 from downcroc.cli.ui.menu import open_menu
-from downcroc.cli.ui.progress import Progress
 from downcroc.cli.ui.session import Ui, build
+from downcroc.cli.ui.spine import Spine, StartReport
 from downcroc.runtime.service import install as service_install
 from downcroc.runtime.service.lifecycle import start, status, stop
 from downcroc.runtime.service.lock import AlreadyRunning
@@ -26,24 +26,24 @@ def _timeout(args: object, settings: object) -> float | None:
 
 
 def _start(args: object, paths: object, settings: object, ui: Ui) -> int:
-    progress = Progress(ui)
-    try:
-        info = start(
-            paths,
-            settings,
-            timeout=_timeout(args, settings),
-            progress=progress,
-        )
-    except AlreadyRunning as error:
-        return _already(args, error)
-    except (OSError, RuntimeError, TimeoutError) as error:
-        raise CliError(
-            str(error),
-            code="service_start_failed",
-            hint="inspect the log with `downcroc logs --since 5m`",
-        ) from error
-    finally:
-        progress.done()
+    with Spine(ui) as spine:
+        report = StartReport(spine)
+        try:
+            info = start(
+                paths,
+                settings,
+                timeout=_timeout(args, settings),
+                progress=report,
+            )
+        except AlreadyRunning as error:
+            return _already(args, error)
+        except (OSError, RuntimeError, TimeoutError) as error:
+            report.fail(str(error))
+            raise CliError(
+                str(error),
+                code="service_start_failed",
+                hint="inspect the log with `downcroc logs --since 5m`",
+            ) from error
     if ui.json_mode:
         json_out({**asdict(info), "url": info.base_url})
         return 0
