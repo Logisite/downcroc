@@ -1,6 +1,6 @@
 param(
     [string]$Wheel = "",
-    [string]$Version = "1.2.2",
+    [string]$Version = "1.3.0",
     [string]$Prefix = "$env:LOCALAPPDATA\downcroc",
     [switch]$NoInit
 )
