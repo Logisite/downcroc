@@ -10,7 +10,7 @@ from downcroc.cli.commands.doctor_transports import transports as doctor_transpo
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
-from downcroc.cli.ui import prompts
+from downcroc.cli.ui import prompts, splash
 from downcroc.cli.ui.menu import run_args
 from downcroc.cli.ui.session import Ui, build
 from downcroc.runtime import keyring
@@ -364,6 +364,7 @@ def home(args: object, ui: Ui) -> int:
         return _absent(args, ui, paths)
     if not ui.interactive:
         return status_report(args, ui)
+    splash.play(ui)
     while True:
         info = _state(args, paths)
         _home_header(ui, info)
