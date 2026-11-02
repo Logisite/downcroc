@@ -87,6 +87,7 @@ class HoldsService:
         changed = (
             not before.paused
             or before.sending_paused_reason != after.sending_paused_reason
+            or before.sending_paused_until != after.sending_paused_until
         )
         if changed:
             self._bus.publish(

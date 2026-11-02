@@ -353,6 +353,9 @@ def _hold_accounts(client, args: object, ui: Ui, action: str) -> int:
                 "changed": row.get("changed"),
             }
         )
+        advice = (row.get("impact") or {}).get("advice")
+        if advice:
+            print(ui.paint(advice, "warn"))
     return 1 if failed else 0
 
 

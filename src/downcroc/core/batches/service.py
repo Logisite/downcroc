@@ -98,11 +98,7 @@ class BatchesService:
 
         payload = snapshot.campaign_bytes(campaign)
         digest = hashlib.sha256(payload).hexdigest()
-        existing = (
-            self._batches.find_submit(digest, key)
-            if key is not None
-            else self._batches.find_source(digest)
-        )
+        existing = self._batches.find_submit(digest, key) if key is not None else None
         if existing is not None:
             self._log.info(
                 "batch.reused",

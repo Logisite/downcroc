@@ -89,20 +89,6 @@ class BatchRepo:
                 raise BatchNotFound(f"no batch {batch_id}")
             return _to_batch(row)
 
-    def find_source(self, source_hash: str) -> Batch | None:
-        query = (
-            select(BatchRow)
-            .where(
-                BatchRow.source_hash == source_hash,
-                BatchRow.state.not_in(("done", "cancelled")),
-            )
-            .order_by(BatchRow.created_at.desc())
-            .limit(1)
-        )
-        with self._sessions() as session:
-            row = session.scalars(query).first()
-            return None if row is None else _to_batch(row)
-
     def find_submit(self, source_hash: str, submit_key: str) -> Batch | None:
         query = select(BatchRow).where(
             BatchRow.source_hash == source_hash,
