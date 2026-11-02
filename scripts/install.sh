@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION="1.3.0"
+VERSION="1.2.3"
 PREFIX="${DOWNCROC_PREFIX:-$HOME/.local}"
 WHEEL=""
 RUN_INIT=1
@@ -14,7 +14,7 @@ usage: install.sh [options]
 
 options:
   --wheel PATH    install this .whl file
-  --version VER   install a release version (default: 1.3.0)
+  --version VER   install a release version (default: 1.2.3)
   --prefix DIR    install under DIR (default: ~/.local)
   --no-init       do not run downcroc init
   -h, --help      show this help
