@@ -153,6 +153,9 @@ class AccountRowOut(TotalsOut):
     account_id: str
     address: str
     remaining_allowance: int
+    used: int = 0
+    reserved: int = 0
+    available: int = 0
 
     @classmethod
     def of(cls, item: AccountStats) -> AccountRowOut:
@@ -160,6 +163,9 @@ class AccountRowOut(TotalsOut):
             account_id=item.account_id,
             address=item.address,
             remaining_allowance=item.remaining_allowance,
+            used=item.used,
+            reserved=item.reserved,
+            available=item.available,
             **item.totals.as_dict(),
         )
 

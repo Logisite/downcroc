@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from downcroc.cli.client import api, get, post
 from downcroc.cli.commands import when
 from downcroc.cli.context import load
@@ -86,12 +88,14 @@ def _batches(data: dict) -> None:
 def _accounts(data: dict) -> None:
     record({"from": data["from"], "to": data["to"]})
     table(
-        ["account", "address", "remaining", *TOTAL_KEYS],
+        ["account", "address", "used", "reserved", "available", *TOTAL_KEYS],
         [
             [
                 row["account_id"],
                 row["address"],
-                row["remaining_allowance"],
+                row.get("used", 0),
+                row.get("reserved", 0),
+                row.get("available", row["remaining_allowance"]),
                 *[_totals(row)[key] for key in TOTAL_KEYS],
             ]
             for row in data["rows"]
@@ -116,8 +120,13 @@ def _pending(data: dict, ui: Ui) -> None:
 
 
 def _range(args: object) -> dict:
+    started = getattr(args, "from_value", None)
+    since = getattr(args, "since_s", None)
+    if since is not None and started is None:
+        moment = datetime.now(UTC) - timedelta(seconds=int(since))
+        started = moment.date().isoformat()
     return {
-        "from": getattr(args, "from_value", None),
+        "from": started,
         "to": getattr(args, "to", None),
         "account_id": getattr(args, "account_id", None),
     }

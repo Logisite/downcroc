@@ -14,6 +14,16 @@ def _uptime(request: Request) -> float:
     return round(time.monotonic() - request.app.state.started, 3)
 
 
+def _sending(request: Request) -> dict[str, object]:
+    state = request.app.state.services.holds.service_state()
+    return {
+        "state": "paused" if state.paused else "running",
+        "since": state.sending_paused_at,
+        "until": state.sending_paused_until,
+        "reason": state.sending_paused_reason,
+    }
+
+
 def _vault(request: Request) -> dict[str, object]:
     status = request.app.state.services.vault.status()
     return {
@@ -32,6 +42,7 @@ def health(request: Request) -> dict[str, object]:
         "api_version": API_VERSION,
         "pid": request.app.state.pid,
         "uptime_s": _uptime(request),
+        "sending": _sending(request)["state"],
     }
 
 
@@ -47,4 +58,5 @@ def status(request: Request) -> dict[str, object]:
         ).isoformat(timespec="seconds"),
         "uptime_s": _uptime(request),
         "vault": _vault(request),
+        "sending": _sending(request),
     }

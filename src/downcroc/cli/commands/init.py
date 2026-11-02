@@ -105,17 +105,19 @@ def _vault_step(args: object, ui: Ui) -> None:
     print()
     print("Create the vault password")
     print("  This password protects every mail credential. It cannot be recovered.")
-    vault.run(_vault_args("init", args))
+    use_store = False
     if ui.interactive and keyring.available():
-        use = prompts.confirm(
+        use_store = prompts.confirm(
             "Use the system credential store so you do not retype it?",
             ui=ui,
             default=True,
         )
-        if use:
-            print("next: downcroc vault keyring enable")
     elif not keyring.available():
         print("keyring unavailable, type the password instead")
+    vault_args = _vault_args("init", args)
+    vault_args.keyring = use_store
+    vault_args.no_keyring = not use_store
+    vault.run(vault_args)
 
 
 def _vault_args(action: str, args: object) -> object:
@@ -333,7 +335,8 @@ def run(args: object) -> int:
     record(
         {
             "done": (
-                f"{1 if account else 0} account connected, "
+                f"{1 if account and account['status'] == 'connected' else 0} "
+                f"account connected, "
                 f"daemon {report.get('state', 'stopped')}"
             )
         }

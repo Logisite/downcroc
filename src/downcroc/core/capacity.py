@@ -4,18 +4,18 @@ import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from downcroc.core.capacity_eta import CapacityEtaMixin
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.transports import TransportService
 from downcroc.domain.accounts import Account, AccountStatus
-from downcroc.domain.batches import Batch
-from downcroc.domain.jobs import Job, JobState, SenderPolicy
+from downcroc.domain.jobs import JobState
 from downcroc.domain.policy import SendPolicy
-from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import Settings
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.quota import QuotaRepo
+from downcroc.store.repositories.runtime_state import RuntimeStateRepo
 
 ACTIVE = frozenset(
     {
@@ -43,7 +43,7 @@ class Fleet:
         return max(0, self.api_lanes + (1 if self.smtp_seats else 0))
 
 
-class CapacityService:
+class CapacityService(CapacityEtaMixin):
     """Capacity and ETA computed on read, never stored.
 
     SMTP is serial: a seat is one connection and only one SMTP send is in
@@ -60,6 +60,7 @@ class CapacityService:
         quota: QuotaRepo,
         jobs: JobRepo,
         batches: BatchRepo,
+        runtime: RuntimeStateRepo,
     ) -> None:
         self._settings = settings
         self._accounts = accounts
@@ -68,6 +69,7 @@ class CapacityService:
         self._quota = quota
         self._jobs = jobs
         self._batches = batches
+        self._runtime = runtime
 
     # -- fleet -----------------------------------------------------------
 
@@ -86,7 +88,7 @@ class CapacityService:
                 continue
             if account.status is not AccountStatus.CONNECTED:
                 continue
-            if account.archived_at is not None:
+            if account.archived_at is not None or account.paused_at is not None:
                 continue
             if not self._policy.effective(account).enabled:
                 continue
@@ -183,91 +185,6 @@ class CapacityService:
             "advice": advice,
         }
 
-    # -- batch ETA -------------------------------------------------------
-
-    def batch_eta(self, batch: Batch) -> dict[str, object]:
-        counts = self._jobs.counts(batch.id)
-        remaining = sum(counts.get(state.value, 0) for state in ACTIVE)
-        held = counts.get(JobState.AWAITING_APPROVAL.value, 0)
-        account_ids = [batch.account_id] if batch.account_id else None
-        capacity = self.selection(
-            remaining,
-            account_ids=account_ids,
-            pinned=batch.account_id is not None,
-        )
-        state = self._batch_state(batch, remaining, held, capacity)
-        finish = capacity["finish_at"]
-        if state in {"awaiting_approval", "blocked", "done", "cancelled", "idle"}:
-            finish = {"earliest": None, "latest": None}
-        return {
-            "state": state,
-            "as_of": utc_now(),
-            "remaining": remaining,
-            "sendable": max(0, remaining - held),
-            "held": held,
-            "lanes": capacity["lanes"],
-            "seats": capacity["seats"],
-            "serial": capacity["serial"],
-            "duration_s": capacity["duration_s"],
-            "finish_at": finish,
-            "spills_window": capacity["spills_window"],
-            "spills_day": capacity["spills_day"],
-            "blocked_reason": (
-                capacity["blocked_reason"] if state == "blocked" else None
-            ),
-            "advice": capacity["advice"],
-        }
-
-    # -- job ETA ---------------------------------------------------------
-
-    def job_eta(self, job: Job) -> dict[str, object] | None:
-        if job.state not in ACTIVE and job.state is not JobState.AWAITING_APPROVAL:
-            return None
-        account_ids = [job.account_id] if job.account_id else None
-        pinned = job.sender_policy is SenderPolicy.PINNED
-        capacity = self.selection(
-            1,
-            account_ids=account_ids,
-            pinned=pinned,
-        )
-        account = self._account(job.account_id)
-        return {
-            "state": job.state.value,
-            "as_of": utc_now(),
-            "next_attempt_at": job.next_attempt_at,
-            "queue_position": 1,
-            "queue_lanes": capacity["lanes"],
-            "seats": capacity["seats"],
-            "sender_hint": account.address if account else None,
-            "transport_hint": "smtp" if capacity["serial"] else "gmail_api",
-            "finish_at": (
-                {"earliest": None, "latest": None}
-                if job.state is JobState.AWAITING_APPROVAL
-                else capacity["finish_at"]
-            ),
-            "blocked_reason": capacity["blocked_reason"],
-        }
-
-    def pending(self) -> dict[str, object]:
-        total = sum(self._jobs.count(state=state.value) for state in ACTIVE)
-        capacity = self.selection(total)
-        state = (
-            "idle"
-            if total == 0
-            else ("blocked" if capacity["blocked_reason"] else "draining")
-        )
-        return {
-            "state": state,
-            "remaining": total,
-            "lanes": capacity["lanes"],
-            "seats": capacity["seats"],
-            "serial": capacity["serial"],
-            "smtp_queue": capacity["smtp_queue"],
-            "smtp_waiting": capacity["smtp_waiting"],
-            "finish_at": capacity["finish_at"],
-            "blocked_reason": capacity["blocked_reason"],
-        }
-
     # -- helpers ---------------------------------------------------------
 
     def _interval_policy(self, accounts: list[Account]) -> SendPolicy:
@@ -330,28 +247,3 @@ class CapacityService:
             for binding in self._transports.usable(account):
                 kinds.add(binding.kind.value)
         return sorted(kinds)
-
-    def _batch_state(
-        self,
-        batch: Batch,
-        remaining: int,
-        held: int,
-        capacity: dict[str, object],
-    ) -> str:
-        if batch.state.value in {"done", "cancelled"}:
-            return batch.state.value
-        if capacity["blocked_reason"]:
-            return "blocked"
-        if held and remaining == held:
-            return "awaiting_approval"
-        if remaining <= 0:
-            return "idle"
-        return "draining"
-
-    def _account(self, account_id: str | None) -> Account | None:
-        if account_id is None:
-            return None
-        try:
-            return self._accounts.get(account_id)
-        except Exception:  # noqa: BLE001 - a deleted account is a missing hint
-            return None

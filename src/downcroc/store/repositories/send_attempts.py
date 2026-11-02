@@ -4,6 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.attempts import SendAttempt
+from downcroc.runtime.clock import utc_now
 from downcroc.store.db.models import SendAttemptRow
 
 
@@ -53,6 +54,73 @@ class SendAttemptRepo:
             session.add(row)
         return attempt
 
+    def create_reserved(
+        self,
+        attempt_id: str,
+        job_id: str,
+        account_id: str,
+        day: str,
+        started_at: str,
+    ) -> None:
+        with self._sessions.begin() as session:
+            session.add(
+                SendAttemptRow(
+                    id=attempt_id,
+                    job_id=job_id,
+                    account_id=account_id,
+                    binding_id=None,
+                    transport="pending",
+                    started_at=started_at,
+                    finished_at=None,
+                    outcome="reserved",
+                    accepted=None,
+                    error_code=None,
+                    error_message=None,
+                    provider_message_id=None,
+                    detail=None,
+                    quota_day=day,
+                    quota_state="reserved",
+                )
+            )
+
+    def finish(
+        self,
+        attempt_id: str,
+        *,
+        binding_id: str | None,
+        transport: str,
+        outcome: str,
+        accepted: bool | None,
+        code: str | None,
+        message: str | None,
+        provider_message_id: str | None,
+    ) -> None:
+        with self._sessions.begin() as session:
+            row = session.get(SendAttemptRow, attempt_id)
+            if row is None:
+                return
+            row.binding_id = binding_id
+            row.transport = transport
+            row.outcome = outcome
+            row.accepted = accepted
+            row.error_code = code
+            row.error_message = message
+            row.provider_message_id = provider_message_id
+            row.finished_at = utc_now()
+
+    def reserved_accepted(self) -> list[SendAttempt]:
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(SendAttemptRow)
+                .where(SendAttemptRow.quota_state == "reserved")
+                .where(
+                    SendAttemptRow.outcome.in_(
+                        ("sent", "sent_unconfirmed", "uncertain")
+                    )
+                )
+            )
+            return [_to_attempt(row) for row in rows]
+
     def latest_for_job(self, job_id: str) -> SendAttempt | None:
         with self._sessions() as session:
             row = session.scalars(
@@ -62,6 +130,11 @@ class SendAttemptRepo:
                 .limit(1)
             ).first()
             return None if row is None else _to_attempt(row)
+
+    def quota_state(self, attempt_id: str) -> str | None:
+        with self._sessions() as session:
+            row = session.get(SendAttemptRow, attempt_id)
+            return None if row is None else row.quota_state
 
     def set_quota(self, attempt_id: str, day: str, state: str) -> None:
         with self._sessions.begin() as session:

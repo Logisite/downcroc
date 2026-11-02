@@ -53,7 +53,7 @@ def listing(rows: list[dict], ui: Ui) -> None:
                 item["id"],
                 item["name"],
                 item["kind"],
-                item["state"],
+                _state(item),
                 item["approval"],
                 item["counts"].get("sent", 0),
                 item["counts"].get("replies", 0),
@@ -74,13 +74,17 @@ def listing(rows: list[dict], ui: Ui) -> None:
         print(f"next: downcroc review ({len(waiting)} waiting)")
 
 
+def _state(batch: dict) -> str:
+    return f"{batch['state']} (paused)" if batch.get("paused_at") else batch["state"]
+
+
 def show_batch(batch: dict, all_rows: bool, ui: Ui) -> None:
     record(
         {
             "id": batch["id"],
             "name": batch["name"],
             "kind": batch["kind"],
-            "state": batch["state"],
+            "state": _state(batch),
             "approval": batch["approval"],
             "routing": routing(batch),
             "source": batch["source_ref"],

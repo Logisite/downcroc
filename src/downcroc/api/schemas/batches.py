@@ -88,6 +88,8 @@ class BatchOut(BaseModel):
     counts: dict[str, int]
     created_at: str
     approved_at: str | None
+    paused_at: str | None = None
+    paused_reason: str | None = None
     eta: dict[str, object] | None = None
 
     @classmethod
@@ -116,6 +118,8 @@ class BatchOut(BaseModel):
             counts=counts,
             created_at=batch.created_at,
             approved_at=batch.approved_at,
+            paused_at=batch.paused_at,
+            paused_reason=batch.paused_reason,
             eta=eta,
         )
 

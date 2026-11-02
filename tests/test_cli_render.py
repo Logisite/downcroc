@@ -52,6 +52,22 @@ def test_menu_redraws_after_resize(stack_factory) -> None:
         session.close()
 
 
+def test_service_menu_shows_the_sending_hold(stack_factory) -> None:
+    stack = stack_factory()
+    stack.api.post("/api/service/pause", {"reason": "maintenance"})
+    session = Session(stack, "service", width=100)
+    try:
+        session.wait_for(b"Pause sending")
+        screen = "\n".join(session.screen())
+        assert "Resume sending" in screen
+        assert "paused since" in screen
+        assert "maintenance" in screen
+        assert session.bare_newlines() == 0
+    finally:
+        session.write(b"\x03")
+        session.close()
+
+
 def test_editor_keeps_the_prompt_on_one_row(stack_factory) -> None:
     stack = stack_factory()
     session = Session(stack, "account", "add", width=40)

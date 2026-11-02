@@ -46,6 +46,7 @@ class GmailDelivery:
         credentials: SmtpCredentials,
         wire: bytes,
         started_at: str,
+        attempt_id: str,
     ) -> AttemptResult:
         self._bus.publish(
             "transport.selected",
@@ -69,13 +70,16 @@ class GmailDelivery:
                 project_id=project_id,
             )
         except gmail_api.GmailApiFailure as error:
-            return self._failed(job, account, binding, started_at, error, project_id)
+            return self._failed(
+                job, account, binding, started_at, attempt_id, error, project_id
+            )
         self._recorder.record(
             job,
             account,
             binding,
             binding.kind.value,
             started_at,
+            attempt_id=attempt_id,
             outcome="sent",
             accepted=True,
             provider_message_id=result.provider_message_id,
@@ -115,11 +119,12 @@ class GmailDelivery:
         account: Account,
         binding: AccountTransport,
         started_at: str,
+        attempt_id: str,
         error: gmail_api.GmailApiFailure,
         project_id: str | None,
     ) -> AttemptResult:
         if error.uncertain:
-            return self._uncertain(job, account, binding, started_at, error)
+            return self._uncertain(job, account, binding, started_at, attempt_id, error)
         deferred = error.transient or error.quota or error.code == "gmail_api_disabled"
         outcome = "deferred" if deferred else "failed"
         self._recorder.record(
@@ -128,6 +133,7 @@ class GmailDelivery:
             binding,
             binding.kind.value,
             started_at,
+            attempt_id=attempt_id,
             outcome=outcome,
             accepted=False,
             code=error.code,
@@ -180,6 +186,7 @@ class GmailDelivery:
         account: Account,
         binding: AccountTransport,
         started_at: str,
+        attempt_id: str,
         error: gmail_api.GmailApiFailure,
     ) -> AttemptResult:
         self._recorder.record(
@@ -188,6 +195,7 @@ class GmailDelivery:
             binding,
             binding.kind.value,
             started_at,
+            attempt_id=attempt_id,
             outcome="uncertain",
             accepted=None,
             code=error.code,

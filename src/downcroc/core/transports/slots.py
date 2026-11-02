@@ -58,7 +58,7 @@ class SlotResolver:
                 continue
             if account.status is not AccountStatus.CONNECTED:
                 continue
-            if account.archived_at is not None:
+            if account.archived_at is not None or account.paused_at is not None:
                 continue
             policy = self._policy.effective(account)
             if not policy.enabled:

@@ -27,6 +27,7 @@ from downcroc.domain.errors import (
     AccountUnavailable,
     BatchInvalid,
     BatchNotAwaitingApproval,
+    BatchStateConflict,
     SampleAlreadySent,
 )
 from downcroc.domain.jobs import JobState
@@ -97,16 +98,19 @@ class BatchesService:
 
         payload = snapshot.campaign_bytes(campaign)
         digest = hashlib.sha256(payload).hexdigest()
-        if key is not None:
-            existing = self._batches.find_submit(digest, key)
-            if existing is not None:
-                self._log.info(
-                    "batch.reused",
-                    batch=existing.id,
-                    key=key,
-                    jobs=len(self._jobs.list(batch_id=existing.id, limit=10_000)),
-                )
-                return replace(self.detail(existing.id), reused=True)
+        existing = (
+            self._batches.find_submit(digest, key)
+            if key is not None
+            else self._batches.find_source(digest)
+        )
+        if existing is not None:
+            self._log.info(
+                "batch.reused",
+                batch=existing.id,
+                key=key,
+                jobs=len(self._jobs.list(batch_id=existing.id, limit=10_000)),
+            )
+            return replace(self.detail(existing.id), reused=True)
 
         plan = routing.resolve(campaign, self._accounts.list(), self._policy)
         batch_id = new_id("bat")
@@ -323,6 +327,11 @@ class BatchesService:
 
     def cancel(self, batch_id: str) -> BatchDetail:
         batch = self._batches.get(batch_id)
+        if batch.state in (BatchState.CANCELLED, BatchState.DONE):
+            raise BatchStateConflict(
+                f"batch {batch_id} is already {batch.state.value}",
+                hint="nothing else needs cancelling",
+            )
         sent = self._jobs.counts(batch_id).get(JobState.SENT.value, 0)
         self._jobs.transition_batch(
             batch_id,

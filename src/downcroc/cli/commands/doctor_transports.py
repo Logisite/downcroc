@@ -118,12 +118,21 @@ def capacity(client, ui: Ui) -> int:
             "oauth": body.get("oauth_accounts", 0),
             "oauth_api_only": body.get("oauth_api_only", 0),
             "password_waiting": body.get("password_waiting", 0),
+            "reserved_units": body.get("reserved_units", 0),
+            "held_pinned": body.get("held_pinned", 0),
         }
     )
     for row in body["smtp_only"]:
         print(f"  smtp only: {row['account_id']} {row['address']}")
     for account_id in body.get("smtp_waiting", []):
         print(f"  waiting for a slot: {account_id}")
+    for row in body.get("paused_accounts", []):
+        print(
+            f"  paused: {row['account_id']} {row['address']} "
+            f"since {row['since']} ({row['reason'] or 'no reason'})"
+        )
+    for row in body.get("idle_seats", []):
+        print(f"  idle seat: {row['account_id']} {row['binding_id']} {row['kind']}")
     if body.get("warning"):
         tone = "bad" if body.get("risk") == "critical" else "warn"
         print(ui.paint(body["warning"], tone))

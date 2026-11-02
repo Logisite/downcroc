@@ -11,6 +11,10 @@ def sender_label(job: dict) -> str:
     return f"pinned {job['account_id']}"
 
 
+def _state(item: dict) -> str:
+    return f"{item['state']} (paused)" if item.get("paused_at") else item["state"]
+
+
 def job_list(rows: list[dict]) -> None:
     table(
         ["id", "recipient", "state", "sender", "attempts", "eta", "subject", "sent"],
@@ -18,7 +22,7 @@ def job_list(rows: list[dict]) -> None:
             [
                 item["id"],
                 item["recipient"],
-                item["state"],
+                _state(item),
                 sender_label(item),
                 item["attempts"],
                 when.cell(item.get("eta")),
@@ -40,7 +44,7 @@ def job_show(job: dict, ui: Ui) -> None:
             "recipient": job["recipient"],
             "name": job["recipient_name"],
             "subject": job["subject"],
-            "state": job["state"],
+            "state": _state(job),
             "attempts": job["attempts"],
             "message_id": job["message_id"],
             "thread_root": job["thread_root_job_id"],

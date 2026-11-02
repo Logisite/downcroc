@@ -15,6 +15,7 @@ from downcroc.api.schemas.batches import (
     PreviewOut,
     SuppressionPreviewOut,
 )
+from downcroc.api.schemas.holds import AllPauseRequest, PauseRequest, ResumeRequest
 from downcroc.core.bootstrap import Services
 
 router = APIRouter(prefix="/api/batches", tags=["batches"])
@@ -22,6 +23,45 @@ router = APIRouter(prefix="/api/batches", tags=["batches"])
 
 def _services(request: Request) -> Services:
     return request.app.state.services
+
+
+def _hold(batch) -> dict[str, object]:
+    return {
+        "id": batch.id,
+        "state": batch.state.value,
+        "paused_at": batch.paused_at,
+        "paused_reason": batch.paused_reason,
+    }
+
+
+@router.post("/pause", response_model=None)
+def pause_all(body: AllPauseRequest, request: Request) -> dict[str, object]:
+    if not body.all:
+        return {"paused": [], "skipped": [], "count": 0}
+    return _services(request).holds.pause_batches(body.reason)
+
+
+@router.post("/resume", response_model=None)
+def resume_all(body: AllPauseRequest, request: Request) -> dict[str, object]:
+    if not body.all:
+        return {"paused": [], "skipped": [], "count": 0}
+    return _services(request).holds.resume_batches()
+
+
+@router.post("/{batch_id}/pause", response_model=None)
+def pause_batch(
+    batch_id: str, body: PauseRequest, request: Request
+) -> dict[str, object]:
+    batch, changed = _services(request).holds.pause_batch(batch_id, body.reason)
+    return {"batch": _hold(batch), "changed": changed}
+
+
+@router.post("/{batch_id}/resume", response_model=None)
+def resume_batch(
+    batch_id: str, body: ResumeRequest, request: Request
+) -> dict[str, object]:
+    batch, changed = _services(request).holds.resume_batch(batch_id, body.reason)
+    return {"batch": _hold(batch), "changed": changed}
 
 
 @router.post("", response_model=BatchDetailOut, status_code=201)
@@ -104,7 +144,14 @@ def get_batch(batch_id: str, request: Request) -> BatchDetailOut:
 async def approve_batch(
     batch_id: str, body: ApproveRequest, request: Request
 ) -> BatchDetailOut:
-    detail = await _services(request).batches.approve(batch_id, body.mode)
+    services = _services(request)
+    if body.mode == "one":
+        batch = services.batches.detail(batch_id).batch
+        services.holds.ensure_can_send(
+            batch_id=batch_id,
+            account_id=batch.account_id,
+        )
+    detail = await services.batches.approve(batch_id, body.mode)
     return BatchDetailOut.from_detail(detail)
 
 

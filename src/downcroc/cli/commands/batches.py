@@ -53,6 +53,8 @@ def run(args: object) -> int:
             return _submit(client, args, ui)
         if action == "approve":
             return _approve(client, args, ui)
+        if action in {"pause", "resume"}:
+            return _hold(client, args, ui, action)
         if action == "cancel":
             return _cancel(client, args, ui)
         if action == "reassign":
@@ -198,8 +200,32 @@ def _approve(client, args: object, ui: Ui) -> int:
     return 0
 
 
+def _hold(client, args: object, ui: Ui, action: str) -> int:
+    body = {"reason": getattr(args, "reason", None)}
+    if getattr(args, "all", False):
+        result = post(client, f"/api/batches/{action}", {**body, "all": True})
+        if ui.json_mode:
+            json_out(result)
+            return 0
+        record({"batches": result["count"], "action": action})
+        return 0
+    if not getattr(args, "batch_id", None):
+        raise CliError(
+            f"batch {action} needs an id or --all", code="usage", exit_code=2
+        )
+    result = post(client, f"/api/batches/{args.batch_id}/{action}", body)
+    if ui.json_mode:
+        json_out(result)
+        return 0
+    record({"batch": args.batch_id, "action": action, "changed": result["changed"]})
+    return 0
+
+
 def _cancel(client, args: object, ui: Ui) -> int:
     batch = get(client, f"/api/batches/{args.batch_id}")
+    if batch["state"] in {"cancelled", "done"}:
+        print(ui.result(False, f"already {batch['state']}", batch["id"]))
+        return 1
     _confirm_batch(ui, args, batch, f"cancel {batch['name']}?")
     updated = post(client, f"/api/batches/{args.batch_id}/cancel")
     if ui.json_mode:

@@ -194,6 +194,8 @@ def run(args: object) -> int:
                     }
                 )
             return 0
+        if action in {"pause", "resume"}:
+            return _hold_accounts(client, args, ui, action)
         if action == "watch":
             return _watch(client, args, ui)
         if action == "transport":
@@ -319,6 +321,39 @@ def _connect(client, args: object, ui: Ui) -> int:
     updated = connect_now(client, account, args, ui)
     connected(updated, ui)
     return 0
+
+
+def _hold_accounts(client, args: object, ui: Ui, action: str) -> int:
+    rows = []
+    failed = False
+    for account_id in args.account_id:
+        try:
+            body = {"reason": getattr(args, "reason", None)}
+            result = post(
+                client,
+                f"/api/accounts/{account_id}/{action}",
+                body,
+            )
+            rows.append(result)
+        except CliError as error:
+            failed = True
+            rows.append({"account_id": account_id, "error": error.label})
+    if ui.json_mode:
+        json_out(rows)
+        return 1 if failed else 0
+    for row in rows:
+        if "error" in row:
+            print(ui.result(False, row["error"], row["account_id"]))
+            continue
+        account = row["account"]
+        record(
+            {
+                "account": f"{account['id']} {account['address']}",
+                "sending": "paused" if action == "pause" else "running",
+                "changed": row.get("changed"),
+            }
+        )
+    return 1 if failed else 0
 
 
 def _watch(client, args: object, ui: Ui) -> int:

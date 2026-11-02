@@ -83,12 +83,25 @@ def _row(
     prefix = ""
     if checked is not None:
         prefix = f"{ui.glyph('checked' if checked else 'unchecked')} "
+    badge = ""
+    if choice.badge and limit >= DETAIL_FROM:
+        tone = "warn" if "paused" in choice.badge else "muted"
+        badge = ui.paint(
+            "  " + ansi.clip(choice.badge, max(8, label_width)),
+            tone,
+        )
     detail = ""
     if choice.detail and limit >= DETAIL_FROM:
-        room = max(8, limit - label_width - ansi.cells(prefix) - 6)
+        room = max(
+            8,
+            limit - label_width - ansi.cells(prefix) - ansi.cells(badge) - 6,
+        )
         detail = ui.dim("  " + ansi.clip(choice.detail, room))
     label = ansi.pad(label, label_width)
-    return ansi.fit(f"  {pointer} {prefix}{label}{detail}".rstrip(), limit)
+    return ansi.fit(
+        f"  {pointer} {prefix}{label}{badge}{detail}".rstrip(),
+        limit,
+    )
 
 
 def _lines(

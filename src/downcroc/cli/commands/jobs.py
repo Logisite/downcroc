@@ -130,6 +130,16 @@ def _send(client, args: object, ui: Ui) -> int:
     return 0
 
 
+def _hold(client, args: object, ui: Ui, action: str) -> int:
+    body = {"reason": getattr(args, "reason", None)}
+    job = post(client, f"/api/jobs/{args.job_id}/{action}", body)
+    if ui.json_mode:
+        json_out(job)
+    else:
+        print(f"{job['id']} {job['state']} ({action})")
+    return 0
+
+
 def _cancel(client, args: object, ui: Ui) -> int:
     job = post(client, f"/api/jobs/{args.job_id}/cancel")
     if ui.json_mode:
@@ -236,6 +246,8 @@ def run(args: object) -> int:
             return _create(client, args, ui)
         if action == "send":
             return _send(client, args, ui)
+        if action in {"pause", "resume"}:
+            return _hold(client, args, ui, action)
         if action == "cancel":
             return _cancel(client, args, ui)
         if action == "delete":

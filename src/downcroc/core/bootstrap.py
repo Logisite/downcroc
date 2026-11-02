@@ -15,6 +15,7 @@ from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
 from downcroc.core.doctor import DoctorService
 from downcroc.core.events import EventBus
 from downcroc.core.followups import FollowUpService
+from downcroc.core.holds import HoldsService
 from downcroc.core.inbound import InboundService
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound import OutboundService
@@ -28,6 +29,7 @@ from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.providers.token import TokenManager
+from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
@@ -68,6 +70,7 @@ class Services:
     outbound: OutboundService
     batches: BatchesService
     capacity: CapacityService
+    holds: HoldsService
     doctor: DoctorService
     portability: PortabilityService
     followups: FollowUpService
@@ -108,11 +111,19 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     batch_repo = BatchRepo(sessions)
     quota_repo = QuotaRepo(sessions)
     send_attempts = SendAttemptRepo(sessions)
+    for attempt in send_attempts.reserved_accepted():
+        if attempt.account_id is None or attempt.quota_day is None:
+            continue
+        quota_repo.commit(attempt.account_id, attempt.quota_day)
+        send_attempts.set_quota(attempt.id, attempt.quota_day, "committed")
     stale = send_attempts.release_reserved()
     quota_repo.reset_reservations()
     if stale:
         log.info("quota.reservations_reset", count=stale)
     runtime_repo = RuntimeStateRepo(sessions)
+    if runtime_repo.clear_expired(utc_now()) is not None:
+        log.info("service.resumed", reason="expired")
+        bus.publish("service.resumed", {"reason": "expired"})
     transport_repo = TransportRepo(sessions)
     oauth_client_repo = OAuthClientRepo(sessions)
     activity_repo = ActivityRepo(sessions)
@@ -213,6 +224,18 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         quota_repo,
         job_repo,
         batch_repo,
+        runtime_repo,
+    )
+    holds = HoldsService(
+        settings,
+        runtime_repo,
+        account_repo,
+        batch_repo,
+        job_repo,
+        capacity,
+        transports,
+        bus,
+        log,
     )
     batches = BatchesService(
         settings,
@@ -243,7 +266,9 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         clients,
         capacity,
         inbound,
+        holds,
         transport_checks,
+        quota_repo,
     )
     portability = PortabilityService(
         job_repo,
@@ -321,6 +346,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         outbound=outbound,
         batches=batches,
         capacity=capacity,
+        holds=holds,
         doctor=doctor,
         portability=portability,
         followups=followups,

@@ -36,7 +36,9 @@ def listing(rows: list[dict], ui: Ui) -> None:
                 item["id"],
                 item["address"],
                 item["provider"],
-                item["status"],
+                f"{item['status']} (paused)"
+                if item.get("paused_at")
+                else item["status"],
                 "yes" if item["credential_present"] else "no",
                 "on" if item["watcher_enabled"] else "off",
                 item["last_error"],
@@ -63,6 +65,7 @@ def show(account: dict) -> None:
             "address": account["address"],
             "label": account["label"],
             "status": account["status"],
+            "sending": "paused" if account.get("paused_at") else "running",
             "credential": account["credential_present"],
             "watcher": account["watcher_enabled"],
             "created_at": account["created_at"],

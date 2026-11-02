@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import random
 import time
+import traceback
 import uuid
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -111,7 +112,8 @@ class Dispatcher(DispatchHelpers):
                 self._log.error(
                     "dispatch.error",
                     error=error.__class__.__name__,
-                    detail=str(error)[:200],
+                    detail=str(error)[:500],
+                    traceback=traceback.format_exc()[-4000:],
                 )
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._dispatch.tick_s)
@@ -222,15 +224,17 @@ class Dispatcher(DispatchHelpers):
                 or (not candidate.jobs and not auto_pool)
             ):
                 candidates.remove(candidate)
-        results = await asyncio.gather(
-            *(self._send(job, account, kinds) for job, account, kinds in picked)
-        )
+        try:
+            results = await asyncio.gather(
+                *(self._send(job, account, kinds) for job, account, kinds in picked)
+            )
+        finally:
+            self._finalize({job.batch_id for job, _, _ in picked})
         sent = sum(1 for result in results if result == "sent")
         failed = sum(1 for result in results if result == "failed")
         deferred = len(results) - sent - failed
         self._apply_spacing([(job, account) for job, account, _ in picked], policies)
         self._log_cycle(len(picked), sent, deferred, started)
-        self._finalize({job.batch_id for job, _, _ in picked})
         if failed:
             self._log.debug("dispatch.failed", count=failed)
 
@@ -240,17 +244,25 @@ class Dispatcher(DispatchHelpers):
         account: Account,
         kinds: frozenset,
     ) -> str:
+        self._log.debug(
+            "dispatch.send_start",
+            job=job.id,
+            account=account.id,
+            kinds=sorted(kind.value for kind in kinds),
+        )
         try:
             result = await self._outbound.deliver(job, account, allowed_kinds=kinds)
         except DomainError as error:
             self._log.debug("dispatch.error", job=job.id, code=error.code)
             result = self._jobs.get(job.id)
-        except (OSError, RuntimeError, SQLAlchemyError, ValueError) as error:
+        except Exception as error:  # noqa: BLE001 - one job must not kill the cycle
             self._log.error(
                 "dispatch.error",
                 job=job.id,
+                account=account.id,
                 error=error.__class__.__name__,
-                detail=str(error)[:300],
+                detail=str(error)[:500],
+                traceback=traceback.format_exc()[-4000:],
             )
             result = self._jobs.get(job.id)
             if result.state is JobState.SENDING:
@@ -316,7 +328,7 @@ class Dispatcher(DispatchHelpers):
         if state.sending_paused_at is not None:
             if self._held != "service":
                 self._held = "service"
-                self._log.info("dispatch.hold", level="service", id=None)
+                self._log.info("dispatch.hold", hold_level="service", id=None)
                 self._bus.publish(
                     "dispatch.hold",
                     {"level": "service", "id": None},
@@ -325,7 +337,7 @@ class Dispatcher(DispatchHelpers):
             return True
         if self._held == "service":
             self._held = None
-            self._log.info("dispatch.release", level="service", id=None)
+            self._log.info("dispatch.release", hold_level="service", id=None)
             self._bus.publish(
                 "dispatch.release",
                 {"level": "service", "id": None, "released_jobs": 0},

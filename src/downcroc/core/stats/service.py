@@ -158,14 +158,17 @@ class StatsService:
         for account in self._accounts.list():
             if account_id is not None and account.id != account_id:
                 continue
-            used = self._quota.used(account.id, today)
+            used, reserved = self._quota.status(account.id, today)
             allowance = self._policy.effective(account).daily_allowance
             rows.append(
                 AccountStats(
                     account_id=account.id,
                     address=account.address,
                     totals=by_id.get(account.id, ActivityTotals()),
-                    remaining_allowance=max(0, allowance - used),
+                    remaining_allowance=max(0, allowance - used - reserved),
+                    used=used,
+                    reserved=reserved,
+                    available=max(0, allowance - used - reserved),
                 )
             )
         return chosen, tuple(rows)

@@ -90,6 +90,8 @@ class SendAttemptOut(BaseModel):
     error_code: str | None
     error_message: str | None
     provider_message_id: str | None
+    quota_day: str | None = None
+    quota_state: str | None = None
 
 
 class JobErrorOut(BaseModel):
@@ -121,6 +123,8 @@ class JobOut(BaseModel):
     created_at: str
     updated_at: str
     sent_at: str | None
+    paused_at: str | None = None
+    paused_reason: str | None = None
     eta: dict[str, object] | None = None
 
     @classmethod
@@ -155,5 +159,7 @@ class JobOut(BaseModel):
             created_at=job.created_at,
             updated_at=job.updated_at,
             sent_at=job.sent_at,
+            paused_at=job.paused_at,
+            paused_reason=job.paused_reason,
             eta=eta,
         )

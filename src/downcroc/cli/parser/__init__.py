@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from downcroc.cli.parser import account, batch, other, provider
+from downcroc.cli.parser import account, batch, other, provider, vault
 from downcroc.cli.parser.common import Parser, root
 from downcroc.version import __version__
 
@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     other.top(commands)
     account.service(commands)
     account.attach_auth(commands)
-    account.vault(commands)
+    vault.vault(commands)
     provider.provider(commands)
     account.account(commands)
     batch.batch(commands)

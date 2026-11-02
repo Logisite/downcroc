@@ -101,6 +101,7 @@ class TransportDelivery:
         spec: ProviderSpec,
         wire: bytes,
         started_at: str,
+        attempt_id: str,
         allowed_kinds: frozenset[TransportKind] | None = None,
     ) -> DeliveryOutcome:
         healthy = self._transports.usable(account)
@@ -133,7 +134,7 @@ class TransportDelivery:
                 continue
             try:
                 outcome = await self._attempt(
-                    job, account, spec, binding, wire, started_at
+                    job, account, spec, binding, wire, started_at, attempt_id
                 )
             finally:
                 self._limiter.release(binding)
@@ -162,6 +163,7 @@ class TransportDelivery:
         binding: AccountTransport,
         wire: bytes,
         started_at: str,
+        attempt_id: str,
     ) -> DeliveryOutcome:
         try:
             credentials = self._credentials_for(account, spec, binding)
@@ -184,11 +186,25 @@ class TransportDelivery:
             )
         if binding.kind is TransportKind.GMAIL_API:
             result = await self._gmail.attempt(
-                job, account, spec, binding, credentials, wire, started_at
+                job,
+                account,
+                spec,
+                binding,
+                credentials,
+                wire,
+                started_at,
+                attempt_id,
             )
         else:
             result = await self._smtp.attempt(
-                job, account, spec, binding, credentials, wire, started_at
+                job,
+                account,
+                spec,
+                binding,
+                credentials,
+                wire,
+                started_at,
+                attempt_id,
             )
         if result.status == "sent":
             return DeliveryOutcome.sent(binding, result.provider_message_id)

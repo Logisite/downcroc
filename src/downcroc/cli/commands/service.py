@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from dataclasses import asdict
 
+from downcroc.cli.client import api, get, post
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
@@ -159,14 +160,23 @@ def _status(args: object, paths: object, ui: Ui) -> int:
         if not ui.quiet:
             print("next: downcroc logs --since 5m")
         return 1
-    record(
-        {
-            "daemon": f"running, pid {report['pid']}, {report['url']}",
-            "version": report.get("version"),
-            "started_at": report.get("started_at"),
-            "uptime_s": report.get("uptime_s"),
-        }
-    )
+    lines = {
+        "daemon": f"running, pid {report['pid']}, {report['url']}",
+        "version": report.get("version"),
+        "started_at": report.get("started_at"),
+        "uptime_s": report.get("uptime_s"),
+    }
+    with api(paths) as client:
+        sending = get(client, "/api/status").get("sending") or {}
+    if sending.get("state") == "paused":
+        lines["sending"] = (
+            f"paused since {sending.get('since') or '-'}"
+            f", until {sending.get('until') or 'resume'}"
+            f" ({sending.get('reason') or 'no reason'})"
+        )
+    else:
+        lines["sending"] = "running"
+    record(lines)
     return 0
 
 
@@ -183,6 +193,45 @@ def install_now(args: object):
         return None
 
 
+def _pause(args: object, paths: object, ui: Ui) -> int:
+    report = status(paths)
+    if report.get("state") != "running":
+        raise CliError(
+            "the daemon is not running",
+            code="daemon_not_running",
+            hint="a stopped daemon sends nothing; start it first if the hold must outlive the stop",
+        )
+    body = {
+        "reason": getattr(args, "reason", None),
+        "for_s": getattr(args, "for_s", None),
+    }
+    with api(paths) as client:
+        result = post(client, "/api/service/pause", body)
+    if ui.json_mode:
+        json_out(result)
+        return 0
+    sending = result["sending"]
+    detail = "sending paused"
+    if sending.get("until"):
+        detail += f" until {sending['until']}"
+    if sending.get("reason"):
+        detail += f" ({sending['reason']})"
+    record({"sending": detail, "changed": result.get("changed")})
+    return 0
+
+
+def _resume(args: object, paths: object, ui: Ui) -> int:
+    with api(paths) as client:
+        result = post(
+            client, "/api/service/resume", {"reason": getattr(args, "reason", None)}
+        )
+    if ui.json_mode:
+        json_out(result)
+        return 0
+    record({"sending": "running", "changed": result.get("changed")})
+    return 0
+
+
 def run(args: object) -> int:
     paths, settings, _ = load()
     ui = build(args)
@@ -197,6 +246,10 @@ def run(args: object) -> int:
         return _stop(args, paths, settings, ui)
     if action == "restart":
         return _restart(args, paths, settings, ui)
+    if action == "pause":
+        return _pause(args, paths, ui)
+    if action == "resume":
+        return _resume(args, paths, ui)
     if action == "install":
         return _install(args, paths, settings, ui)
     if action == "uninstall":

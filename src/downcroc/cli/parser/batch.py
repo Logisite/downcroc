@@ -109,6 +109,18 @@ def batch(commands: argparse._SubParsersAction) -> None:
     cancel.add_argument("batch_id")
     common(cancel, yes=True)
 
+    pause = actions.add_parser("pause", help="pause one existing batch")
+    pause.add_argument("batch_id", nargs="?")
+    pause.add_argument("--all", action="store_true", help="pause every existing batch")
+    pause.add_argument("--reason", help="why sending is paused")
+    common(pause)
+
+    resume = actions.add_parser("resume", help="resume one existing batch")
+    resume.add_argument("batch_id", nargs="?")
+    resume.add_argument("--all", action="store_true", help="resume every paused batch")
+    resume.add_argument("--reason", help="why sending is resumed")
+    common(resume)
+
     reassign = actions.add_parser("reassign", help="move a batch to another account")
     reassign.add_argument("batch_id")
     reassign.add_argument(
@@ -221,6 +233,16 @@ def job(commands: argparse._SubParsersAction) -> None:
     send = actions.add_parser("send", help="send one job now")
     send.add_argument("job_id")
     common(send, yes=True)
+
+    pause = actions.add_parser("pause", help="pause one job")
+    pause.add_argument("job_id")
+    pause.add_argument("--reason", help="why sending is paused")
+    common(pause)
+
+    resume = actions.add_parser("resume", help="resume one job")
+    resume.add_argument("job_id")
+    resume.add_argument("--reason", help="why sending is resumed")
+    common(resume)
 
     cancel = actions.add_parser("cancel", help="cancel one queued job")
     cancel.add_argument("job_id")

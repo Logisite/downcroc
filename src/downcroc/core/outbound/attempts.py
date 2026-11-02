@@ -23,12 +23,25 @@ class AttemptRecorder:
         transport: str,
         started_at: str,
         *,
+        attempt_id: str | None = None,
         outcome: str,
         accepted: bool | None,
         code: str | None = None,
         message: str | None = None,
         provider_message_id: str | None = None,
     ) -> None:
+        if attempt_id is not None:
+            self._attempts.finish(
+                attempt_id,
+                binding_id=binding.id if binding is not None else None,
+                transport=transport,
+                outcome=outcome,
+                accepted=accepted,
+                code=code,
+                message=message,
+                provider_message_id=provider_message_id,
+            )
+            return
         self._attempts.create(
             SendAttempt(
                 id=new_id("att"),

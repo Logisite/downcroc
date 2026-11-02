@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from downcroc.core.capacity import CapacityService
 from downcroc.core.events import EventBus
+from downcroc.core.holds_impact import account_impact
 from downcroc.core.transports import TransportService
 from downcroc.domain.accounts import Account
 from downcroc.domain.batches import Batch
@@ -44,6 +45,7 @@ class HoldsService:
         self._batches = batches
         self._jobs = jobs
         self._capacity = capacity
+        self._transports = transports
         self._bus = bus
         self._log = log
 
@@ -80,6 +82,7 @@ class HoldsService:
                 reason=after.sending_paused_reason,
                 until=after.sending_paused_until,
             )
+            self._service_capacity_event("pause")
         return after, changed
 
     def resume_service(self, reason: str | None = None) -> tuple[RuntimeState, bool]:
@@ -96,6 +99,7 @@ class HoldsService:
                 },
             )
             self._log.info("service.resumed", reason=reason or "manual")
+            self._service_capacity_event("resume")
         return after, changed
 
     def pause_account(
@@ -104,7 +108,13 @@ class HoldsService:
         account = self._accounts.get(account_id)
         changed = account.paused_at is None
         account = self._accounts.pause(account_id, utc_now(), self._reason(reason))
-        impact = self._account_impact(account)
+        impact = account_impact(
+            account,
+            settings=self._settings,
+            jobs=self._jobs,
+            transports=self._transports,
+            capacity=self._capacity,
+        )
         if changed:
             self._bus.publish(
                 "account.paused",
@@ -120,6 +130,7 @@ class HoldsService:
             self._log.info(
                 "account.paused", account=account.id, reason=account.paused_reason
             )
+            self._capacity_event("pause", impact)
         return account, impact, changed
 
     def resume_account(
@@ -128,7 +139,13 @@ class HoldsService:
         account = self._accounts.get(account_id)
         changed = account.paused_at is not None
         account = self._accounts.resume(account_id)
-        impact = self._account_impact(account)
+        impact = account_impact(
+            account,
+            settings=self._settings,
+            jobs=self._jobs,
+            transports=self._transports,
+            capacity=self._capacity,
+        )
         if changed:
             self._bus.publish(
                 "account.resumed",
@@ -139,6 +156,7 @@ class HoldsService:
                 },
             )
             self._log.info("account.resumed", account=account.id, reason=reason)
+            self._capacity_event("resume", impact)
         return account, impact, changed
 
     def pause_batch(self, batch_id: str, reason: str | None) -> tuple[Batch, bool]:
@@ -228,6 +246,18 @@ class HoldsService:
             self._log.info("job.resumed", job=job.id, batch=job.batch_id)
         return job, changed
 
+    def held_pinned(self) -> int:
+        total = 0
+        for account in self._accounts.list():
+            if account.paused_at is None:
+                continue
+            total += sum(
+                1
+                for job in self._jobs.list(account_id=account.id, limit=10_000)
+                if job.sender_policy is SenderPolicy.PINNED and job.state in ACTIVE
+            )
+        return total
+
     def holds(
         self,
         *,
@@ -298,42 +328,38 @@ class HoldsService:
             fields={"scope": first["level"], "id": first.get("id")},
         )
 
-    def _account_impact(self, account: Account) -> dict[str, object]:
+    def _service_capacity_event(self, trigger: str) -> None:
         fleet = self._capacity.fleet()
-        pinned = sum(
-            1
-            for job in self._jobs.list(account_id=account.id, limit=10_000)
-            if job.sender_policy is SenderPolicy.PINNED and job.state in ACTIVE
+        lanes = fleet.api_lanes + (1 if fleet.smtp_seats else 0)
+        after = 0 if trigger == "pause" else lanes
+        before = lanes if trigger == "pause" else 0
+        self._bus.publish(
+            "dispatch.capacity",
+            {
+                "trigger": trigger,
+                "lanes_before": before,
+                "lanes_after": after,
+                "absorbed_by": [],
+                "held_pinned": 0,
+            },
         )
-        auto = sum(
-            1
-            for job in self._jobs.list(account_id=account.id, limit=10_000)
-            if job.sender_policy is SenderPolicy.AUTO and job.state in ACTIVE
+
+    def _capacity_event(self, trigger: str, impact: dict[str, object]) -> None:
+        self._bus.publish(
+            "dispatch.capacity",
+            {
+                "trigger": trigger,
+                "lanes_before": impact["lanes_before"],
+                "lanes_after": impact["lanes_after"],
+                "absorbed_by": impact["absorbed_by"],
+                "held_pinned": impact["held_pinned"],
+            },
         )
-        lost = sum(
-            self._transports_lanes(binding)
-            for binding in self._account_bindings(account)
-            if account.paused_at is not None
-        )
-        return {
-            "lanes_before": fleet.api_lanes + (1 if fleet.smtp_seats else 0),
-            "lanes_after": max(
-                0, fleet.api_lanes + (1 if fleet.smtp_seats else 0) - lost
-            ),
-            "lost_lanes": lost,
-            "auto_jobs": auto,
-            "held_pinned": pinned,
-            "absorbed_by": [],
-            "idle_seats": [
-                binding["id"] for binding in self._account_bindings(account)
-            ],
-            "advice": None,
-        }
 
     def _account_bindings(self, account: Account) -> list[dict[str, object]]:
         return [
             {"id": item.id, "kind": item.kind.value}
-            for item in self._capacity.bindings(account)
+            for item in self._transports.bindings(account)
         ]
 
     @staticmethod

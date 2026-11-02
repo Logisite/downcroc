@@ -68,6 +68,9 @@ class QuotaOut(BaseModel):
     jitter_max: int
     max_in_flight: int
     enabled: bool
+    used: int = 0
+    reserved: int = 0
+    available: int = 0
 
 
 class AccountOut(BaseModel):
@@ -82,6 +85,8 @@ class AccountOut(BaseModel):
     archived_at: str | None
     last_error: str | None
     watcher_enabled: bool
+    paused_at: str | None = None
+    paused_reason: str | None = None
     sync: SyncOut
     inbound: InboundOut
     quota: QuotaOut
@@ -93,6 +98,9 @@ class AccountOut(BaseModel):
         policy: SendPolicy,
         *,
         mode: str | None = None,
+        used: int = 0,
+        reserved: int = 0,
+        available: int = 0,
     ) -> AccountOut:
         owner = account.inbound_source or "imap"
         return cls(
@@ -107,6 +115,8 @@ class AccountOut(BaseModel):
             archived_at=account.archived_at,
             last_error=account.last_error,
             watcher_enabled=account.watcher_enabled,
+            paused_at=account.paused_at,
+            paused_reason=account.paused_reason,
             sync=SyncOut(
                 last_uid=account.last_uid,
                 uidvalidity=account.uidvalidity,
@@ -135,6 +145,9 @@ class AccountOut(BaseModel):
                 jitter_max=policy.jitter_max,
                 max_in_flight=policy.max_in_flight,
                 enabled=policy.enabled,
+                used=used,
+                reserved=reserved,
+                available=available,
             ),
         )
 

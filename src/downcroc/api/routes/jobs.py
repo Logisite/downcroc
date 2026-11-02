@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query, Request, Response
 
 from downcroc.api.confirm import require
+from downcroc.api.schemas.holds import PauseRequest, ResumeRequest
 from downcroc.api.schemas.jobs import (
     JobCreate,
     JobDeleteOut,
@@ -131,6 +132,20 @@ def delete_job(
     return JobDeleteOut(**result)
 
 
+@router.post("/{job_id}/pause", response_model=JobOut)
+def pause_job(job_id: str, body: PauseRequest, request: Request) -> JobOut:
+    services = _services(request)
+    job, _ = services.holds.pause_job(job_id, body.reason)
+    return JobOut.of(job, services.capacity.job_eta(job))
+
+
+@router.post("/{job_id}/resume", response_model=JobOut)
+def resume_job(job_id: str, body: ResumeRequest, request: Request) -> JobOut:
+    services = _services(request)
+    job, _ = services.holds.resume_job(job_id, body.reason)
+    return JobOut.of(job, services.capacity.job_eta(job))
+
+
 @router.get("/{job_id}", response_model=JobOut)
 def get_job(job_id: str, request: Request) -> JobOut:
     services = _services(request)
@@ -141,5 +156,11 @@ def get_job(job_id: str, request: Request) -> JobOut:
 @router.post("/{job_id}/send", response_model=JobOut)
 async def send_job(job_id: str, request: Request) -> JobOut:
     services = _services(request)
+    current = services.outbound.get(job_id)
+    services.holds.ensure_can_send(
+        job_id=job_id,
+        account_id=current.account_id,
+        batch_id=current.batch_id,
+    )
     job = await services.outbound.send(job_id)
     return JobOut.of(job, services.capacity.job_eta(job))

@@ -42,6 +42,7 @@ class SmtpDelivery:
         credentials: sender.SmtpCredentials,
         wire: bytes,
         started_at: str,
+        attempt_id: str,
     ) -> AttemptResult:
         self._bus.publish(
             "transport.selected",
@@ -64,12 +65,16 @@ class SmtpDelivery:
                 timeout_s=self._settings.smtp_timeout_s,
             )
         except sender.SmtpAuthFailure as error:
-            self._failed(job, account, binding, started_at, error, auth=True)
+            self._failed(
+                job, account, binding, started_at, attempt_id, error, auth=True
+            )
             return AttemptResult.failed(error.code, error.message, auth=True)
         except sender.SmtpFailure as error:
             if error.uncertain:
-                return self._uncertain(job, account, binding, started_at, error)
-            self._failed(job, account, binding, started_at, error)
+                return self._uncertain(
+                    job, account, binding, started_at, attempt_id, error
+                )
+            self._failed(job, account, binding, started_at, attempt_id, error)
             if error.transient:
                 return AttemptResult.deferred(error.code, error.message)
             return AttemptResult.failed(error.code, error.message)
@@ -79,6 +84,7 @@ class SmtpDelivery:
             binding,
             binding.kind.value,
             started_at,
+            attempt_id=attempt_id,
             outcome="sent",
             accepted=True,
         )
@@ -107,6 +113,7 @@ class SmtpDelivery:
         account: Account,
         binding: AccountTransport,
         started_at: str,
+        attempt_id: str,
         error: sender.SmtpFailure,
     ) -> AttemptResult:
         self._recorder.record(
@@ -115,6 +122,7 @@ class SmtpDelivery:
             binding,
             binding.kind.value,
             started_at,
+            attempt_id=attempt_id,
             outcome="uncertain",
             accepted=None,
             code=error.code,
@@ -150,6 +158,7 @@ class SmtpDelivery:
         account: Account,
         binding: AccountTransport,
         started_at: str,
+        attempt_id: str,
         error: sender.SmtpFailure,
         *,
         auth: bool = False,
@@ -160,6 +169,7 @@ class SmtpDelivery:
             binding,
             binding.kind.value,
             started_at,
+            attempt_id=attempt_id,
             outcome="failed" if auth or not error.transient else "deferred",
             accepted=False,
             code=error.code,

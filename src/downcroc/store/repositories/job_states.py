@@ -57,6 +57,7 @@ class JobStateRepo:
             row.last_error_code = None
             row.last_error_message = None
             row.retryable = None
+            _clear_hold(row)
         return self.get(job_id)
 
     def mark_reconciled(self, job_id: str, sent_at: str) -> Job:
@@ -76,6 +77,7 @@ class JobStateRepo:
             row.next_attempt_at = None
             _release(row)
             _error(row, code, message, True)
+            _clear_hold(row)
         return self.get(job_id)
 
     def mark_retry(
@@ -109,6 +111,7 @@ class JobStateRepo:
             row.next_attempt_at = None
             _release(row)
             _error(row, code, message, retryable)
+            _clear_hold(row)
         return self.get(job_id)
 
     def mark_queued(
@@ -193,6 +196,13 @@ class JobStateRepo:
                 return None
             row.state = to_state.value
             row.updated_at = utc_now()
+            if to_state in (
+                JobState.SENT,
+                JobState.SENT_UNCONFIRMED,
+                JobState.FAILED,
+                JobState.CANCELLED,
+            ):
+                _clear_hold(row)
         return self.get(job_id)
 
     def transition_batch(
@@ -213,6 +223,13 @@ class JobStateRepo:
             for row in rows:
                 row.state = to_state.value
                 row.updated_at = utc_now()
+                if to_state in (
+                    JobState.SENT,
+                    JobState.SENT_UNCONFIRMED,
+                    JobState.FAILED,
+                    JobState.CANCELLED,
+                ):
+                    _clear_hold(row)
                 changed += 1
             return changed
 
@@ -229,6 +246,11 @@ class JobStateRepo:
                 )
             )
             return [to_job(row) for row in rows]
+
+
+def _clear_hold(row: JobRow) -> None:
+    row.paused_at = None
+    row.paused_reason = None
 
 
 def _release(row: JobRow) -> None:

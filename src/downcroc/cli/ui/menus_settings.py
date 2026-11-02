@@ -27,14 +27,29 @@ def _state(ui: Ui) -> tuple[dict[str, Any], list[dict]] | None:
     return document, schema["fields"]
 
 
+def _rules(field: dict) -> str:
+    values = field.get("values") or []
+    if values:
+        return "one of " + ", ".join(str(item) for item in values)
+    limits = field.get("range") or {}
+    parts = [f"{key}={value}" for key, value in limits.items()]
+    return "  ".join(parts)
+
+
 def _field_item(ui: Ui, field: dict, values: dict[str, Any]) -> Item:
     path = field["path"]
     current = values.get(path)
     leaf = path.rsplit(".", 1)[-1]
+    rules = _rules(field)
+    detail = f"{path}  {json.dumps(current, ensure_ascii=False)}  {field['type']}"
+    if rules:
+        detail += f"  ({rules})"
+    if field.get("default") is not None:
+        detail += f"  default={json.dumps(field['default'], ensure_ascii=False)}"
     return Item(
         leaf,
-        detail=f"{path}  {json.dumps(current, ensure_ascii=False)}  {field['type']}",
-        action=lambda: edit_field(ui, field, current),
+        detail=detail,
+        action=lambda: edit_field_by_key(ui, path),
     )
 
 

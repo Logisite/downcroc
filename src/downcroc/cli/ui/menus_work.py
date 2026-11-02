@@ -3,6 +3,7 @@ from __future__ import annotations
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.data import action, need_daemon, rows
 from downcroc.cli.ui.menu import Item, quit_menu, run, run_args
+from downcroc.cli.ui.menus_holds import batch_hold_items, job_hold_items
 from downcroc.cli.ui.session import Ui
 
 
@@ -116,6 +117,10 @@ def _followup(ui: Ui) -> None:
     run_args(ui, "batch", "followup", str(batch), path, "--step", step)
 
 
+def _submenu(ui: Ui, title: str, items: list[Item]) -> None:
+    run(ui, title, items, breadcrumb="Work")
+
+
 def batch_menu(ui: Ui) -> None:
     run(
         ui,
@@ -126,7 +131,10 @@ def batch_menu(ui: Ui) -> None:
                 detail="state and counts",
                 action=action(ui, "batch", "list"),
             ),
-            Item("Show a batch", children=_batch_items(ui, "show")),
+            Item(
+                "Show a batch",
+                action=lambda: _submenu(ui, "Show a batch", _batch_items(ui, "show")),
+            ),
             Item(
                 "Validate a file", detail="offline checks", action=lambda: _validate(ui)
             ),
@@ -134,15 +142,33 @@ def batch_menu(ui: Ui) -> None:
                 "Preview a file", detail="per-message plan", action=lambda: _preview(ui)
             ),
             Item("Submit a file", detail="write a batch", action=lambda: _submit(ui)),
-            Item("Approve a batch", children=_approve_items(ui)),
-            Item("Cancel a batch", children=_cancel_items(ui)),
+            Item(
+                "Approve a batch",
+                action=lambda: _submenu(ui, "Approve a batch", _approve_items(ui)),
+            ),
+            Item(
+                "Cancel a batch",
+                action=lambda: _submenu(ui, "Cancel a batch", _cancel_items(ui)),
+            ),
+            Item(
+                "Pause a batch",
+                action=lambda: _submenu(
+                    ui, "Pause a batch", batch_hold_items(ui, "pause")
+                ),
+            ),
+            Item(
+                "Resume the batch",
+                action=lambda: _submenu(
+                    ui, "Resume a batch", batch_hold_items(ui, "resume")
+                ),
+            ),
             Item(
                 "Follow up", detail="add a follow-up step", action=lambda: _followup(ui)
             ),
             Item(
                 "Suppressions",
                 detail="who will be skipped",
-                children=_suppression_items(ui),
+                action=lambda: _submenu(ui, "Suppressions", _suppression_items(ui)),
             ),
             Item("Quit", action=quit_menu),
         ],
@@ -321,14 +347,33 @@ def job_menu(ui: Ui) -> None:
                 detail="queue and history",
                 action=action(ui, "job", "list"),
             ),
-            Item("Show a job", children=_job_items(ui, "show")),
-            Item("Send a job now", children=_job_items(ui, "send")),
+            Item(
+                "Show a job",
+                action=lambda: _submenu(ui, "Show a job", _job_items(ui, "show")),
+            ),
+            Item(
+                "Send a job now",
+                action=lambda: _submenu(ui, "Send a job now", _job_items(ui, "send")),
+            ),
+            Item(
+                "Pause a job",
+                action=lambda: _submenu(ui, "Pause a job", job_hold_items(ui, "pause")),
+            ),
+            Item(
+                "Resume a job",
+                action=lambda: _submenu(
+                    ui, "Resume a job", job_hold_items(ui, "resume")
+                ),
+            ),
             Item(
                 "Reassign sender",
                 detail="pin or route at send time",
-                children=_sender_items(ui),
+                action=lambda: _submenu(ui, "Reassign sender", _sender_items(ui)),
             ),
-            Item("Show attempts", children=_attempt_items(ui)),
+            Item(
+                "Show attempts",
+                action=lambda: _submenu(ui, "Show attempts", _attempt_items(ui)),
+            ),
             Item(
                 "Create a job",
                 detail="one message by hand",

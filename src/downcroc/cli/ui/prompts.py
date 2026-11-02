@@ -330,6 +330,13 @@ def open_editor(text: str, *, ui: Ui, suffix: str = ".txt") -> str:
         path = Path(handle.name)
     try:
         print(f"  opening {path} in {name} ...")
+        hints = {
+            "nano": "save with Ctrl+O then Enter; exit with Ctrl+X",
+            "vim": "save and exit with :wq",
+            "vi": "save and exit with :wq",
+            "emacs": "save with Ctrl+X Ctrl+S; exit with Ctrl+X Ctrl+C",
+        }
+        print(f"  {hints.get(name, 'save the file, then close the editor')}")
         subprocess.run([*command, str(path)], check=False)
         return path.read_text(encoding="utf-8")
     finally:

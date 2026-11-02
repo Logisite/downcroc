@@ -13,6 +13,7 @@ from downcroc.api.schemas.accounts import (
     InboundUpdate,
     WatcherToggle,
 )
+from downcroc.api.schemas.holds import PauseRequest, ResumeRequest
 from downcroc.core.accounts_service import AccountsService
 from downcroc.core.policy import PolicyResolver
 from downcroc.domain.accounts import Account
@@ -41,10 +42,15 @@ def _out(
     modes: dict[str, str] | None = None,
 ) -> AccountOut:
     mode = (modes if modes is not None else _modes(request)).get(account.id)
+    stats = request.app.state.services.stats.accounts_for(None, None, account.id)[1]
+    quota = stats[0] if stats else None
     return AccountOut.of(
         account,
         _policy(request).effective(account),
         mode=mode,
+        used=quota.used if quota else 0,
+        reserved=quota.reserved if quota else 0,
+        available=quota.available if quota else 0,
     )
 
 
@@ -146,6 +152,38 @@ def set_inbound(
         request,
         _service(request).set_inbound(account_id, body.source),
     )
+
+
+@router.post("/{account_id}/pause", response_model=None)
+def pause_account(
+    account_id: str,
+    body: PauseRequest,
+    request: Request,
+) -> dict[str, object]:
+    account, impact, changed = request.app.state.services.holds.pause_account(
+        account_id, body.reason
+    )
+    return {
+        "account": _out(request, account),
+        "impact": impact,
+        "changed": changed,
+    }
+
+
+@router.post("/{account_id}/resume", response_model=None)
+def resume_account(
+    account_id: str,
+    body: ResumeRequest,
+    request: Request,
+) -> dict[str, object]:
+    account, impact, changed = request.app.state.services.holds.resume_account(
+        account_id, body.reason
+    )
+    return {
+        "account": _out(request, account),
+        "impact": impact,
+        "changed": changed,
+    }
 
 
 @router.post("/{account_id}/sync", response_model=AccountOut, status_code=202)

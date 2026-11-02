@@ -3,6 +3,12 @@ from __future__ import annotations
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.data import action, need_daemon, rows
 from downcroc.cli.ui.menu import Item, quit_menu, run, run_args
+from downcroc.cli.ui.menus_sending import (
+    pause_items,
+    pause_service,
+    sending_badge,
+    sending_detail,
+)
 from downcroc.cli.ui.session import Ui
 
 
@@ -22,6 +28,7 @@ def _account_items(ui: Ui, verb: str) -> list[Item]:
         Item(
             row["address"],
             detail=f"{row['status']}  {row['id']}",
+            badge="paused" if row.get("paused_at") else "",
             action=action(ui, "account", verb, row["id"]),
         )
         for row in found
@@ -64,6 +71,10 @@ def _watch_items(ui: Ui, enabled: bool) -> list[Item]:
     ]
 
 
+def _account_submenu(ui: Ui, title: str, items: list[Item]) -> None:
+    run(ui, title, items, breadcrumb="Accounts")
+
+
 def accounts_menu(ui: Ui) -> None:
     run(
         ui,
@@ -82,37 +93,63 @@ def accounts_menu(ui: Ui) -> None:
             Item(
                 "Connect an account",
                 detail="check the login",
-                children=_account_items(ui, "connect"),
+                action=lambda: _account_submenu(
+                    ui, "Connect an account", _account_items(ui, "connect")
+                ),
             ),
             Item(
                 "Show an account",
                 detail="full record",
-                children=_account_items(ui, "show"),
+                action=lambda: _account_submenu(
+                    ui, "Show an account", _account_items(ui, "show")
+                ),
             ),
             Item(
                 "Verify a login",
                 detail="re-check without sending",
-                children=_account_items(ui, "verify"),
+                action=lambda: _account_submenu(
+                    ui, "Verify a login", _account_items(ui, "verify")
+                ),
             ),
             Item(
                 "Sync the inbox",
                 detail="request a fetch now",
-                children=_account_items(ui, "sync"),
+                action=lambda: _account_submenu(
+                    ui, "Sync the inbox", _account_items(ui, "sync")
+                ),
+            ),
+            Item(
+                "Pause sending",
+                detail="stop new sends for one mailbox",
+                action=lambda: _account_submenu(ui, "Pause sending", pause_items(ui)),
+            ),
+            Item(
+                "Resume sending",
+                detail="release a mailbox hold",
+                action=lambda: _account_submenu(
+                    ui, "Resume sending", _account_items(ui, "resume")
+                ),
             ),
             Item(
                 "Turn the watcher on",
                 detail="watch for replies",
-                children=_watch_items(ui, True),
+                action=lambda: _account_submenu(
+                    ui, "Turn the watcher on", _watch_items(ui, True)
+                ),
             ),
             Item(
                 "Turn the watcher off",
                 detail="stop watching",
-                children=_watch_items(ui, False),
+                action=lambda: _account_submenu(
+                    ui, "Turn the watcher off", _watch_items(ui, False)
+                ),
             ),
             Item(
                 "Delete an account",
                 detail="asks before removing",
-                children=_delete_items(ui),
+                action=lambda: _account_submenu(
+                    ui, "Delete an account", _delete_items(ui)
+                ),
             ),
             Item("Quit", action=quit_menu),
         ],
@@ -188,14 +225,28 @@ def providers_menu(ui: Ui) -> None:
 
 
 def service_menu(ui: Ui) -> None:
+    badge = sending_badge(ui)
+    note = sending_detail(ui)
     run(
         ui,
         "Service",
         [
             Item(
                 "Status",
-                detail="pid, port, and uptime",
+                detail=f"pid, port, uptime; {note}",
+                badge=badge,
                 action=action(ui, "service", "status"),
+            ),
+            Item(
+                "Pause sending",
+                detail="stop new claims, let in-flight sends settle",
+                action=lambda: pause_service(ui),
+            ),
+            Item(
+                "Resume sending",
+                detail="release the service hold",
+                badge=badge,
+                action=action(ui, "service", "resume"),
             ),
             Item(
                 "Start",
@@ -278,6 +329,12 @@ def home_menu(ui: Ui) -> None:
         ui,
         "downcroc",
         [
+            Item(
+                "Service",
+                detail="start, stop, pause, or resume sending",
+                badge=sending_badge(ui),
+                action=lambda: service_menu(ui),
+            ),
             Item(
                 "Send a campaign",
                 detail="file, CSV, or compose",

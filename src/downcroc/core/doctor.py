@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from downcroc.core.capacity import CapacityService
+from downcroc.core.holds import HoldsService
 from downcroc.core.inbound import InboundService
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.transport_doctor import TransportChecks
 from downcroc.core.transports import TransportService
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.transports import TransportKind
+from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import Settings
 from downcroc.store.repositories.accounts import AccountRepo
+from downcroc.store.repositories.quota import QuotaRepo
 
 
 class DoctorService:
@@ -22,14 +25,18 @@ class DoctorService:
         clients: OAuthClientService,
         capacity: CapacityService,
         inbound: InboundService,
+        holds: HoldsService,
         checks: TransportChecks,
+        quota: QuotaRepo,
     ) -> None:
         self._settings = settings
         self._accounts = accounts
+        self._quota = quota
         self._transports = transports
         self._clients = clients
         self._capacity = capacity
         self._inbound = inbound
+        self._holds = holds
         self._checks = checks
 
     def inbound(self) -> dict[str, object]:
@@ -81,12 +88,31 @@ class DoctorService:
         plan = self._transports.pick_slots()
         smtp_only: list[dict[str, str]] = []
         password_only: list[dict[str, str]] = []
+        paused_accounts: list[dict[str, object]] = []
+        idle_seats: list[dict[str, object]] = []
         per_kind = {"smtp": 0, "gmail_api": 0}
         for account in self._accounts.list():
             bindings = self._transports.bindings(account)
             kinds = {binding.kind.value for binding in bindings}
             for kind in kinds:
                 per_kind[kind] = per_kind.get(kind, 0) + 1
+            if account.paused_at is not None:
+                paused_accounts.append(
+                    {
+                        "account_id": account.id,
+                        "address": account.address,
+                        "since": account.paused_at,
+                        "reason": account.paused_reason,
+                    }
+                )
+                idle_seats.extend(
+                    {
+                        "account_id": account.id,
+                        "binding_id": binding.id,
+                        "kind": binding.kind.value,
+                    }
+                    for binding in bindings
+                )
             if kinds == {TransportKind.SMTP.value}:
                 smtp_only.append({"account_id": account.id, "address": account.address})
                 if self._transports.is_password(account):
@@ -94,7 +120,13 @@ class DoctorService:
                         {"account_id": account.id, "address": account.address}
                     )
         seats = max(1, self._settings.dispatch.smtp_seats)
+        day = self._quota_day()
+        reserved = sum(
+            self._quota.reserved(account.id, day) for account in self._accounts.list()
+        )
         return {
+            "reserved_units": reserved,
+            "quota_day": day,
             "ok": seats <= 3,
             "lanes": fleet.api_lanes + (1 if fleet.smtp_seats else 0),
             "api_lanes": fleet.api_lanes,
@@ -114,6 +146,9 @@ class DoctorService:
             "password_waiting": fleet.password_waiting,
             "smtp_only": smtp_only,
             "password_only": password_only,
+            "paused_accounts": paused_accounts,
+            "idle_seats": idle_seats,
+            "held_pinned": self._holds.held_pinned(),
             "warning": self._seat_warning(seats),
             "risk": _seat_risk(seats),
             "recommendation": (
@@ -123,6 +158,9 @@ class DoctorService:
                 else None
             ),
         }
+
+    def _quota_day(self) -> str:
+        return utc_now()[:10]
 
     def _binding(self, account: Account, binding) -> dict[str, object]:
         problem = None

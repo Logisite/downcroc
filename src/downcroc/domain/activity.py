@@ -80,6 +80,9 @@ class AccountStats:
     address: str
     totals: ActivityTotals
     remaining_allowance: int
+    used: int = 0
+    reserved: int = 0
+    available: int = 0
 
 
 @dataclass(frozen=True)

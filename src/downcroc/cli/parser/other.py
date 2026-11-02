@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import argparse
 
-from downcroc.cli.parser.common import LEVELS, common, day, limit, policy_flags
+from downcroc.cli.parser.common import (
+    LEVELS,
+    common,
+    day,
+    duration,
+    limit,
+    policy_flags,
+)
 
 
 def top(commands: argparse._SubParsersAction) -> None:
@@ -96,6 +103,7 @@ def top(commands: argparse._SubParsersAction) -> None:
         epilog="examples:\n  downcroc help\n  downcroc help vault",
     )
     help_parser.add_argument("topic", nargs="?")
+    common(help_parser)
 
 
 def files(commands: argparse._SubParsersAction) -> None:
@@ -214,6 +222,12 @@ def stats(commands: argparse._SubParsersAction) -> None:
         view = actions.add_parser(name, help=help_text)
         view.add_argument("--from", dest="from_value", type=day, help="YYYY-MM-DD")
         view.add_argument("--to", type=day, help="YYYY-MM-DD")
+        view.add_argument(
+            "--since",
+            dest="since_s",
+            type=duration,
+            help="relative window such as 15m, 2h, or 7d",
+        )
         view.add_argument("--account", dest="account_id", help="filter by account")
         common(view)
 

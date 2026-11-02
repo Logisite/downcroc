@@ -217,6 +217,7 @@ def _body(args: object, report: dict, running: bool) -> dict:
     paths, _, _ = load()
     with api(paths, timeout=getattr(args, "timeout", None)) as client:
         body["vault"] = get(client, "/api/vault")
+        body["sending"] = get(client, "/api/status").get("sending")
         body["accounts"] = get(client, "/api/accounts")
         body["summary"] = get(client, "/api/stats/summary")
         body["failed"] = get(client, "/api/failed", limit=1)
@@ -238,10 +239,20 @@ def _print_body(args: object, report: dict, running: bool) -> None:
     if running:
         with api(paths, timeout=getattr(args, "timeout", None)) as client:
             vault = get(client, "/api/vault")
+            sending = get(client, "/api/status").get("sending", {})
             accounts = get(client, "/api/accounts")
             summary = get(client, "/api/stats/summary")
             failed = get(client, "/api/failed", limit=1)
         lines["vault"] = vault["state"]
+        if sending.get("state") == "paused":
+            detail = f"paused since {sending.get('since') or '-'}"
+            if sending.get("until"):
+                detail += f" until {sending['until']}"
+            if sending.get("reason"):
+                detail += f" ({sending['reason']})"
+            lines["sending"] = detail
+        else:
+            lines["sending"] = "running"
         broken = [item for item in accounts if item["status"] == "needs_reauth"]
         pending = [item for item in accounts if item["status"] == "pending"]
         detail = f"{len(accounts)} total"
