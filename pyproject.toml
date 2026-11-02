@@ -1,6 +1,6 @@
 [project]
 name = "downcroc"
-version = "1.2.3"
+version = "1.2.4"
 description = "Always-on local mail daemon for personalised mail from your own accounts"
 readme = "README.md"
 license = "Apache-2.0"
