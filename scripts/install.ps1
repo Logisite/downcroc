@@ -6,6 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Version = "1.2.2"
+$ReleaseWheel = "https://github.com/Logisite/downcroc/releases/download/v$Version/downcroc-$Version-py3-none-any.whl"
 
 function Find-Python {
     foreach ($candidate in @("py -3.14", "python3.14", "python3", "python")) {
@@ -34,9 +35,11 @@ if ($Wheel -ne "" -and -not (Test-Path $Wheel)) {
     exit 1
 }
 
+New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
+$Prefix = (Resolve-Path $Prefix).Path
 $Venv = Join-Path $Prefix "venv"
 $Bin = Join-Path $Prefix "bin"
-New-Item -ItemType Directory -Force -Path $Prefix, $Bin | Out-Null
+New-Item -ItemType Directory -Force -Path $Bin | Out-Null
 
 & $python.Command @($python.Args) -m venv $Venv
 $VenvPython = Join-Path $Venv "Scripts\python.exe"
@@ -45,7 +48,8 @@ $VenvDowncroc = Join-Path $Venv "Scripts\downcroc.exe"
 if ($Wheel -ne "") {
     & $VenvPython -m pip install --upgrade $Wheel
 } else {
-    & $VenvPython -m pip install --upgrade "downcroc==$Version"
+    $Source = if ($env:DOWNCROC_WHEEL_URL) { $env:DOWNCROC_WHEEL_URL } else { $ReleaseWheel }
+    & $VenvPython -m pip install --upgrade $Source
 }
 
 $Launcher = Join-Path $Bin "downcroc.cmd"

@@ -5,6 +5,7 @@ VERSION="1.2.2"
 PREFIX="${DOWNCROC_PREFIX:-$HOME/.local}"
 WHEEL=""
 RUN_INIT=1
+RELEASE_WHEEL="https://github.com/Logisite/downcroc/releases/download/v${VERSION}/downcroc-${VERSION}-py3-none-any.whl"
 
 usage() {
     cat <<'EOF'
@@ -61,6 +62,11 @@ for candidate in python3.14 python3 python; do
     fi
 done
 
+case "$PREFIX" in
+    /*) ;;
+    *) PREFIX="$(pwd)/$PREFIX" ;;
+esac
+
 if [ -z "$PYTHON" ]; then
     echo "install.sh: Python 3.14 or newer is required" >&2
     exit 1
@@ -80,7 +86,8 @@ mkdir -p "$PREFIX/share/downcroc" "$BIN"
 if [ -n "$WHEEL" ]; then
     "$VENV/bin/python" -m pip install --upgrade "$WHEEL"
 else
-    "$VENV/bin/python" -m pip install --upgrade "downcroc==$VERSION"
+    SOURCE="${DOWNCROC_WHEEL_URL:-$RELEASE_WHEEL}"
+    "$VENV/bin/python" -m pip install --upgrade "$SOURCE"
 fi
 
 ln -sfn "$VENV/bin/downcroc" "$BIN/downcroc"

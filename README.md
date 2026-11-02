@@ -15,35 +15,31 @@ macOS is not part of the release 1 support scope.
 
 ## Install
 
-Install a release wheel into a virtual environment:
+Linux and other POSIX shells:
 
 ```sh
-python -m venv ~/.local/share/downcroc/venv
-~/.local/share/downcroc/venv/bin/python -m pip install downcroc-1.2.2-py3-none-any.whl
-~/.local/share/downcroc/venv/bin/downcroc --version
-```
-
-Or use the install script. With a local wheel:
-
-```sh
-scripts/install.sh --wheel downcroc-1.2.2-py3-none-any.whl
-downcroc --version
+curl -fsSL https://raw.githubusercontent.com/Logisite/downcroc/master/scripts/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-.\scripts\install.ps1 -Wheel .\downcroc-1.2.2-py3-none-any.whl
-downcroc --version
+irm https://raw.githubusercontent.com/Logisite/downcroc/master/scripts/install.ps1 | iex
 ```
 
-The script installs into `~/.local` by default. Use `--prefix DIR` on Unix or
-`-Prefix DIR` on Windows to change that.
+The script downloads the matching release wheel, installs it into a user
+prefix, creates the `downcroc` launcher, and prints the installed version.
+The default prefix is `~/.local` on Unix and `%LOCALAPPDATA%\downcroc` on
+Windows.
 
-If the package is available from your configured package index:
+For an offline install, pass a local wheel:
 
 ```sh
-python -m pip install downcroc==1.2.2
+scripts/install.sh --wheel downcroc-1.2.2-py3-none-any.whl
+```
+
+```powershell
+.\scripts\install.ps1 -Wheel .\downcroc-1.2.2-py3-none-any.whl
 ```
 
 ## Quick start
