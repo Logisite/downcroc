@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import imaplib
 import queue
 import threading
 import time
 
-from imap_tools.errors import ImapToolsError
-
+from downcroc.core.inbound.idle import IdleLoops
 from downcroc.core.inbound.signals import (
     CursorJob,
     IngestJob,
@@ -57,6 +55,7 @@ class WatcherRunner:
         self._log = log
         self._settings = settings
         self._connect_settings = connect
+        self._loops = IdleLoops(queue_, log, settings)
 
     def retry_in(self, failures: int) -> int:
         backoff = self._settings.backoff_s
@@ -111,6 +110,8 @@ class WatcherRunner:
                     reason=reason,
                     retry_in_s=retry,
                     needs_reauth=failure.needs_reauth,
+                    source="imap",
+                    mode=handle.mode,
                 )
             )
         else:
@@ -160,6 +161,8 @@ class WatcherRunner:
         account = handle.account
         spec = self._clients.spec_for_account(account)
         box = self._connect(spec, account)
+        idle = spec.supports_idle and handle.allow_idle
+        handle.mode = "idle" if idle else "imap_poll"
         try:
             state = imap.select_inbox(box)
             self._log.info(
@@ -167,6 +170,7 @@ class WatcherRunner:
                 account=account.id,
                 host=spec.imap_host,
                 uidvalidity=state.uidvalidity,
+                mode=handle.mode,
             )
             with self._guard:
                 handle.failures = 0
@@ -178,6 +182,8 @@ class WatcherRunner:
                     ok=True,
                     host=spec.imap_host,
                     uidvalidity=state.uidvalidity,
+                    source="imap",
+                    mode=handle.mode,
                 )
             )
             uidvalidity = account.uidvalidity
@@ -192,13 +198,15 @@ class WatcherRunner:
                     last_uid,
                 )
                 self._notify_sync(handle, ok=True)
+                handle.mode = "idle" if idle else "imap_poll"
                 if handle.stop.is_set():
                     break
-                if spec.supports_idle:
-                    self._idle_loop(handle, box, account)
+                if idle:
+                    self._loops.idle(handle, box, account)
                 else:
-                    self._poll_loop(handle, account)
+                    self._loops.poll(handle, account)
                 if not handle.stop.is_set():
+                    handle.mode = "reconnecting"
                     state = imap.select_inbox(box)
         finally:
             imap.close(box)
@@ -341,60 +349,3 @@ class WatcherRunner:
             if time.monotonic() >= deadline:
                 raise WatchFailure("ingest_timeout")
         return True
-
-    def _idle_loop(self, handle: WatcherHandle, box, account: Account) -> None:
-        while not handle.stop.is_set():
-            try:
-                box.idle.start()
-                started = time.monotonic()
-                reason: str | None = None
-                try:
-                    while not handle.stop.is_set():
-                        if handle.refresh.is_set():
-                            handle.refresh.clear()
-                            reason = "refresh"
-                            break
-                        remaining = self._settings.idle_timeout_s - (
-                            time.monotonic() - started
-                        )
-                        if remaining <= 0:
-                            reason = "timeout"
-                            break
-                        responses = box.idle.poll(timeout=min(1.0, remaining))
-                        if responses:
-                            joined = b" ".join(responses).upper()
-                            reason = "exists" if b"EXISTS" in joined else "change"
-                            break
-                finally:
-                    try:
-                        box.idle.stop()
-                    except imaplib.IMAP4.error, OSError, ImapToolsError:
-                        pass
-            except (imaplib.IMAP4.error, OSError, ImapToolsError) as error:
-                raise WatchFailure("imap_protocol_error") from error
-            if reason is None:
-                return
-            self._wake_log(account.id, reason)
-            return
-
-    def _poll_loop(self, handle: WatcherHandle, account: Account) -> None:
-        deadline = time.monotonic() + self._settings.poll_interval_s
-        while not handle.stop.is_set():
-            if handle.refresh.is_set():
-                handle.refresh.clear()
-                self._wake_log(account.id, "refresh")
-                return
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                self._wake_log(account.id, "poll")
-                return
-            handle.stop.wait(timeout=min(1.0, remaining))
-
-    def _wake_log(self, account_id: str, reason: str) -> None:
-        self._log.info("watcher.idle_wake", account=account_id, reason=reason)
-        self._queue.put(
-            WatcherEvent(
-                "watcher.idle_wake",
-                {"account": account_id, "reason": reason},
-            )
-        )

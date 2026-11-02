@@ -36,6 +36,9 @@ class SummaryOut(BaseModel):
     to: str
     accounts: list[AccountSummaryOut]
     total: TotalsOut
+    inbound: dict[str, int] = Field(default_factory=dict)
+    stale_watchers: int = 0
+    pending_eta: dict[str, object] | None = None
 
     @classmethod
     def of(
@@ -43,10 +46,17 @@ class SummaryOut(BaseModel):
         from_value: str,
         to_value: str,
         summary: ActivitySummary,
+        *,
+        inbound: dict[str, int] | None = None,
+        stale_watchers: int = 0,
+        pending_eta: dict[str, object] | None = None,
     ) -> SummaryOut:
         return cls(
             from_=from_value,
             to=to_value,
+            inbound=inbound or {},
+            stale_watchers=stale_watchers,
+            pending_eta=pending_eta,
             accounts=[
                 AccountSummaryOut(
                     account_id=item.account_id,

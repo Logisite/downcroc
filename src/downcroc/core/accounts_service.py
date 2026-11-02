@@ -257,6 +257,37 @@ class AccountsService(AccountLoginMixin):
         )
         return account
 
+    def set_inbound(self, account_id: str, source: str) -> Account:
+        account = self._accounts.get(account_id)
+        if source not in {"auto", "imap", "gmail_api"}:
+            raise InvalidAccount(
+                "the inbound source is not supported",
+                fields={"source": source},
+            )
+        if source == "gmail_api":
+            spec = self._clients.spec_for_account(account)
+            if spec.auth_kind is not AuthKind.OAUTH2 or not spec.api_configured:
+                raise InvalidAccount(
+                    "this mailbox cannot read through the gmail api",
+                    hint="only an OAuth Gmail provider has gmail api reads",
+                    fields={"source": source},
+                )
+        updated = self._accounts.set_source_override(
+            account.id,
+            None if source == "auto" else source,
+        )
+        self._inbound.account_connected(account.id)
+        self._bus.publish(
+            "account.inbound",
+            {"id": account.id, "source": source},
+        )
+        self._log.info(
+            "account.inbound",
+            account=account.id,
+            source=source,
+        )
+        return updated
+
     def sync(self, account_id: str) -> Account:
         account = self._accounts.get(account_id)
         if account.status is not AccountStatus.CONNECTED:

@@ -37,7 +37,17 @@ def counts(counts: dict) -> dict:
 
 def listing(rows: list[dict], ui: Ui) -> None:
     table(
-        ["id", "name", "kind", "state", "approval", "sent", "replies", "eta", "created"],
+        [
+            "id",
+            "name",
+            "kind",
+            "state",
+            "approval",
+            "sent",
+            "replies",
+            "eta",
+            "created",
+        ],
         [
             [
                 item["id"],

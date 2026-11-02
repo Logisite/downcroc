@@ -105,10 +105,6 @@ def choose_slots(entries: list[SlotEntry], seats: int) -> SlotPlan:
         queue=tuple(entry.account_id for entry in ordered),
         waiting=tuple(entry.account_id for entry in auto[width:]),
         pinned_overflow=max(0, len(pinned) - width),
-        password_active=tuple(
-            entry.account_id for entry in active if entry.password
-        ),
-        oauth_active=tuple(
-            entry.account_id for entry in active if not entry.password
-        ),
+        password_active=tuple(entry.account_id for entry in active if entry.password),
+        oauth_active=tuple(entry.account_id for entry in active if not entry.password),
     )

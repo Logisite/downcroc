@@ -45,9 +45,7 @@ def list_dependents(client_id: str, request: Request) -> list[OAuthClientDepende
 
 
 @router.post("/{client_id}/authorize", response_model=AttemptOut, status_code=201)
-def authorize(
-    client_id: str, body: OAuthAuthorize, request: Request
-) -> AttemptOut:
+def authorize(client_id: str, body: OAuthAuthorize, request: Request) -> AttemptOut:
     """Start or resume the mailbox OAuth flow for an imported client."""
     accounts: AccountsService = request.app.state.services.accounts
     attempt = accounts.start_attempt(

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from downcroc.cli.client import api, get
 from downcroc.cli.commands.doctor_transports import capacity as doctor_capacity
+from downcroc.cli.commands.doctor_transports import inbound as doctor_inbound
 from downcroc.cli.commands.doctor_transports import transports as doctor_transports
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
@@ -170,12 +171,14 @@ def _doctor_remote(selected: str, args: object, ui: Ui) -> int:
     with api(paths, timeout=getattr(args, "timeout", None)) as client:
         if selected == "transports":
             return doctor_transports(client, ui)
+        if selected == "inbound":
+            return doctor_inbound(client, ui)
         return doctor_capacity(client, ui)
 
 
 def doctor(args: object, ui: Ui) -> int:
     selected = getattr(args, "doctor_command", None)
-    if selected in {"transports", "capacity"}:
+    if selected in {"transports", "capacity", "inbound"}:
         return _doctor_remote(selected, args, ui)
     checks = _checks(args, ui)
     failed = [item for item in checks if not item["ok"]]

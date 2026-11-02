@@ -4,15 +4,18 @@ import queue
 import threading
 import time
 
-from sqlalchemy.exc import SQLAlchemyError
-
 from downcroc.core.events import EventBus
+from downcroc.core.inbound.gmail_watcher import GmailWatcher
+from downcroc.core.inbound.plan import health_rows, plan_for, select_event
 from downcroc.core.inbound.signals import (
     STOP,
     SyncWaiter,
+    WatcherEvent,
     WatcherHandle,
     WatcherState,
 )
+from downcroc.core.inbound.sources import choose_source
+from downcroc.core.inbound.sweep import SweepScheduler
 from downcroc.core.inbound.watcher import WatcherRunner
 from downcroc.core.inbound.worker import QueueWorker
 from downcroc.core.oauth_clients import OAuthClientService
@@ -21,6 +24,7 @@ from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import AccountStatus
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.providers.token import TokenManager
+from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import ConnectSettings, InboundSettings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
@@ -43,9 +47,11 @@ class InboundService:
         log: EventLogger,
         settings: InboundSettings,
         connect: ConnectSettings,
+        api_timeout_s: float,
     ) -> None:
         self._accounts = accounts
         self._stats = stats
+        self._clients = clients
         self._log = log
         self._settings = settings
         self._queue: queue.Queue[object] = queue.Queue()
@@ -66,6 +72,27 @@ class InboundService:
             settings,
             connect,
         )
+        self._gmail = GmailWatcher(
+            self._queue,
+            self._guard,
+            tokens,
+            clients,
+            messages,
+            log,
+            settings,
+            api_timeout_s,
+        )
+        self._sweep = SweepScheduler(
+            self._queue,
+            tokens,
+            clients,
+            accounts,
+            messages,
+            log,
+            settings,
+            api_timeout_s,
+        )
+        self._sweep_thread: threading.Thread | None = None
         self._worker = QueueWorker(
             self._queue,
             accounts,
@@ -92,6 +119,7 @@ class InboundService:
         self._opened = True
         self._ingester.start()
         self._supervisor.start()
+        self._sweep_thread = self._sweep.start()
 
     def start_all(self) -> None:
         with self._guard:
@@ -171,10 +199,13 @@ class InboundService:
             return
         self.stop_all("shutdown")
         self._closed = True
+        self._sweep.stop()
         self._wake.set()
         if self._opened:
             self._queue.put(STOP)
             self._supervisor.join(timeout=self._settings.shutdown_join_s)
+            if self._sweep_thread is not None:
+                self._sweep_thread.join(timeout=self._settings.shutdown_join_s)
             self._ingester.join(timeout=self._settings.shutdown_join_s)
 
     def _supervise(self) -> None:
@@ -185,8 +216,12 @@ class InboundService:
                 return
             try:
                 self._reconcile()
-            except (SQLAlchemyError, OSError, RuntimeError) as error:
-                self._log.error("watcher.supervisor_failed", error=str(error))
+            except Exception as error:  # noqa: BLE001 - the supervisor must survive
+                self._log.error(
+                    "watcher.supervisor_failed",
+                    error=type(error).__name__,
+                    detail=str(error),
+                )
 
     def _reconcile(self) -> None:
         if not self._running:
@@ -211,11 +246,42 @@ class InboundService:
                 or not account.watcher_enabled
             ):
                 continue
+            spec = self._clients.spec_for_account(account)
             with self._guard:
                 handle = self._watchers.get(account_id)
+                previous = handle.source if handle is not None else None
+                if handle is not None and handle.source == "imap":
+                    allow_idle = handle.allow_idle
+                    denied = False
+                    choice = choose_source(
+                        account,
+                        spec,
+                        self._settings.source,
+                        allow_idle=allow_idle,
+                    )
+                else:
+                    choice, allow_idle, denied = plan_for(
+                        self._settings,
+                        account,
+                        spec,
+                        self._watchers,
+                    )
+                if denied:
+                    self._idle_cap(account)
+                if handle is not None and handle.source != choice.source:
+                    self._watchers.pop(account_id, None)
+                    self._stop(handle, "source_switch")
+                    handle = None
                 if handle is None:
-                    handle = WatcherHandle(account=account)
+                    handle = WatcherHandle(
+                        account=account,
+                        source=choice.source,
+                        allow_idle=allow_idle,
+                    )
+                    handle.mode = choice.mode
                     self._watchers[account_id] = handle
+                    self._select(account, choice.source, previous, spec)
+                    handle.account = self._accounts.get(account.id)
                 else:
                     handle.account = account
                 if handle.blocked is not None:
@@ -228,13 +294,51 @@ class InboundService:
                     self._record_died(handle)
                 if handle.stop.is_set():
                     continue
+                target = (
+                    self._gmail.run
+                    if handle.source == "gmail_api"
+                    else self._watcher.run
+                )
                 handle.thread = threading.Thread(
-                    target=self._watcher.run,
+                    target=target,
                     args=(handle,),
                     name=f"downcroc-watch-{account_id}",
                     daemon=True,
                 )
                 handle.thread.start()
+
+    def _idle_cap(self, account) -> None:
+        cap = max(1, int(self._settings.idle_fleet_cap))
+        self._log.info(
+            "inbound.idle_cap",
+            account=account.id,
+            cap=cap,
+            fallback="imap_poll",
+        )
+        self._queue.put(
+            WatcherEvent(
+                "inbound.idle_cap",
+                {"account": account.id, "cap": cap, "fallback": "imap_poll"},
+            )
+        )
+
+    def _select(self, account, source: str, previous: str | None, spec) -> None:
+        if previous == source:
+            return
+        self._accounts.set_inbound_source(account.id, source, utc_now())
+        if source == "imap" and account.cursor_source == "gmail_api":
+            self._accounts.reset_cursor(account.id, 0)
+        event, fields = select_event(account, source, self._settings.source)
+        if event == "inbound.source_switch" and source == "gmail_api":
+            self._log.info(event, **fields)
+            return
+        self._log.info(event, **fields)
+        self._queue.put(WatcherEvent(event, fields))
+
+    def health(self) -> list[dict[str, object]]:
+        with self._guard:
+            handles = dict(self._watchers)
+        return health_rows(self._accounts.list(), handles)
 
     def _record_died(self, handle: WatcherHandle) -> None:
         handle.failures += 1
@@ -246,6 +350,8 @@ class InboundService:
                 ok=False,
                 reason="watcher_died",
                 retry_in_s=retry,
+                source=handle.source,
+                mode=handle.mode,
             )
         )
         self._log.warning(

@@ -77,6 +77,7 @@ class OutboundService:
         self._quota = quota
         self._credentials = CredentialResolver(accounts, vault, tokens, clients)
         self._pool = SmtpSessionPool(settings, log)
+        self._attempts = send_attempts
         self._recorder = AttemptRecorder(send_attempts)
         smtp = SmtpDelivery(transports, self._pool, self._recorder, bus, log, settings)
         gmail = GmailDelivery(transports, self._recorder, clients, bus, log, settings)
@@ -264,12 +265,14 @@ class OutboundService:
                 limit=policy.daily_allowance,
             )
             return queued
+        used, reserved_now = self._quota.status(account.id, day)
         self._log.info(
             "quota.reserved",
             account=account.id,
             day=day,
+            used=used,
+            reserved=reserved_now,
             limit=policy.daily_allowance,
-            in_flight=reserved,
         )
         spec = self._providers.get(account.provider)
         started = time.monotonic()
@@ -299,14 +302,14 @@ class OutboundService:
                 message=error.__class__.__name__,
                 retryable=False,
             )
-            self._release(account.id, day, "send_preparation_failed")
+            self._release(account.id, day, "send_preparation_failed", claimed.id)
             raise
         try:
             outcome = await self._delivery.deliver(
                 claimed, account, spec, wire, started_at, allowed_kinds
             )
         except BaseException:
-            self._release(account.id, day, "send_exception")
+            self._release(account.id, day, "send_exception", claimed.id)
             raise
         return self._apply(claimed, account, outcome, started, day)
 
@@ -321,7 +324,7 @@ class OutboundService:
         if outcome.status == "sent":
             sent = self._jobs.mark_sent(job.id, utc_now())
             self._sent(sent, account, started)
-            self._commit(account.id, day)
+            self._commit(account.id, day, job.id)
             return sent
         if outcome.status == "uncertain":
             result = self._jobs.mark_sent_unconfirmed(
@@ -335,7 +338,7 @@ class OutboundService:
                 account=account.id,
                 code=outcome.code,
             )
-            self._commit(account.id, day)
+            self._commit(account.id, day, job.id)
             return result
         if outcome.status == "reauth":
             self._accounts.mark_needs_reauth(
@@ -347,7 +350,9 @@ class OutboundService:
                 message=outcome.message,
                 retryable=False,
             )
-            self._release(account.id, day, outcome.code or "account_needs_reauth")
+            self._release(
+                account.id, day, outcome.code or "account_needs_reauth", job.id
+            )
             raise AccountNeedsReauth(
                 "the mailbox must be reconnected",
                 hint="connect the account again",
@@ -358,7 +363,7 @@ class OutboundService:
                 if outcome.retry_after_s is not None
                 else utc_now()
             )
-            self._release(account.id, day, outcome.code or "send_deferred")
+            self._release(account.id, day, outcome.code or "send_deferred", job.id)
             return self._jobs.mark_retry(
                 job.id,
                 code=outcome.code or "send_deferred",
@@ -366,7 +371,7 @@ class OutboundService:
                 next_attempt_at=next_attempt,
                 retryable=True,
             )
-        self._release(account.id, day, outcome.code or "send_failed")
+        self._release(account.id, day, outcome.code or "send_failed", job.id)
         return self._jobs.mark_failed(
             job.id,
             code=outcome.code or "send_failed",
@@ -374,18 +379,35 @@ class OutboundService:
             retryable=False,
         )
 
-    def _commit(self, account_id: str, day: str) -> None:
+    def _commit(self, account_id: str, day: str, job_id: str) -> None:
         used = self._quota.commit(account_id, day)
-        self._log.info("quota.committed", account=account_id, day=day, used=used)
+        reserved = self._quota.reserved(account_id, day)
+        self._mark_attempt(job_id, day, "committed")
+        self._log.info(
+            "quota.committed",
+            account=account_id,
+            day=day,
+            used=used,
+            reserved=reserved,
+        )
 
-    def _release(self, account_id: str, day: str, reason: str) -> None:
+    def _release(self, account_id: str, day: str, reason: str, job_id: str) -> None:
         self._quota.release(account_id, day)
+        reserved = self._quota.reserved(account_id, day)
+        self._mark_attempt(job_id, day, "released")
         self._log.info(
             "quota.released",
             account=account_id,
             day=day,
             reason=reason,
+            reserved=reserved,
         )
+
+    def _mark_attempt(self, job_id: str, day: str, state: str) -> None:
+        attempt = self._attempts.latest_for_job(job_id)
+        if attempt is None:
+            return
+        self._attempts.set_quota(attempt.id, day, state)
 
     def _prepare_failed(
         self,

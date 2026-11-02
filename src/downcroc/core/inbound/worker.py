@@ -7,6 +7,7 @@ from downcroc.core.inbound.signals import (
     FOLDER,
     STOP,
     CursorJob,
+    HistoryJob,
     IngestJob,
     WatcherEvent,
     WatcherState,
@@ -51,12 +52,14 @@ class QueueWorker:
                     self._handle_ingest(item)
                 elif isinstance(item, CursorJob):
                     self._handle_cursor(item)
+                elif isinstance(item, HistoryJob):
+                    self._handle_history(item)
                 elif isinstance(item, WatcherState):
                     self._handle_state(item)
                 elif isinstance(item, WatcherEvent):
                     self._bus.publish(item.event, item.data)
             except Exception as error:  # noqa: BLE001
-                if isinstance(item, (IngestJob, CursorJob)):
+                if isinstance(item, (IngestJob, CursorJob, HistoryJob)):
                     item.error = error
                 self._log.error(
                     "inbound.worker_failed",
@@ -64,7 +67,7 @@ class QueueWorker:
                     kind=type(item).__name__,
                 )
             finally:
-                if isinstance(item, (IngestJob, CursorJob)):
+                if isinstance(item, (IngestJob, CursorJob, HistoryJob)):
                     item.done.set()
                 self._queue.task_done()
 
@@ -76,14 +79,16 @@ class QueueWorker:
             incoming.uidvalidity,
             incoming.uid,
             incoming.message_id,
+            incoming.provider_id,
         )
         if existing is not None:
-            self._messages.advance_cursor(
-                job.account_id,
-                incoming.uidvalidity,
-                incoming.uid,
-                utc_now(),
-            )
+            if incoming.uidvalidity > 0:
+                self._messages.advance_cursor(
+                    job.account_id,
+                    incoming.uidvalidity,
+                    incoming.uid,
+                    utc_now(),
+                )
             job.result = existing
             return
         prepared: list[PreparedAttachment] = []
@@ -223,6 +228,13 @@ class QueueWorker:
                 utc_now(),
             )
 
+    def _handle_history(self, job: HistoryJob) -> None:
+        self._accounts.set_history_cursor(
+            job.account_id,
+            job.history_id,
+            job.synced_at,
+        )
+
     def _handle_state(self, state: WatcherState) -> None:
         if state.ok:
             self._accounts.watcher_succeeded(state.account_id, utc_now())
@@ -232,10 +244,20 @@ class QueueWorker:
                     "account": state.account_id,
                     "host": state.host,
                     "uidvalidity": state.uidvalidity,
+                    "source": state.source,
+                    "mode": state.mode,
                 },
             )
             return
         self._accounts.watcher_failed(state.account_id, state.reason)
+        if state.reason == "gmail_api_disabled":
+            self._bus.publish(
+                "gmail.api_disabled",
+                {
+                    "account": state.account_id,
+                    "project_id": state.project_id,
+                },
+            )
         if state.needs_reauth:
             try:
                 self._accounts.mark_needs_reauth(state.account_id, state.reason)

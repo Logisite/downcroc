@@ -79,3 +79,18 @@ def test_cli_doctor_capacity_reports_the_slot_plan(stack_factory) -> None:
     assert len(body["smtp_waiting"]) == 1
     assert body["password_accounts"] == 2
     assert body["oauth_accounts"] == 0
+
+
+def test_cli_doctor_transports_checks_vault_credentials(stack_factory) -> None:
+    stack = stack_factory(
+        config_extra=dispatch_config(),
+        accounts=["alice@local.test"],
+    )
+
+    body = _json(stack, "doctor", "transports", "--json")
+
+    assert body["ok"] is True
+    checks = [item for item in body["checks"] if item["check"] == "vault"]
+    assert len(checks) == 1
+    assert checks[0]["ok"] is True
+    assert checks[0]["code"] is None

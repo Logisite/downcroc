@@ -13,6 +13,7 @@ from downcroc.core.batches.views import (
     PreviewFollowUp,
     PreviewMessage,
 )
+from downcroc.core.capacity import CapacityService
 from downcroc.core.events import EventBus
 from downcroc.core.inputs import routing
 from downcroc.core.inputs.override import fixed_account
@@ -56,8 +57,10 @@ class BatchesService:
         policy: PolicyResolver,
         bus: EventBus,
         log: EventLogger,
+        capacity: CapacityService,
     ) -> None:
         self._settings = settings
+        self._capacity = capacity
         self._batches = batches
         self._jobs = jobs
         self._accounts = accounts
@@ -159,6 +162,17 @@ class BatchesService:
                 "jobs": len(built),
                 "source_kind": campaign.source_kind,
                 "state": batch.state.value,
+            },
+        )
+        estimate = self._capacity.batch_eta(batch)
+        self._bus.publish(
+            "dispatch.capacity",
+            {
+                "batch": batch.id,
+                "lanes": estimate["lanes"],
+                "messages": estimate["remaining"],
+                "sequential": estimate["serial"],
+                "spills_window": estimate["spills_window"],
             },
         )
         return self.detail(batch.id)

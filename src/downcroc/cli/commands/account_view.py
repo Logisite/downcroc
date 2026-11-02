@@ -68,13 +68,17 @@ def show(account: dict) -> None:
             "created_at": account["created_at"],
             "last_verified_at": account["last_verified_at"],
             "last_error": account["last_error"],
+            "inbound": (f"{account['inbound']['owner']} {account['inbound']['mode']}"),
+            "inbound_override": account["inbound"]["override"] or "auto",
         }
     )
     record(
         {
             "last_uid": account["sync"]["last_uid"],
             "uidvalidity": account["sync"]["uidvalidity"],
+            "history_id": account["sync"]["history_id"] or "-",
             "last_sync_at": account["sync"]["last_sync_at"],
+            "last_sweep_at": account["sync"]["last_sweep_at"] or "-",
             "failures": account["sync"]["consecutive_failures"],
             "allowance": account["quota"]["daily_allowance"],
             "window": (

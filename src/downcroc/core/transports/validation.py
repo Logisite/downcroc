@@ -41,9 +41,12 @@ def resolve_client_id(
     clients: OAuthClientService,
     account: Account,
     client_id: str | None,
-) -> str:
+    spec: ProviderSpec,
+) -> str | None:
     resolved = clients.resolve_id(account.provider, client_id)
     if resolved is None:
+        if spec.oauth_configured:
+            return None
         raise TransportInvalid(
             "the provider has no oauth client",
             hint="import one with downcroc provider credentials set gmail",

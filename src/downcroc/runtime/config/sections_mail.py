@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -135,6 +137,63 @@ class ConnectSettings(BaseModel):
 class InboundSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    source: Literal["auto", "imap", "gmail_api"] = Field(
+        default="auto",
+        description=(
+            "Default inbound owner. auto keeps IMAP for every auth kind and "
+            "uses the Gmail API only as the completeness sweep."
+        ),
+    )
+    api_poll_s: float = Field(
+        default=60.0,
+        ge=10,
+        le=300,
+        description="Seconds between Gmail API history polls when it owns an account.",
+    )
+    sweep_tick_s: float = Field(
+        default=60.0,
+        ge=10,
+        le=3600,
+        description=(
+            "Base gap between fleet sweep slots. This is not a per-account interval."
+        ),
+    )
+    sweep_slot_jitter: float = Field(
+        default=0.25,
+        ge=0,
+        le=0.5,
+        description="Fraction of sweep_tick_s added randomly to each slot.",
+    )
+    sweep_accounts_per_tick: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Accounts swept sequentially in one slot.",
+    )
+    sweep_initial_days: int = Field(
+        default=7,
+        ge=0,
+        le=3650,
+        description="Backfill window on the first Gmail API sync or sweep.",
+    )
+    sweep_limit: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+        description="Messages fetched per Gmail API sweep or backfill.",
+    )
+    idle_fleet_cap: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Accounts allowed to hold an IMAP IDLE connection.",
+    )
+    idle_heartbeat_s: float = Field(
+        default=60.0,
+        ge=30,
+        le=1740,
+        description="Maximum IDLE silence before a NOOP liveness check.",
+    )
     idle_timeout_s: float = Field(
         default=1500.0,
         ge=10,

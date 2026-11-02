@@ -42,6 +42,7 @@ class Daemon:
         fakes: FakeMailServers,
         config_extra: str = "",
         preserve_config: bool = False,
+        extra_providers: str = "",
     ) -> Daemon:
         for directory in (
             self.config,
@@ -51,7 +52,9 @@ class Daemon:
         ):
             directory.mkdir(parents=True, exist_ok=True)
         if not preserve_config:
-            (self.config / "providers.toml").write_text(fakes.providers_toml)
+            (self.config / "providers.toml").write_text(
+                fakes.providers_toml + extra_providers
+            )
             (self.config / "config.toml").write_text(
                 "[daemon]\n"
                 f"port = {self.port}\n"

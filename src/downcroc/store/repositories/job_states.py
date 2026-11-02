@@ -34,6 +34,8 @@ class JobStateRepo:
                 return None
             if row.state not in _SENDABLE and row.state != JobState.SENDING.value:
                 return None
+            if row.paused_at is not None:
+                return None
             row.state = JobState.SENDING.value
             row.attempts += 1
             row.lease_owner = owner
@@ -125,11 +127,45 @@ class JobStateRepo:
             _error(row, code, message, retryable)
         return self.get(job_id)
 
+    def pause(self, job_id: str, paused_at: str, reason: str | None) -> Job:
+        with self._sessions.begin() as session:
+            row = self._row(session, job_id)
+            if row.state == JobState.SENDING.value:
+                raise ValueError("job_in_flight")
+            if row.state not in (
+                JobState.QUEUED.value,
+                JobState.RETRY_WAIT.value,
+                JobState.AWAITING_APPROVAL.value,
+            ):
+                raise ValueError("job_state_conflict")
+            if row.paused_at is None:
+                row.paused_at = paused_at
+            if reason is not None:
+                row.paused_reason = reason
+            row.updated_at = utc_now()
+        return self.get(job_id)
+
+    def resume(self, job_id: str) -> Job:
+        with self._sessions.begin() as session:
+            row = self._row(session, job_id)
+            row.paused_at = None
+            row.paused_reason = None
+            row.updated_at = utc_now()
+        return self.get(job_id)
+
     def set_state(self, job_id: str, state: JobState) -> Job:
         with self._sessions.begin() as session:
             row = self._row(session, job_id)
             row.state = state.value
             row.updated_at = utc_now()
+            if state in (
+                JobState.SENT,
+                JobState.SENT_UNCONFIRMED,
+                JobState.FAILED,
+                JobState.CANCELLED,
+            ):
+                row.paused_at = None
+                row.paused_reason = None
         return self.get(job_id)
 
     def reset_for_retry(self, job_id: str) -> Job:

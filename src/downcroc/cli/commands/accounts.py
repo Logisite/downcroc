@@ -104,6 +104,7 @@ def run(args: object) -> int:
             "verify",
             "sync",
             "watch",
+            "inbound",
             "policy",
         } and not getattr(args, "account_id", None):
             if not ui.interactive:
@@ -156,7 +157,42 @@ def run(args: object) -> int:
             if ui.json_mode:
                 json_out(account)
             else:
-                record({"sync": f"requested for {account['address']}"})
+                record(
+                    {
+                        "sync": f"requested for {account['address']}",
+                        "inbound": (
+                            f"{account['inbound']['owner']} "
+                            f"{account['inbound']['mode']}"
+                        ),
+                        "cursor": (
+                            account["inbound"]["history_id"]
+                            or (
+                                f"{account['sync']['uidvalidity']}/"
+                                f"{account['sync']['last_uid']}"
+                            )
+                        ),
+                    }
+                )
+            return 0
+        if action == "inbound":
+            account = patch(
+                client,
+                f"/api/accounts/{args.account_id}/inbound",
+                {"source": args.source},
+            )
+            if ui.json_mode:
+                json_out(account)
+            else:
+                record(
+                    {
+                        "account": f"{account['id']} {account['address']}",
+                        "inbound": (
+                            f"{account['inbound']['owner']} "
+                            f"{account['inbound']['mode']}"
+                        ),
+                        "override": account["inbound"]["override"] or "auto",
+                    }
+                )
             return 0
         if action == "watch":
             return _watch(client, args, ui)

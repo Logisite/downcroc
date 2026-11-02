@@ -15,6 +15,11 @@ class JobRow(Base):
         Index("ix_jobs_account_created", "account_id", "created_at"),
         Index("ix_jobs_thread_root", "thread_root_job_id"),
         Index(
+            "ix_jobs_paused",
+            "paused_at",
+            sqlite_where=text("paused_at IS NOT NULL"),
+        ),
+        Index(
             "ux_jobs_batch_source_key",
             "batch_id",
             "source_key",
@@ -64,3 +69,5 @@ class JobRow(Base):
     created_at: Mapped[str] = mapped_column(Text, nullable=False)
     updated_at: Mapped[str] = mapped_column(Text, nullable=False)
     sent_at: Mapped[str | None] = mapped_column(Text)
+    paused_at: Mapped[str | None] = mapped_column(Text)
+    paused_reason: Mapped[str | None] = mapped_column(Text)

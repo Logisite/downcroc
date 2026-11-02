@@ -52,6 +52,16 @@ def _to_account(row: AccountRow, state: AccountStateRow | None) -> Account:
         uidvalidity=state.uidvalidity if state is not None else 0,
         last_sync_at=state.last_sync_at if state is not None else None,
         consecutive_failures=state.consecutive_failures if state is not None else 0,
+        source_override=state.source_override if state is not None else None,
+        inbound_source=state.inbound_source if state is not None else None,
+        history_id=state.history_id if state is not None else None,
+        cursor_source=state.cursor_source if state is not None else None,
+        last_sweep_at=state.last_sweep_at if state is not None else None,
+        last_source_switch_at=(
+            state.last_source_switch_at if state is not None else None
+        ),
+        paused_at=row.paused_at,
+        paused_reason=row.paused_reason,
     )
 
 
@@ -162,12 +172,78 @@ class AccountRepo(AccountDeletionRepo):
             state.watcher_enabled = enabled
         return self.get(account_id)
 
+    def pause(self, account_id: str, paused_at: str, reason: str | None) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            if row.paused_at is None:
+                row.paused_at = paused_at
+            if reason is not None:
+                row.paused_reason = reason
+        return self.get(account_id)
+
+    def resume(self, account_id: str) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            row.paused_at = None
+            row.paused_reason = None
+        return self.get(account_id)
+
     def reset_cursor(self, account_id: str, uidvalidity: int) -> None:
         with self._sessions.begin() as session:
             self._row(session, account_id)
             state = self._state(session, account_id)
             state.uidvalidity = uidvalidity
             state.last_uid = 0
+            state.cursor_source = "imap"
+
+    def set_source_override(self, account_id: str, source: str | None) -> Account:
+        with self._sessions.begin() as session:
+            self._row(session, account_id)
+            state = self._state(session, account_id)
+            state.source_override = source
+        return self.get(account_id)
+
+    def set_inbound_source(
+        self, account_id: str, source: str, switched_at: str
+    ) -> None:
+        with self._sessions.begin() as session:
+            self._row(session, account_id)
+            state = self._state(session, account_id)
+            state.inbound_source = source
+            state.last_source_switch_at = switched_at
+
+    def set_history_cursor(
+        self,
+        account_id: str,
+        history_id: str,
+        synced_at: str,
+    ) -> None:
+        with self._sessions.begin() as session:
+            self._row(session, account_id)
+            state = self._state(session, account_id)
+            state.history_id = history_id
+            state.cursor_source = "gmail_api"
+            state.last_sync_at = synced_at
+            state.last_error = None
+            state.consecutive_failures = 0
+
+    def sweep_succeeded(self, account_id: str, swept_at: str) -> None:
+        with self._sessions.begin() as session:
+            state = session.get(AccountStateRow, account_id)
+            if state is None:
+                return
+            state.last_sweep_at = swept_at
+            state.last_error = None
+            state.consecutive_failures = 0
+
+    def sweep_failed(self, account_id: str, reason: str, swept_at: str) -> None:
+        with self._sessions.begin() as session:
+            state = session.get(AccountStateRow, account_id)
+            if state is None:
+                return
+            state.last_sweep_at = swept_at
+            state.last_error = reason
+            state.consecutive_failures += 1
 
     def set_baseline(
         self,
@@ -185,6 +261,7 @@ class AccountRepo(AccountDeletionRepo):
             else:
                 state.last_uid = max(state.last_uid, last_uid)
             state.last_sync_at = synced_at
+            state.cursor_source = "imap"
             state.last_error = None
             state.consecutive_failures = 0
 

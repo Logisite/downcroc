@@ -17,6 +17,7 @@ from downcroc.store.db.models.messages import (
     ThreadRow,
 )
 from downcroc.store.db.models.policy import PolicyOverrideRow
+from downcroc.store.db.models.runtime_state import RuntimeStateRow
 from downcroc.store.db.models.send_attempts import SendAttemptRow
 from downcroc.store.db.models.transports import AccountTransportRow, OAuthClientRow
 
@@ -38,6 +39,7 @@ __all__ = [
     "OAuthClientRow",
     "PolicyOverrideRow",
     "QuotaBucketRow",
+    "RuntimeStateRow",
     "SendAttemptRow",
     "ThreadLinkRow",
     "ThreadRow",

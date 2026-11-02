@@ -17,8 +17,11 @@ def parse_message(
     message: MailMessage,
     uidvalidity: int,
     body_max_bytes: int,
+    *,
+    uid: int | None = None,
+    provider_id: str | None = None,
 ) -> IncomingMessage:
-    uid = int(message.uid or 0)
+    uid = int(message.uid or 0) if uid is None else uid
     in_reply_to = parse_references(message.obj.get("In-Reply-To"))
     references = parse_references(*message.obj.get_all("References", []))
     text, text_cut = _truncate(message.text, body_max_bytes)
@@ -55,6 +58,7 @@ def parse_message(
         dsn_code=dsn.code,
         dsn_recipient=dsn.recipient,
         dsn_original_message_id=dsn.original_message_id,
+        provider_id=provider_id,
     )
 
 

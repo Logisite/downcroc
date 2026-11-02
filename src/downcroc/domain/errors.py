@@ -105,6 +105,7 @@ __all__ = (
     "OAuthListenerFailed",
     "OAuthNotConfigured",
     "OAuthUnavailable",
+    "PauseDurationInvalid",
     "ProviderAuthMismatch",
     "ProviderConfigError",
     "ProviderInUse",
@@ -118,6 +119,7 @@ __all__ = (
     "RestoreRefused",
     "SampleAlreadySent",
     "SenderConflict",
+    "SendingPaused",
     "SmtpUnavailable",
     "TemplateNotFound",
     "ThreadNotFound",
@@ -304,3 +306,13 @@ class CredentialMissing(DomainError):
 class AccountNeedsReauth(DomainError):
     code = "account_needs_reauth"
     status = 409
+
+
+class SendingPaused(DomainError):
+    code = "sending_paused"
+    status = 409
+
+
+class PauseDurationInvalid(DomainError):
+    code = "pause_duration_invalid"
+    status = 422

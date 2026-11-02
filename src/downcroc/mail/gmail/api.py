@@ -153,7 +153,9 @@ def _request(
     timeout_s: float,
     *,
     json: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
     project_id: str | None = None,
+    history: bool = False,
 ) -> httpx.Response:
     url = f"{spec.api_base_url.rstrip('/')}{path}"
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -165,6 +167,7 @@ def _request(
             url,
             headers=headers,
             json=json,
+            params=params,
             timeout=timeout_s,
         )
     except (httpx.ConnectError, httpx.ConnectTimeout) as error:
@@ -183,7 +186,7 @@ def _request(
             project_id=project_id,
         ) from error
     if response.status_code >= 400:
-        raise _failure(response, project_id)
+        raise _failure(response, project_id, history=history)
     return response
 
 
@@ -209,11 +212,22 @@ def close() -> None:
         client.close()
 
 
-def _failure(response: httpx.Response, project_id: str | None) -> GmailApiFailure:
+def _failure(
+    response: httpx.Response,
+    project_id: str | None,
+    *,
+    history: bool = False,
+) -> GmailApiFailure:
     payload = _safe_json(response)
     reasons = _reasons(payload)
     message = _error_message(payload) or f"gmail api returned {response.status_code}"
     status = response.status_code
+    if history and (status == 404 or (status == 400 and "invalidArgument" in reasons)):
+        return GmailApiFailure(
+            "gmail_history_expired",
+            message,
+            project_id=project_id,
+        )
     if status == 401:
         return GmailApiFailure(
             "gmail_api_unauthorized",

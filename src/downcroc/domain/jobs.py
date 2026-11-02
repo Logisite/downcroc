@@ -49,6 +49,8 @@ class Job:
     created_at: str
     updated_at: str
     sent_at: str | None
+    paused_at: str | None = None
+    paused_reason: str | None = None
 
 
 @dataclass(frozen=True)

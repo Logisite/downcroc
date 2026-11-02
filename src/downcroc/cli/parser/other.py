@@ -46,6 +46,10 @@ def top(commands: argparse._SubParsersAction) -> None:
         "capacity", help="report fleet lanes, seats, and smtp-only mailboxes"
     )
     common(capacity)
+    inbound = doctor_actions.add_parser(
+        "inbound", help="report inbound owners, cursors, and failures"
+    )
+    common(inbound)
     common(doctor)
 
     send = commands.add_parser(

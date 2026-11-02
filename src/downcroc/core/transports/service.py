@@ -125,7 +125,7 @@ class TransportService:
             )
         if kind is TransportKind.GMAIL_API:
             oauth_client_id = validation.resolve_client_id(
-                self._clients, account, oauth_client_id
+                self._clients, account, oauth_client_id, spec
             )
             if max_concurrency is None:
                 max_concurrency = self._api_default(spec)
@@ -296,8 +296,7 @@ class TransportService:
 
     def lanes(self, account: Account) -> int:
         return sum(
-            self._limiter.effective_limit(binding)
-            for binding in self.usable(account)
+            self._limiter.effective_limit(binding) for binding in self.usable(account)
         )
 
     def mark_success(self, binding: AccountTransport) -> AccountTransport:

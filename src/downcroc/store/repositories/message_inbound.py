@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.messages import IncomingMessage, PreparedAttachment
@@ -49,6 +50,7 @@ class InboundMixin:
         uidvalidity: int,
         uid: int,
         message_id: str | None,
+        provider_id: str | None = None,
     ) -> IngestResult | None:
         with self._sessions() as session:
             clauses = [
@@ -61,6 +63,11 @@ class InboundMixin:
                 clauses.append(
                     (MessageRow.account_id == account_id)
                     & (MessageRow.message_id == message_id)
+                )
+            if provider_id is not None:
+                clauses.append(
+                    (MessageRow.account_id == account_id)
+                    & (MessageRow.provider_id == provider_id)
                 )
             row = session.execute(
                 select(MessageRow).where(or_(*clauses)).limit(1)
@@ -80,8 +87,48 @@ class InboundMixin:
         uid: int,
         synced_at: str,
     ) -> None:
+        if uidvalidity <= 0:
+            return
         with self._sessions.begin() as session:
             _advance_cursor(session, account_id, uidvalidity, uid, synced_at)
+
+    def has_provider(self, account_id: str, provider_id: str) -> bool:
+        with self._sessions() as session:
+            row = session.execute(
+                select(MessageRow.id)
+                .where(MessageRow.account_id == account_id)
+                .where(MessageRow.provider_id == provider_id)
+                .limit(1)
+            ).scalar_one_or_none()
+            return row is not None
+
+    def find_by_message_id(self, account_id: str, message_id: str) -> str | None:
+        with self._sessions() as session:
+            return session.execute(
+                select(MessageRow.id)
+                .where(MessageRow.account_id == account_id)
+                .where(MessageRow.message_id == message_id)
+                .limit(1)
+            ).scalar_one_or_none()
+
+    def mark_provider(
+        self,
+        account_id: str,
+        message_id: str,
+        provider_id: str,
+    ) -> None:
+        try:
+            with self._sessions.begin() as session:
+                row = session.execute(
+                    select(MessageRow)
+                    .where(MessageRow.account_id == account_id)
+                    .where(MessageRow.message_id == message_id)
+                    .limit(1)
+                ).scalar_one_or_none()
+                if row is not None and row.provider_id is None:
+                    row.provider_id = provider_id
+        except IntegrityError:
+            return
 
     def ingest(
         self,
@@ -113,6 +160,7 @@ class InboundMixin:
                     uid=incoming.uid,
                     uidvalidity=incoming.uidvalidity,
                     message_id=incoming.message_id,
+                    provider_id=incoming.provider_id,
                     in_reply_to=incoming.in_reply_to,
                     references_json=json.dumps(list(incoming.references)),
                     subject=incoming.subject,
@@ -145,13 +193,14 @@ class InboundMixin:
             thread.last_seen = max(thread.last_seen, incoming.date)
             if attribution.reply_state == "confirmed":
                 thread.reply_count += 1
-            _advance_cursor(
-                session,
-                account_id,
-                incoming.uidvalidity,
-                incoming.uid,
-                ingested_at,
-            )
+            if incoming.uidvalidity > 0:
+                _advance_cursor(
+                    session,
+                    account_id,
+                    incoming.uidvalidity,
+                    incoming.uid,
+                    ingested_at,
+                )
         return IngestResult(
             message_id=message_id,
             thread_id=thread.id,

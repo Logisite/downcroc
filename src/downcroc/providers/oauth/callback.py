@@ -193,7 +193,14 @@ def handle_callback(listener: Listener, handler: BaseHTTPRequestHandler) -> None
             "oauth_unavailable",
         )
         return
-    except (SQLAlchemyError, OSError, RuntimeError, ValueError, TypeError, KeyError) as failure:
+    except (
+        SQLAlchemyError,
+        OSError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        KeyError,
+    ) as failure:
         flow.log.error(
             "oauth.failed",
             code="unexpected",

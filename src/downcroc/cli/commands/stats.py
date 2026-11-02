@@ -15,6 +15,13 @@ def _totals(row: dict) -> dict:
 
 def _summary(data: dict) -> None:
     record({"from": data["from"], "to": data["to"], **_totals(data["total"])})
+    if data.get("inbound"):
+        record(
+            {
+                "inbound": data["inbound"],
+                "stale_watchers": data.get("stale_watchers", 0),
+            }
+        )
     rows = data.get("accounts") or []
     if rows:
         table(
@@ -122,7 +129,7 @@ def run(args: object) -> int:
     with api(paths) as client:
         if args.action == "summary":
             data = get(client, "/api/stats/summary", **_range(args))
-            pending = get(client, "/api/stats/pending")
+            pending = data.get("pending_eta") or get(client, "/api/stats/pending")
             if args.json:
                 json_out({**data, "pending_eta": pending})
             else:

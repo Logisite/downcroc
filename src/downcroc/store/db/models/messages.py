@@ -32,6 +32,12 @@ class MessageRow(Base):
         Index("ix_messages_job", "job_id"),
         Index("ix_messages_message_id", "message_id"),
         Index("ix_messages_account_date", "account_id", "date"),
+        Index(
+            "uq_messages_provider",
+            "account_id",
+            "provider_id",
+            unique=True,
+        ),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -42,6 +48,7 @@ class MessageRow(Base):
     uid: Mapped[int] = mapped_column(Integer, nullable=False)
     uidvalidity: Mapped[int] = mapped_column(Integer, nullable=False)
     message_id: Mapped[str | None] = mapped_column(Text)
+    provider_id: Mapped[str | None] = mapped_column(Text)
     in_reply_to: Mapped[str | None] = mapped_column(Text)
     references_json: Mapped[str] = mapped_column(Text, nullable=False)
     subject: Mapped[str] = mapped_column(Text, nullable=False)

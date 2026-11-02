@@ -49,3 +49,5 @@ class SendAttempt:
     error_message: str | None
     provider_message_id: str | None
     detail: str | None
+    quota_day: str | None = None
+    quota_state: str | None = None

@@ -33,3 +33,11 @@ class Account:
     uidvalidity: int = 0
     last_sync_at: str | None = None
     consecutive_failures: int = 0
+    source_override: str | None = None
+    inbound_source: str | None = None
+    history_id: str | None = None
+    cursor_source: str | None = None
+    last_sweep_at: str | None = None
+    last_source_switch_at: str | None = None
+    paused_at: str | None = None
+    paused_reason: str | None = None

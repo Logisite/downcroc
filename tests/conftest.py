@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,17 +44,19 @@ def stack_factory(tmp_path: Path):
         *,
         config_extra: str = "",
         accounts: list[str] | None = None,
+        extra_providers: str | Callable[[FakeMailServers], str] = "",
     ) -> Stack:
         runtime = tmp_path / f"runtime-{len(created)}"
         fakes = FakeMailServers().start()
         daemon = Daemon(runtime)
-        daemon.start(fakes, config_extra)
+        extra = extra_providers(fakes) if callable(extra_providers) else extra_providers
+        daemon.start(fakes, config_extra, extra_providers=extra)
         api = Api(daemon.base_url, daemon.state_home / "downcroc" / "daemon.token")
         api.unlock()
-        connected = connect_accounts(
-            api,
-            accounts or ["alice@local.test", "bob@local.test"],
+        chosen = (
+            ["alice@local.test", "bob@local.test"] if accounts is None else accounts
         )
+        connected = connect_accounts(api, chosen)
         stack = Stack(
             root=runtime,
             daemon=daemon,

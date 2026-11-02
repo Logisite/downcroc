@@ -36,6 +36,7 @@ class DispatchHelpers:
             and self._policy.effective(account).enabled
             and account.credential_present
             and account.archived_at is None
+            and account.paused_at is None
         )
 
     def _batch_ready(
@@ -47,7 +48,11 @@ class DispatchHelpers:
             except BatchNotFound:
                 cache[job.batch_id] = None
         batch = cache[job.batch_id]
-        if batch is None or batch.state is not BatchState.SENDING:
+        if (
+            batch is None
+            or batch.state is not BatchState.SENDING
+            or batch.paused_at is not None
+        ):
             return False
         try:
             options = json.loads(batch.options_json or "{}")
@@ -82,9 +87,7 @@ class DispatchHelpers:
         ]
         oldest = min(turns)
         ready = [
-            candidate
-            for candidate, turn in zip(candidates, turns)
-            if turn == oldest
+            candidate for candidate, turn in zip(candidates, turns) if turn == oldest
         ]
         weights = [max(1, candidate.remaining) for candidate in ready]
         return self._rng.choices(ready, weights=weights, k=1)[0]

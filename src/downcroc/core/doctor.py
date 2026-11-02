@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from downcroc.core.capacity import CapacityService
+from downcroc.core.inbound import InboundService
 from downcroc.core.oauth_clients import OAuthClientService
+from downcroc.core.transport_doctor import TransportChecks
 from downcroc.core.transports import TransportService
-from downcroc.core.vault_service import VaultService
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.transports import TransportKind
 from downcroc.runtime.config.schema import Settings
@@ -20,20 +21,41 @@ class DoctorService:
         transports: TransportService,
         clients: OAuthClientService,
         capacity: CapacityService,
-        vault: VaultService,
+        inbound: InboundService,
+        checks: TransportChecks,
     ) -> None:
         self._settings = settings
         self._accounts = accounts
         self._transports = transports
         self._clients = clients
         self._capacity = capacity
-        self._vault = vault
+        self._inbound = inbound
+        self._checks = checks
+
+    def inbound(self) -> dict[str, object]:
+        rows = self._inbound.health()
+        sources = {"imap": 0, "gmail_api": 0}
+        stale = 0
+        for row in rows:
+            source = str(row.get("owner") or "imap")
+            sources[source] = sources.get(source, 0) + 1
+            if row.get("last_error") or row.get("mode") in {"stale", "reconnecting"}:
+                stale += 1
+        return {
+            "ok": stale == 0,
+            "accounts": rows,
+            "sources": sources,
+            "stale": stale,
+            "idle_fleet_cap": self._settings.inbound.idle_fleet_cap,
+        }
 
     def transports(self) -> dict[str, object]:
         rows: list[dict[str, object]] = []
+        checks: list[dict[str, object]] = []
         for account in self._accounts.list():
             for binding in self._transports.list(account.id):
                 rows.append(self._binding(account, binding))
+                checks.extend(self._checks.checks(account, binding))
         clients = [
             {
                 "id": client.id,
@@ -45,10 +67,12 @@ class DoctorService:
             for client in self._clients.list()
         ]
         problems = [row for row in rows if row["problem"]]
+        failed = [check for check in checks if not check["ok"]]
         return {
-            "ok": not problems,
+            "ok": not problems and not failed,
             "bindings": rows,
             "clients": clients,
+            "checks": checks,
             "problems": problems,
         }
 
@@ -91,6 +115,7 @@ class DoctorService:
             "smtp_only": smtp_only,
             "password_only": password_only,
             "warning": self._seat_warning(seats),
+            "risk": _seat_risk(seats),
             "recommendation": (
                 "app-password accounts are SMTP-only and bounded to one seat "
                 "each; connect a Gmail account with OAuth to use API lanes"
@@ -101,10 +126,10 @@ class DoctorService:
 
     def _binding(self, account: Account, binding) -> dict[str, object]:
         problem = None
-        if binding.kind is TransportKind.GMAIL_API and binding.oauth_client_id is None:
-            problem = "missing_oauth_client"
-        elif binding.kind is TransportKind.GMAIL_API and not self._client_exists(
-            binding.oauth_client_id
+        if (
+            binding.kind is TransportKind.GMAIL_API
+            and binding.oauth_client_id is not None
+            and not self._client_exists(binding.oauth_client_id)
         ):
             problem = "oauth_client_missing"
         elif account.status is AccountStatus.NEEDS_REAUTH:
@@ -152,7 +177,15 @@ class DoctorService:
                 "not parallel sending; use Gmail API lanes for throughput."
             )
         return (
-            "SMTP seats above 3 are unsupported-risk. Each extra seat is another "
+            "SMTP seats above 3 are critical-risk. Each extra seat is another "
             "mailbox that Gmail may throttle or suspend, and rotation does not "
             "create parallel capacity."
         )
+
+
+def _seat_risk(seats: int) -> str | None:
+    if seats <= 1:
+        return None
+    if seats <= 3:
+        return "warning"
+    return "critical"

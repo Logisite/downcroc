@@ -30,6 +30,15 @@ class CursorJob:
     error: BaseException | None = None
 
 
+@dataclass
+class HistoryJob:
+    account_id: str
+    history_id: str
+    synced_at: str
+    done: threading.Event = field(default_factory=threading.Event)
+    error: BaseException | None = None
+
+
 @dataclass(frozen=True)
 class WatcherState:
     account_id: str
@@ -39,6 +48,10 @@ class WatcherState:
     reason: str = ""
     retry_in_s: int = 0
     needs_reauth: bool = False
+    source: str = "imap"
+    mode: str = ""
+    project_id: str | None = None
+    silent_s: int = 0
 
 
 @dataclass(frozen=True)
@@ -64,6 +77,10 @@ class WatcherHandle:
     next_start: float = 0.0
     blocked: str | None = None
     stop_reason: str | None = None
+    source: str = "imap"
+    mode: str = "starting"
+    allow_idle: bool = True
+    last_event_at: str | None = None
     thread: threading.Thread | None = None
 
 
@@ -78,8 +95,10 @@ class WatchFailure(Exception):
         *,
         needs_reauth: bool = False,
         fatal: bool = False,
+        project_id: str | None = None,
     ) -> None:
         super().__init__(reason)
         self.reason = reason
         self.needs_reauth = needs_reauth
         self.fatal = fatal
+        self.project_id = project_id

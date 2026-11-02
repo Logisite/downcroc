@@ -32,8 +32,24 @@ def summary(
     to: str | None = None,
     account_id: str | None = None,
 ) -> SummaryOut:
-    chosen, found = _services(request).stats.summary(from_, to, account_id)
-    return SummaryOut.of(chosen.start_day, chosen.end_day, found)
+    services = _services(request)
+    chosen, found = services.stats.summary(from_, to, account_id)
+    rows = services.inbound.health()
+    inbound = {"imap": 0, "gmail_api": 0}
+    stale = 0
+    for row in rows:
+        owner = str(row.get("owner") or "imap")
+        inbound[owner] = inbound.get(owner, 0) + 1
+        if row.get("last_error") or row.get("mode") in {"stale", "reconnecting"}:
+            stale += 1
+    return SummaryOut.of(
+        chosen.start_day,
+        chosen.end_day,
+        found,
+        inbound=inbound,
+        stale_watchers=stale,
+        pending_eta=services.capacity.pending(),
+    )
 
 
 @router.get("/hourly", response_model=HourlyOut)

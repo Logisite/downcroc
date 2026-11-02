@@ -23,7 +23,7 @@ def duration(seconds: object) -> str:
         return "-"
     try:
         total = max(0, int(float(str(seconds))))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return "-"
     if total < 60:
         return f"{total}s"

@@ -28,6 +28,8 @@ class AccountRow(Base):
     jitter_max: Mapped[int | None] = mapped_column(Integer)
     max_in_flight: Mapped[int | None] = mapped_column(Integer)
     enabled: Mapped[bool | None] = mapped_column(Boolean)
+    paused_at: Mapped[str | None] = mapped_column(Text)
+    paused_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class AccountStateRow(Base):
@@ -44,3 +46,9 @@ class AccountStateRow(Base):
     consecutive_failures: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0
     )
+    source_override: Mapped[str | None] = mapped_column(Text)
+    inbound_source: Mapped[str | None] = mapped_column(Text)
+    history_id: Mapped[str | None] = mapped_column(Text)
+    cursor_source: Mapped[str | None] = mapped_column(Text)
+    last_sweep_at: Mapped[str | None] = mapped_column(Text)
+    last_source_switch_at: Mapped[str | None] = mapped_column(Text)

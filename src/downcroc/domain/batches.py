@@ -41,6 +41,8 @@ class Batch:
     warnings: tuple[str, ...]
     created_at: str
     approved_at: str | None
+    paused_at: str | None = None
+    paused_reason: str | None = None
 
 
 @dataclass(frozen=True)

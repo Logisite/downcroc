@@ -124,7 +124,11 @@ class JobRepo(JobSenderRepo, JobStateRepo):
         )
         query = (
             select(JobRow)
-            .where(JobRow.account_id == account_id, sendable | expired)
+            .where(
+                JobRow.account_id == account_id,
+                JobRow.paused_at.is_(None),
+                sendable | expired,
+            )
             .order_by(
                 func.coalesce(JobRow.next_attempt_at, JobRow.created_at),
                 JobRow.created_at,
@@ -148,7 +152,7 @@ class JobRepo(JobSenderRepo, JobStateRepo):
         )
         query = (
             select(JobRow)
-            .where(sendable | expired)
+            .where(JobRow.paused_at.is_(None), sendable | expired)
             .order_by(
                 func.coalesce(JobRow.next_attempt_at, JobRow.created_at),
                 JobRow.created_at,

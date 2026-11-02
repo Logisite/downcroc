@@ -23,6 +23,7 @@ from downcroc.core.policy_service import PolicyService
 from downcroc.core.portability import PortabilityService
 from downcroc.core.retention import RetentionService
 from downcroc.core.stats import StatsService
+from downcroc.core.transport_doctor import TransportChecks
 from downcroc.core.transports import TransportService
 from downcroc.core.vault_service import VaultService
 from downcroc.providers.registry import ProviderRegistry
@@ -45,6 +46,7 @@ from downcroc.store.repositories.messages import MessageRepo
 from downcroc.store.repositories.oauth_clients import OAuthClientRepo
 from downcroc.store.repositories.policy import PolicyRepo
 from downcroc.store.repositories.quota import QuotaRepo
+from downcroc.store.repositories.runtime_state import RuntimeStateRepo
 from downcroc.store.repositories.send_attempts import SendAttemptRepo
 from downcroc.store.repositories.transports import TransportRepo
 
@@ -105,8 +107,12 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     job_repo = JobRepo(sessions)
     batch_repo = BatchRepo(sessions)
     quota_repo = QuotaRepo(sessions)
-    quota_repo.reset_reservations()
     send_attempts = SendAttemptRepo(sessions)
+    stale = send_attempts.release_reserved()
+    quota_repo.reset_reservations()
+    if stale:
+        log.info("quota.reservations_reset", count=stale)
+    runtime_repo = RuntimeStateRepo(sessions)
     transport_repo = TransportRepo(sessions)
     oauth_client_repo = OAuthClientRepo(sessions)
     activity_repo = ActivityRepo(sessions)
@@ -146,6 +152,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         log,
         settings.inbound,
         settings.connect,
+        settings.outbound.api_timeout_s,
     )
     credentials = CredentialResolver(account_repo, vault, tokens, clients)
     transports = TransportService(
@@ -198,6 +205,15 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         quota_repo,
     )
     inbound.open()
+    capacity = CapacityService(
+        settings,
+        account_repo,
+        transports,
+        policy,
+        quota_repo,
+        job_repo,
+        batch_repo,
+    )
     batches = BatchesService(
         settings,
         paths,
@@ -211,15 +227,14 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         policy,
         bus,
         log,
+        capacity,
     )
-    capacity = CapacityService(
+    transport_checks = TransportChecks(
         settings,
-        account_repo,
-        transports,
-        policy,
-        quota_repo,
-        job_repo,
-        batch_repo,
+        clients,
+        vault,
+        providers,
+        credentials,
     )
     doctor = DoctorService(
         settings,
@@ -227,7 +242,8 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         transports,
         clients,
         capacity,
-        vault,
+        inbound,
+        transport_checks,
     )
     portability = PortabilityService(
         job_repo,
@@ -277,6 +293,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         transports,
         batch_repo,
         quota_repo,
+        runtime_repo,
         failures,
         followups,
         outbound,

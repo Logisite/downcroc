@@ -43,6 +43,8 @@ def _to_batch(row: BatchRow) -> Batch:
         warnings=tuple(json.loads(row.warnings_json or "[]")),
         created_at=row.created_at,
         approved_at=row.approved_at,
+        paused_at=row.paused_at,
+        paused_reason=row.paused_reason,
     )
 
 
@@ -133,6 +135,25 @@ class BatchRepo:
             row.state = state.value
             if approved_at is not None:
                 row.approved_at = approved_at
+            if state in (BatchState.DONE, BatchState.CANCELLED):
+                row.paused_at = None
+                row.paused_reason = None
+        return self.get(batch_id)
+
+    def pause(self, batch_id: str, paused_at: str, reason: str | None) -> Batch:
+        with self._sessions.begin() as session:
+            row = self._row(session, batch_id)
+            if row.paused_at is None:
+                row.paused_at = paused_at
+            if reason is not None:
+                row.paused_reason = reason
+        return self.get(batch_id)
+
+    def resume(self, batch_id: str) -> Batch:
+        with self._sessions.begin() as session:
+            row = self._row(session, batch_id)
+            row.paused_at = None
+            row.paused_reason = None
         return self.get(batch_id)
 
     def set_sample_job(self, batch_id: str, job_id: str) -> Batch:

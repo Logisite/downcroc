@@ -44,3 +44,5 @@ class BatchRow(Base):
     warnings_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     created_at: Mapped[str] = mapped_column(Text, nullable=False)
     approved_at: Mapped[str | None] = mapped_column(Text)
+    paused_at: Mapped[str | None] = mapped_column(Text)
+    paused_reason: Mapped[str | None] = mapped_column(Text)

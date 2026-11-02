@@ -39,8 +39,7 @@ class Provisioner:
     def defaults(self, account: Account) -> AccountTransport | None:
         spec = self._registry.get(account.provider)
         kinds = {
-            binding.kind
-            for binding in self._transports.list_for_account(account.id)
+            binding.kind for binding in self._transports.list_for_account(account.id)
         }
         created: AccountTransport | None = None
         if spec.auth_kind is AuthKind.OAUTH2:
@@ -87,9 +86,7 @@ class Provisioner:
             oauth_client_id=self._smtp_client(account, spec),
         )
 
-    def kind(
-        self, account: Account, kind: TransportKind
-    ) -> AccountTransport | None:
+    def kind(self, account: Account, kind: TransportKind) -> AccountTransport | None:
         existing = self._transports.list_for_account(account.id)
         if any(binding.kind is kind for binding in existing):
             return None
@@ -119,9 +116,9 @@ class Provisioner:
         return self._clients.account_client(account)
 
     def has_client(self, account: Account) -> bool:
+        spec = self._registry.get(account.provider)
         return (
-            self._clients.account_client(account) is not None
-            or self._clients.default_for(account.provider) is not None
+            self._clients.account_client(account) is not None or spec.oauth_configured
         )
 
     def api_default(self, spec: ProviderSpec) -> int:

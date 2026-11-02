@@ -120,11 +120,7 @@ class GmailDelivery:
     ) -> AttemptResult:
         if error.uncertain:
             return self._uncertain(job, account, binding, started_at, error)
-        deferred = (
-            error.transient
-            or error.quota
-            or error.code == "gmail_api_disabled"
-        )
+        deferred = error.transient or error.quota or error.code == "gmail_api_disabled"
         outcome = "deferred" if deferred else "failed"
         self._recorder.record(
             job,

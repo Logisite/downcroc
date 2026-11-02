@@ -29,6 +29,7 @@ from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.quota import QuotaRepo
+from downcroc.store.repositories.runtime_state import RuntimeStateRepo
 
 
 class Dispatcher(DispatchHelpers):
@@ -40,6 +41,7 @@ class Dispatcher(DispatchHelpers):
         transports: TransportService,
         batches: BatchRepo,
         quota: QuotaRepo,
+        runtime: RuntimeStateRepo,
         failures: FailureService,
         followups: FollowUpService,
         outbound: OutboundService,
@@ -56,6 +58,7 @@ class Dispatcher(DispatchHelpers):
         self._transports = transports
         self._batches = batches
         self._quota = quota
+        self._runtime = runtime
         self._failures = failures
         self._followups = followups
         self._outbound = outbound
@@ -69,6 +72,7 @@ class Dispatcher(DispatchHelpers):
         self._task: asyncio.Task[None] | None = None
         self._next_allowed: dict[str, float] = {}
         self._next_followup = 0.0
+        self._held: str | None = None
 
     def start(self) -> None:
         if self._task is not None:
@@ -120,6 +124,8 @@ class Dispatcher(DispatchHelpers):
         self._notice_seats()
         await self._outbound.reap_sessions()
         await asyncio.to_thread(self._followups.cancel_stopped)
+        if self._service_hold():
+            return
         if time.monotonic() >= self._next_followup:
             try:
                 await asyncio.to_thread(self._followups.plan_due)
@@ -299,6 +305,32 @@ class Dispatcher(DispatchHelpers):
             code=job.last_error_code or "retry",
         )
         return "deferred"
+
+    def _service_hold(self) -> bool:
+        now = utc_now()
+        expired = self._runtime.clear_expired(now)
+        if expired is not None:
+            self._log.info("service.resumed", reason="expired")
+            self._bus.publish("service.resumed", {"reason": "expired"})
+        state = self._runtime.get()
+        if state.sending_paused_at is not None:
+            if self._held != "service":
+                self._held = "service"
+                self._log.info("dispatch.hold", level="service", id=None)
+                self._bus.publish(
+                    "dispatch.hold",
+                    {"level": "service", "id": None},
+                )
+            self._log.debug("dispatch.idle", reason="paused")
+            return True
+        if self._held == "service":
+            self._held = None
+            self._log.info("dispatch.release", level="service", id=None)
+            self._bus.publish(
+                "dispatch.release",
+                {"level": "service", "id": None, "released_jobs": 0},
+            )
+        return False
 
     def _finalize(self, batch_ids: set[str]) -> None:
         active = {

@@ -213,9 +213,7 @@ class CapacityService:
             "spills_window": capacity["spills_window"],
             "spills_day": capacity["spills_day"],
             "blocked_reason": (
-                capacity["blocked_reason"]
-                if state == "blocked"
-                else None
+                capacity["blocked_reason"] if state == "blocked" else None
             ),
             "advice": capacity["advice"],
         }
@@ -253,8 +251,10 @@ class CapacityService:
     def pending(self) -> dict[str, object]:
         total = sum(self._jobs.count(state=state.value) for state in ACTIVE)
         capacity = self.selection(total)
-        state = "idle" if total == 0 else (
-            "blocked" if capacity["blocked_reason"] else "draining"
+        state = (
+            "idle"
+            if total == 0
+            else ("blocked" if capacity["blocked_reason"] else "draining")
         )
         return {
             "state": state,

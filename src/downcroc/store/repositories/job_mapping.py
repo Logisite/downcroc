@@ -33,6 +33,8 @@ def to_job(row: JobRow) -> Job:
         created_at=row.created_at,
         updated_at=row.updated_at,
         sent_at=row.sent_at,
+        paused_at=row.paused_at,
+        paused_reason=row.paused_reason,
     )
 
 

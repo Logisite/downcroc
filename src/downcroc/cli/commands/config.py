@@ -84,6 +84,12 @@ def _restart_keys(fields: list[dict]) -> set[str]:
     return {field["path"] for field in fields if field.get("restart_required")}
 
 
+def _seat_risk(value: Any) -> str | None:
+    if not isinstance(value, int) or value <= 1:
+        return None
+    return "warning" if value <= 3 else "critical"
+
+
 def _set(client, args: object, ui) -> int:
     current = get(client, "/api/config")
     schema = get(client, "/api/config/schema")
@@ -97,14 +103,31 @@ def _set(client, args: object, ui) -> int:
         if not text or text == default:
             print(ui.dim(f"{args.key} is unchanged"))
             return 0
-    result = patch(client, "/api/config", _patch(args.key, _value(text, kind)))
+    value = _value(text, kind)
+    if (
+        args.key == "dispatch.smtp_seats"
+        and isinstance(value, int)
+        and value > 3
+        and ui.interactive
+        and not ui.json_mode
+    ):
+        answer = prompts.ask(
+            f"SMTP seats above 3 are critical-risk; type {value} to confirm",
+            ui=ui,
+            required=True,
+        )
+        if answer.strip() != str(value):
+            raise CliError("cancelled", code="cancelled")
+    result = patch(client, "/api/config", _patch(args.key, value))
     after = flatten(result["config"]).get(args.key)
+    risk = _seat_risk(after) if args.key == "dispatch.smtp_seats" else None
     body = {
         "key": args.key,
         "old": before,
         "new": after,
         "changed": result.get("changed") or [],
         "restart_required": args.key in _restart_keys(schema["fields"]),
+        "risk": risk,
     }
     if ui.json_mode:
         json_out(body)
@@ -118,6 +141,22 @@ def _set(client, args: object, ui) -> int:
     print(ui.result(True, "set", f"{args.key}: {old} -> {new}"))
     if body["restart_required"]:
         print("restart the daemon to apply this change: downcroc service restart")
+    if body["risk"] == "warning":
+        print(
+            ui.paint(
+                "SMTP seats rotate serially across distinct mailboxes; this is "
+                "not parallel sending and does not add capacity.",
+                "warn",
+            )
+        )
+    elif body["risk"] == "critical":
+        print(
+            ui.paint(
+                "SMTP seats above 3 are critical-risk: each extra mailbox can be "
+                "throttled or suspended by Gmail and rotation is still serial.",
+                "bad",
+            )
+        )
     return 0
 
 

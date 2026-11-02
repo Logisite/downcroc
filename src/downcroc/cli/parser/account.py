@@ -219,6 +219,24 @@ def account(commands: argparse._SubParsersAction) -> None:
     sync.add_argument("account_id", nargs="?")
     common(sync)
 
+    inbound = actions.add_parser(
+        "inbound",
+        help="choose the inbound owner for one mailbox",
+        epilog=(
+            "examples:\n"
+            "  downcroc account inbound acct_... --source gmail_api\n"
+            "  downcroc account inbound acct_... --source auto"
+        ),
+    )
+    inbound.add_argument("account_id", nargs="?")
+    inbound.add_argument(
+        "--source",
+        required=True,
+        choices=("auto", "imap", "gmail_api"),
+        help="auto keeps IMAP and sweeps with the Gmail API",
+    )
+    common(inbound)
+
     watch = actions.add_parser("watch", help="enable or disable the watcher")
     watch.add_argument("account_id", nargs="?")
     state = watch.add_mutually_exclusive_group()

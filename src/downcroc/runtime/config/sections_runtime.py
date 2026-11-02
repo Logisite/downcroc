@@ -258,6 +258,22 @@ class DispatchSettings(BaseModel):
         le=3600,
         description="Minimum seconds between interactive ETA recomputations.",
     )
+    pause_max_s: int = Field(
+        default=2_592_000,
+        ge=1,
+        le=31_536_000,
+        description="Maximum duration accepted by service pause --for.",
+    )
+    pause_reason_max: int = Field(
+        default=200,
+        ge=1,
+        le=2000,
+        description="Maximum characters stored in a pause reason.",
+    )
+    seat_hole_warn: bool = Field(
+        default=True,
+        description="Warn when a pause drops throughput or holds pinned work.",
+    )
     shutdown_join_s: float = Field(
         default=5.0,
         gt=0,

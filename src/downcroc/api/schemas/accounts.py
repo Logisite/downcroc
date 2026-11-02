@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from downcroc.domain.accounts import Account
@@ -36,6 +38,26 @@ class SyncOut(BaseModel):
     last_sync_at: str | None
     last_error: str | None
     consecutive_failures: int
+    cursor_source: str | None = None
+    history_id: str | None = None
+    last_sweep_at: str | None = None
+    last_source_switch_at: str | None = None
+
+
+class InboundOut(BaseModel):
+    owner: str
+    mode: str
+    override: str | None = None
+    cursor_source: str | None = None
+    history_id: str | None = None
+    last_sweep_at: str | None = None
+    last_source_switch_at: str | None = None
+
+
+class InboundUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["auto", "imap", "gmail_api"]
 
 
 class QuotaOut(BaseModel):
@@ -61,10 +83,18 @@ class AccountOut(BaseModel):
     last_error: str | None
     watcher_enabled: bool
     sync: SyncOut
+    inbound: InboundOut
     quota: QuotaOut
 
     @classmethod
-    def of(cls, account: Account, policy: SendPolicy) -> AccountOut:
+    def of(
+        cls,
+        account: Account,
+        policy: SendPolicy,
+        *,
+        mode: str | None = None,
+    ) -> AccountOut:
+        owner = account.inbound_source or "imap"
         return cls(
             id=account.id,
             provider=account.provider,
@@ -83,6 +113,19 @@ class AccountOut(BaseModel):
                 last_sync_at=account.last_sync_at,
                 last_error=account.last_error,
                 consecutive_failures=account.consecutive_failures,
+                cursor_source=account.cursor_source,
+                history_id=account.history_id,
+                last_sweep_at=account.last_sweep_at,
+                last_source_switch_at=account.last_source_switch_at,
+            ),
+            inbound=InboundOut(
+                owner=owner,
+                mode=mode or ("api_poll" if owner == "gmail_api" else "imap_poll"),
+                override=account.source_override,
+                cursor_source=account.cursor_source,
+                history_id=account.history_id,
+                last_sweep_at=account.last_sweep_at,
+                last_source_switch_at=account.last_source_switch_at,
             ),
             quota=QuotaOut(
                 daily_allowance=policy.daily_allowance,

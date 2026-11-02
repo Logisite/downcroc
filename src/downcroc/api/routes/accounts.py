@@ -10,6 +10,7 @@ from downcroc.api.schemas.accounts import (
     AccountOut,
     AppPasswordConnect,
     AttemptOut,
+    InboundUpdate,
     WatcherToggle,
 )
 from downcroc.core.accounts_service import AccountsService
@@ -27,13 +28,30 @@ def _policy(request: Request) -> PolicyResolver:
     return request.app.state.services.policy
 
 
-def _out(request: Request, account: Account) -> AccountOut:
-    return AccountOut.of(account, _policy(request).effective(account))
+def _modes(request: Request) -> dict[str, str]:
+    return {
+        str(row["account_id"]): str(row["mode"])
+        for row in request.app.state.services.inbound.health()
+    }
+
+
+def _out(
+    request: Request,
+    account: Account,
+    modes: dict[str, str] | None = None,
+) -> AccountOut:
+    mode = (modes if modes is not None else _modes(request)).get(account.id)
+    return AccountOut.of(
+        account,
+        _policy(request).effective(account),
+        mode=mode,
+    )
 
 
 @router.get("", response_model=list[AccountOut])
 def list_accounts(request: Request) -> list[AccountOut]:
-    return [_out(request, account) for account in _service(request).list()]
+    modes = _modes(request)
+    return [_out(request, account, modes) for account in _service(request).list()]
 
 
 @router.post("", response_model=AccountOut, status_code=201)
@@ -116,6 +134,18 @@ def verify_account(
 @router.patch("/{account_id}/watcher", response_model=AccountOut)
 def set_watcher(account_id: str, body: WatcherToggle, request: Request) -> AccountOut:
     return _out(request, _service(request).set_watcher(account_id, body.enabled))
+
+
+@router.patch("/{account_id}/inbound", response_model=AccountOut)
+def set_inbound(
+    account_id: str,
+    body: InboundUpdate,
+    request: Request,
+) -> AccountOut:
+    return _out(
+        request,
+        _service(request).set_inbound(account_id, body.source),
+    )
 
 
 @router.post("/{account_id}/sync", response_model=AccountOut, status_code=202)

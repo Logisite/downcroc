@@ -19,3 +19,8 @@ def doctor_transports(request: Request) -> dict[str, object]:
 @router.get("/capacity")
 def doctor_capacity(request: Request) -> dict[str, object]:
     return _services(request).doctor.capacity()
+
+
+@router.get("/inbound")
+def doctor_inbound(request: Request) -> dict[str, object]:
+    return _services(request).doctor.inbound()
