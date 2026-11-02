@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from downcroc.cli.errors import Cancelled
-from downcroc.cli.ui import ansi
-from downcroc.cli.ui.frame import Frame, columns, rows
+from downcroc.cli.ui import ansi, panel
+from downcroc.cli.ui.frame import Frame, rows
 from downcroc.cli.ui.keys import (
     BACKSPACE,
     CTRL_C,
@@ -45,7 +45,7 @@ class Choice:
 
 
 def _window(ui: Ui) -> int:
-    available = rows(ui) - 5
+    available = rows(ui) - 10
     return max(MIN_ROWS, min(ROWS, available))
 
 
@@ -162,14 +162,14 @@ def select(
     query = ""
     filtering = False
     shortcuts = shortcuts or {}
-    limit = max(1, columns(ui) - 1)
-    print(ansi.fit(f"{ui.accent('?')} {ui.bold(title)}", limit))
+    limit = panel.content_width(ui)
+    panel.gap()
     final: set[int] | None = None
     result: list[int] | int | None = None
     cancelled = False
     with Frame(ui) as screen, Keys() as keys:
         while True:
-            limit = max(1, columns(ui) - 1)
+            limit = panel.content_width(ui)
             window = _window(ui)
             visible = [
                 index
@@ -179,17 +179,21 @@ def select(
             if cursor not in visible:
                 cursor = visible[0] if visible else -1
             screen.draw(
-                _lines(
+                panel.frame(
                     ui,
-                    choices,
-                    visible,
-                    cursor,
-                    checked if multi else None,
-                    filtering,
-                    query,
-                    back,
-                    limit,
-                    window,
+                    title,
+                    _lines(
+                        ui,
+                        choices,
+                        visible,
+                        cursor,
+                        checked if multi else None,
+                        filtering,
+                        query,
+                        back,
+                        limit,
+                        window,
+                    ),
                 )
             )
             key = keys.read()
@@ -243,7 +247,8 @@ def select(
                 spot = int(key) - 1
                 if spot < len(visible):
                     cursor = visible[spot]
-    limit = max(1, columns(ui) - 1)
+    limit = panel.content_width(ui)
+    panel.gap()
     if cancelled:
         print(ui.dim(f"{ui.glyph('pointer')} cancelled"))
         if not back:

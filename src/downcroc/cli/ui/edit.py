@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from downcroc.cli.errors import Cancelled
-from downcroc.cli.ui import ansi
+from downcroc.cli.ui import ansi, panel
 from downcroc.cli.ui.frame import Frame, columns
 from downcroc.cli.ui.keys import (
     BACKSPACE,
@@ -30,9 +30,8 @@ def edit_line(
     mask: bool = False,
     required: bool = True,
 ) -> str:
-    suffix = ui.dim(f"  [{default}]") if default else ""
-    limit = max(1, columns(ui) - 1)
-    print(ansi.fit(f"{ui.accent('?')} {ui.bold(label)}{suffix}", limit))
+    title = f"{label}  [{default}]" if default else label
+    panel.gap()
     buffer = ""
     cursor = 0
     error = ""
@@ -41,11 +40,14 @@ def edit_line(
     cancelled = False
     with Keys() as keys, Frame(ui) as frame:
         while True:
-            state = (buffer, cursor, error)
+            state = (buffer, cursor, error, columns(ui))
             if state != drawn:
                 text, column = _render(ui, buffer, cursor, mask, error, default)
-                frame.draw([text])
-                frame.place(column)
+                rows = [text]
+                if error:
+                    rows.append(ui.paint(error, "bad"))
+                frame.draw(panel.frame(ui, title, rows))
+                frame.place(column + panel.MARGIN + panel.PAD, row=2)
                 drawn = state
             key = keys.read()
             error = ""
@@ -84,6 +86,7 @@ def edit_line(
             elif isinstance(key, str) and len(key) == 1 and key.isprintable():
                 buffer = buffer[:cursor] + key + buffer[cursor:]
                 cursor += 1
+    panel.gap()
     if cancelled:
         _cancel(ui)
         raise Cancelled()
@@ -108,7 +111,7 @@ def _render(
     error: str,
     default: str | None,
 ) -> tuple[str, int]:
-    limit = max(1, columns(ui) - 1)
+    limit = panel.content_width(ui)
     shown = "*" * len(buffer) if mask else buffer
     if not shown and default:
         view = ui.dim(default)
@@ -122,8 +125,7 @@ def _render(
         position = cursor - start
         source = text
     pointer = ui.accent(ui.glyph("pointer"))
-    tail = ui.paint(f"  {error}", "bad") if error else ""
-    line = ansi.fit(f"{pointer} {view}{tail}", limit)
+    line = ansi.fit(f"{pointer} {view}", limit)
     column = ansi.cells(pointer) + 1 + ansi.cells(source[:position])
     return line, min(column, ansi.cells(line))
 
