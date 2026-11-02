@@ -27,6 +27,8 @@ from downcroc.cli.commands import (
     state,
     stats,
     templates,
+    uninstall,
+    update,
     vault,
 )
 from downcroc.cli.parser import build_parser
@@ -58,6 +60,8 @@ HANDLERS: dict[str, Handler] = {
     "stats": stats.run,
     "mail": mail.run,
     "logs": logs.run,
+    "update": update.run,
+    "uninstall": uninstall.run,
 }
 
 

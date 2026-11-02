@@ -42,6 +42,32 @@ scripts/install.sh --wheel downcroc-1.2.2-py3-none-any.whl
 .\scripts\install.ps1 -Wheel .\downcroc-1.2.2-py3-none-any.whl
 ```
 
+## Update and remove
+
+```sh
+downcroc update --check
+downcroc update
+downcroc update --version 1.2.2 --force
+downcroc uninstall
+downcroc uninstall --purge
+```
+
+`update` replaces the installed wheel and restarts a running service. It keeps
+config, data, and state.
+
+`uninstall` removes the launcher and installed environment but keeps config,
+data, and state. `--purge` also removes them.
+
+The installer also accepts a version:
+
+```sh
+scripts/install.sh --version 1.2.2
+```
+
+```powershell
+.\scripts\install.ps1 -Version 1.2.2
+```
+
 ## Quick start
 
 ```sh

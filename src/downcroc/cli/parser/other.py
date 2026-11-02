@@ -39,6 +39,44 @@ def top(commands: argparse._SubParsersAction) -> None:
     )
     common(status)
 
+    update = commands.add_parser(
+        "update",
+        help="check for or install a newer release",
+        epilog=(
+            "examples:\n"
+            "  downcroc update --check\n"
+            "  downcroc update --version 1.2.2 --force"
+        ),
+    )
+    update.add_argument("--check", action="store_true", help="report only")
+    update.add_argument("--pre", action="store_true", help="include pre-releases")
+    update.add_argument("--force", action="store_true", help="reinstall or downgrade")
+    update.add_argument(
+        "--version",
+        dest="target_version",
+        metavar="VERSION",
+        help="install this release instead of the latest",
+    )
+    update.add_argument(
+        "--no-restart",
+        action="store_true",
+        help="leave the daemon stopped after updating",
+    )
+    common(update)
+
+    uninstall = commands.add_parser(
+        "uninstall",
+        help="remove downcroc, keeping data unless --purge",
+        epilog=("examples:\n  downcroc uninstall\n  downcroc uninstall --purge"),
+    )
+    uninstall.add_argument(
+        "--purge",
+        action="store_true",
+        help="also remove config, state, and data",
+    )
+    uninstall.add_argument("--yes", action="store_true", help="accepted for scripts")
+    common(uninstall)
+
     doctor = commands.add_parser(
         "doctor",
         help="check the installation and name fixes",

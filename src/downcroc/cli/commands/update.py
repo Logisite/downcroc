@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import httpx
+
+from downcroc.cli.context import load
+from downcroc.cli.errors import CliError
+from downcroc.cli.install_layout import install_prefix
+from downcroc.cli.output import json_out, record
+from downcroc.runtime.service.lifecycle import start, status, stop
+from downcroc.version import __version__
+
+API = "https://api.github.com/repos/Logisite/downcroc/releases"
+VERSION = re.compile(r"^[vV]?(\d+(?:\.\d+)*)(.*)$")
+
+
+def _version(value: str) -> tuple[int, ...]:
+    match = VERSION.match(value.strip())
+    if not match:
+        raise CliError(f"invalid version: {value}", code="version_invalid")
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def _releases(*, pre: bool) -> list[dict]:
+    response = httpx.get(
+        API,
+        params={"per_page": 30},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "downcroc"},
+        timeout=20,
+        trust_env=True,
+    )
+    if response.status_code != 200:
+        raise CliError(
+            "the release feed could not be read",
+            code="release_feed_failed",
+            hint=f"github returned {response.status_code}",
+        )
+    found = [
+        item
+        for item in response.json()
+        if not item.get("draft") and (pre or not item.get("prerelease"))
+    ]
+    return found
+
+
+def _release(version: str | None, *, pre: bool) -> dict:
+    releases = _releases(pre=pre)
+    if version is not None:
+        wanted = _version(version)
+        for item in releases:
+            if _version(item["tag_name"]) == wanted:
+                return item
+        raise CliError(
+            f"release {version} was not found",
+            code="release_not_found",
+            hint="run downcroc update --check --pre to list available releases",
+        )
+    if not releases:
+        raise CliError("no release is available", code="release_not_found")
+    return max(releases, key=lambda item: _version(item["tag_name"]))
+
+
+def _wheel(release: dict, target: Path) -> tuple[Path, str | None]:
+    assets = release.get("assets") or []
+    asset = next(
+        (item for item in assets if str(item.get("name", "")).endswith(".whl")),
+        None,
+    )
+    if asset is None:
+        raise CliError("the release has no wheel", code="release_invalid")
+    response = httpx.get(
+        asset["browser_download_url"],
+        headers={"User-Agent": "downcroc"},
+        timeout=60,
+        follow_redirects=True,
+        trust_env=True,
+    )
+    if response.status_code != 200:
+        raise CliError(
+            "the wheel could not be downloaded",
+            code="download_failed",
+            hint=f"github returned {response.status_code}",
+        )
+    target.write_bytes(response.content)
+    digest = asset.get("digest") or ""
+    expected = digest.split(":", 1)[-1] if digest.startswith("sha256:") else None
+    return target, expected
+
+
+def _restart_after_update(paths, settings) -> bool:
+    was_running = status(paths).get("state") == "running"
+    if was_running:
+        stop(paths, settings)
+    return was_running
+
+
+def _restart(paths, settings, was_running: bool, *, no_restart: bool) -> None:
+    if not was_running or no_restart:
+        return
+    start(paths, settings, timeout=settings.daemon.start_timeout_s)
+
+
+def _check(args: object, ui) -> int:
+    current = __version__
+    release = _release(getattr(args, "target_version", None), pre=args.pre)
+    latest = str(release["tag_name"]).lstrip("vV")
+    body = {
+        "current": current,
+        "latest": latest,
+        "url": release.get("html_url"),
+        "notes": release.get("body") or "",
+    }
+    if ui.json_mode:
+        json_out(body)
+        return 0
+    record({"current": current, "latest": latest, "url": body["url"]})
+    if body["notes"]:
+        print()
+        print(body["notes"])
+    return 0
+
+
+def run(args: object) -> int:
+    ui = build_ui(args)
+    if getattr(args, "check", False):
+        return _check(args, ui)
+    release = _release(getattr(args, "target_version", None), pre=args.pre)
+    latest = str(release["tag_name"]).lstrip("vV")
+    current = __version__
+    if not args.force and _version(latest) == _version(current):
+        if ui.json_mode:
+            json_out({"current": current, "latest": latest, "changed": False})
+        else:
+            record({"downcroc": current, "state": "up to date"})
+        return 0
+    if not args.force and _version(latest) < _version(current):
+        raise CliError(
+            "downgrades require --force",
+            code="downgrade_refused",
+            hint=f"run downcroc update --version {latest} --force",
+        )
+    prefix = install_prefix()
+    if prefix is None:
+        raise CliError(
+            "this command must run from an installed downcroc",
+            code="not_managed_install",
+            hint="use scripts/install.sh or scripts/install.ps1",
+        )
+    paths, settings, _ = load()
+    was_running = _restart_after_update(paths, settings)
+    try:
+        with tempfile.TemporaryDirectory(prefix="downcroc-update-") as directory:
+            wheel, expected = _wheel(release, Path(directory) / "downcroc.whl")
+            if expected is not None:
+                actual = hashlib.sha256(wheel.read_bytes()).hexdigest()
+                if not hmac.compare_digest(actual, expected):
+                    raise CliError(
+                        "the wheel checksum does not match",
+                        code="checksum_failed",
+                    )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--upgrade",
+                    "--force-reinstall",
+                    str(wheel),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                raise CliError(
+                    "the update could not be installed",
+                    code="update_failed",
+                    hint=(result.stderr or result.stdout)[-500:],
+                )
+    except BaseException:
+        _restart(paths, settings, was_running, no_restart=args.no_restart)
+        raise
+    _restart(paths, settings, was_running, no_restart=args.no_restart)
+    body = {
+        "current": current,
+        "installed": latest,
+        "url": release.get("html_url"),
+        "restarted": was_running and not args.no_restart,
+    }
+    if ui.json_mode:
+        json_out(body)
+        return 0
+    record({"downcroc": latest, "previous": current})
+    if body["restarted"]:
+        record({"service": "restarted"})
+    if release.get("body"):
+        print()
+        print(release["body"])
+    return 0
+
+
+def build_ui(args: object):
+    from downcroc.cli.ui.session import build
+
+    return build(args)
