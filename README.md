@@ -1,75 +1,170 @@
 # downcroc
 
-Always-on local daemon for personalised mail merged from your own Gmail or IMAP accounts.
-Batches in, mail out, replies tracked, statistics kept on this machine.
+Downcroc is an always-on local mail daemon for personalised mail merged from
+your own Gmail or IMAP accounts. It sends batches, tracks replies and bounces,
+keeps statistics on your machine, and never depends on a hosted control plane.
 
-Requires Python 3.14. Install the wheel into a clean environment and run the
-`downcroc` console script:
+## Requirements
 
-    python -m pip install downcroc-1.0.0rc1-py3-none-any.whl
-    downcroc --version
+- Python 3.14 or newer for the wheel
+- Linux or Windows
+- A Gmail OAuth client for the recommended Gmail route, or an app password for
+  IMAP/SMTP
 
-From a checkout, use uv:
+macOS is not part of the release 1 support scope.
 
-    uv run downcroc service start
-    uv run downcroc vault unlock
-    uv run downcroc logs --follow
-    uv run downcroc service stop
+## Install
 
-To run the daemon at login through the native user service manager:
+Install a release wheel into a virtual environment:
 
-    downcroc service install
-    downcroc service status
-    downcroc service uninstall
+```sh
+python -m venv ~/.local/share/downcroc/venv
+~/.local/share/downcroc/venv/bin/python -m pip install downcroc-1.2.2-py3-none-any.whl
+~/.local/share/downcroc/venv/bin/downcroc --version
+```
 
-`service install --print` writes the generated systemd unit or Windows task definition to
-stdout without installing it. Uninstall leaves config, data, and state in place.
+Or use the install script. With a local wheel:
 
-## Build a standalone binary
+```sh
+scripts/install.sh --wheel downcroc-1.2.2-py3-none-any.whl
+downcroc --version
+```
 
-Both packagers are supported, and each carries the Alembic migrations, provider
-declarations, licence files, and package metadata the daemon needs at runtime.
-Pick one:
+Windows PowerShell:
 
-    uv sync --group build
-    uv run python scripts/build_binary.py pyinstaller
-    uv run python scripts/build_binary.py nuitka
+```powershell
+.\scripts\install.ps1 -Wheel .\downcroc-1.2.2-py3-none-any.whl
+downcroc --version
+```
 
-Each produces one onedir artifact and prints its path. Pass `--out DIR` for
-another location. The script finds the repository from its own path, so it
-works from any working directory.
+The script installs into `~/.local` by default. Use `--prefix DIR` on Unix or
+`-Prefix DIR` on Windows to change that.
 
-## Common commands
+If the package is available from your configured package index:
 
-    uv run downcroc account providers
-    uv run downcroc account add --provider generic --address you@example.com
-    uv run downcroc account connect ACCOUNT_ID
-    uv run downcroc account list
+```sh
+python -m pip install downcroc==1.2.2
+```
 
-    uv run downcroc batch preview campaign.json
-    uv run downcroc batch submit campaign.json --approve all
-    uv run downcroc batch list
-    uv run downcroc job list
+## Quick start
 
-    uv run downcroc mail list
-    uv run downcroc mail show MESSAGE_ID
-    uv run downcroc failed list
+```sh
+downcroc init
+downcroc account add --provider gmail --address you@example.com
+downcroc account connect ACCOUNT_ID
+downcroc doctor
+```
 
-    uv run downcroc stats summary
-    uv run downcroc config show
-    uv run downcroc config set sending.jitter_min 2
+Connect Gmail with OAuth when possible. OAuth gives the mailbox an SMTP seat
+and a Gmail API lane. App-password accounts work over IMAP/SMTP only, with one
+serial send seat and a bounded send rate.
 
-    uv run downcroc backup ~/backups/
+Start the daemon as a user service:
 
-`vault unlock` and `account connect` prompt for passwords. Add
-`--password-stdin` to read one from a pipe. Most read commands accept `--json`.
+```sh
+downcroc service install
+downcroc service start
+downcroc service status
+```
 
-Human output is colourised only on a terminal. Set `NO_COLOR=1` to turn it off.
+Or run it in the foreground:
 
-Design and decisions live in `plan/`.
+```sh
+downcroc serve
+```
 
-## Licence
+## Sending
 
-downcroc is licensed under the Apache License, Version 2.0. See `LICENSE` and
-`NOTICE`. Third-party licence information is in `THIRD_PARTY_NOTICES.md` and is
-also installed with the package metadata.
+```sh
+downcroc batch validate campaign.json
+downcroc batch preview campaign.json
+downcroc batch submit campaign.json --approve all
+downcroc batch list
+downcroc job list
+downcroc failed list
+```
+
+The interactive interface covers the same workflow:
+
+```sh
+downcroc
+```
+
+## Monitoring and control
+
+```sh
+downcroc status
+downcroc doctor capacity
+downcroc doctor inbound
+downcroc stats summary --since 7d
+downcroc mail list
+downcroc logs --follow
+downcroc service pause --for 1h --reason maintenance
+downcroc service resume
+downcroc service stop
+```
+
+Pause is reversible. In-flight attempts settle, inbound mail keeps running, and
+queued work resumes when the hold is released.
+
+## Configuration
+
+```sh
+downcroc config show
+downcroc config schema
+downcroc config set sending.jitter_min 2
+downcroc account policy show ACCOUNT_ID
+```
+
+Configuration is read live. Account policy overrides are nullable, so an
+account inherits global `[sending]` values unless it has an explicit override.
+
+## Backup
+
+```sh
+downcroc backup ~/backups/
+```
+
+Backups include the encrypted vault and its metadata. Keep the vault password
+safe. The password is required to restore credentials and cannot be recovered.
+
+## Security
+
+- Credentials live in the encrypted vault, not in SQLite.
+- The API binds to loopback and requires the per-run bearer token.
+- Secrets are not written to logs, events, API responses, or backups in
+  plaintext.
+- The daemon should run as your user, not as root.
+
+## Development
+
+From a checkout:
+
+```sh
+uv sync
+uv run downcroc --version
+uv run pytest
+uv run ruff check --fix .
+uv run ruff format .
+uv run ruff check .
+uv run ruff format --check .
+```
+
+Build a wheel locally:
+
+```sh
+uv build
+```
+
+Build a standalone binary:
+
+```sh
+uv sync --group build
+uv run python scripts/build_binary.py pyinstaller
+```
+
+Design notes and implementation tickets live in `plan/` and `.scratch/`.
+
+## License
+
+Apache License 2.0. See `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md`.
