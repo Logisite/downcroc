@@ -1,12 +1,22 @@
 param(
     [string]$Wheel = "",
-    [string]$Version = "1.2.3",
+    [string]$Version = "",
     [string]$Prefix = "$env:LOCALAPPDATA\downcroc",
     [switch]$NoInit
 )
 
 $ErrorActionPreference = "Stop"
-if ($Version -notmatch "^[0-9A-Za-z.+_-]+$") {
+
+if ($Version -eq "" -and $Wheel -eq "" -and -not $env:DOWNCROC_WHEEL_URL) {
+    try {
+        $latest = Invoke-RestMethod -Uri "https://api.github.com/repos/Logisite/downcroc/releases/latest"
+        $Version = $latest.tag_name.TrimStart("v")
+    } catch {
+        Write-Error "could not resolve the latest release"
+        exit 1
+    }
+}
+if ($Version -ne "" -and $Version -notmatch "^[0-9A-Za-z.+_-]+$") {
     Write-Error "invalid version: $Version"
     exit 2
 }

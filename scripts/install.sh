@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION="1.2.3"
+VERSION=""
 PREFIX="${DOWNCROC_PREFIX:-$HOME/.local}"
 WHEEL=""
 RUN_INIT=1
@@ -14,7 +14,7 @@ usage: install.sh [options]
 
 options:
   --wheel PATH    install this .whl file
-  --version VER   install a release version (default: 1.2.3)
+  --version VER   install a release version (default: latest release)
   --prefix DIR    install under DIR (default: ~/.local)
   --no-init       do not run downcroc init
   -h, --help      show this help
@@ -57,6 +57,22 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+latest_version() {
+    target=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+        https://github.com/Logisite/downcroc/releases/latest) || return 1
+    case "$target" in
+        */tag/v*) printf '%s\n' "${target##*/tag/v}" ;;
+        *) return 1 ;;
+    esac
+}
+
+if [ -z "$VERSION" ] && [ -z "$WHEEL" ] && [ -z "${DOWNCROC_WHEEL_URL:-}" ]; then
+    VERSION=$(latest_version) || {
+        echo "install.sh: could not resolve the latest release" >&2
+        exit 1
+    }
+fi
+
 PYTHON=""
 for candidate in python3.14 python3 python; do
     if command -v "$candidate" >/dev/null 2>&1; then
@@ -68,7 +84,8 @@ for candidate in python3.14 python3 python; do
 done
 
 case "$VERSION" in
-    ""|*[!0-9A-Za-z.+_-]*)
+    "") ;;
+    *[!0-9A-Za-z.+_-]*)
         echo "install.sh: invalid version: $VERSION" >&2
         exit 2
         ;;
