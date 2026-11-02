@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from downcroc.cli.client import api, get, post, put
-from downcroc.cli.commands import accounts, service, vault
+from downcroc.cli.commands import accounts, oauth_setup, service, vault
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
@@ -177,6 +177,8 @@ def _account_step(args: object, ui: Ui) -> dict | None:
         provider_id = _gmail_door(args, ui, rows)
         if provider_id is None:
             return None
+        if provider_id == "gmail" and not _provider_ready(rows, "gmail"):
+            oauth_setup.import_client(ui)
     if provider_id == "generic":
         _custom_mailbox(args, ui)
     return _create_account(args, ui, provider_id, address)
@@ -199,6 +201,11 @@ def _gmail_door(args: object, ui: Ui, rows: list[dict]) -> str | None:
             exit_code=2,
         )
     return prompts.choose("How should downcroc sign in?", doors, ui=ui)
+
+
+def _provider_ready(rows: list[dict], provider_id: str) -> bool:
+    row = next((item for item in rows if item["id"] == provider_id), None)
+    return bool(row and row["ready"])
 
 
 def _custom_mailbox(args: object, ui: Ui) -> None:

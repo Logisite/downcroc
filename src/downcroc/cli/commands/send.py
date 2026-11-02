@@ -10,6 +10,7 @@ from downcroc.cli import inputs
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, get, post
 from downcroc.cli.commands.batch_view import show_preview, show_validation
+from downcroc.cli.commands.capacity_card import capacity_step
 from downcroc.cli.commands.when import show_capacity
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
@@ -297,6 +298,7 @@ def run(args: object) -> int:
         preview = _preview(client, source, template, account)
         if not ui.json_mode:
             show_preview(preview, ui)
+            preview = capacity_step(client, preview, ui, account)
         approval = _approval(args, ui)
         if approval == "all" and ui.interactive:
             print("warning: this sends without a second look")

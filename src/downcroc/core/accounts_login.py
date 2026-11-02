@@ -36,6 +36,7 @@ class AccountLoginMixin:
         self, account: Account, spec: ProviderSpec, refresh: bool
     ) -> None:
         token = self._access_token(account, force=refresh)
+        self._check_api(spec, account, token)
         try:
             self._login(spec, account, access_token=token)
         except ImapAuthFailed:

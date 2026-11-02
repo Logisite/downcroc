@@ -56,7 +56,7 @@ class OAuthFlow:
         if not spec.oauth_configured:
             raise OAuthNotConfigured(
                 "the provider has no oauth client id",
-                hint="set oauth_client_id in providers.toml",
+                hint="run downcroc provider credentials set gmail --client PATH",
             )
         with self._start_lock:
             pending = self.attempts.pending_for_account(account.id)
@@ -107,7 +107,7 @@ class OAuthFlow:
             server.server_close()
             raise OAuthNotConfigured(
                 "the provider has no oauth client id",
-                hint="set oauth_client_id in providers.toml",
+                hint="run downcroc provider credentials set gmail --client PATH",
             ) from error
         attempt = ConnectAttempt(
             id=new_id("att"),

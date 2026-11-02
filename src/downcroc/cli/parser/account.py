@@ -136,6 +136,11 @@ def account(commands: argparse._SubParsersAction) -> None:
         default=180.0,
         help="seconds to wait with --wait (default 180)",
     )
+    attempt.add_argument(
+        "--redirect-url",
+        metavar="URL",
+        help="headless: full loopback callback URL to deliver",
+    )
     common(attempt, timeout=False)
 
     connect = actions.add_parser("connect", help="connect an account")
@@ -157,6 +162,11 @@ def account(commands: argparse._SubParsersAction) -> None:
         "--transport",
         choices=("smtp", "gmail_api"),
         help="binding to create after an oauth connect",
+    )
+    connect.add_argument(
+        "--redirect-url",
+        metavar="URL",
+        help="headless: full loopback callback URL to deliver",
     )
     common(connect)
 

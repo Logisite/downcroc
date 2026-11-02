@@ -147,7 +147,7 @@ class TokenManager:
         if not spec.oauth_configured:
             raise OAuthNotConfigured(
                 "the provider has no oauth client id",
-                hint="set oauth_client_id in providers.toml",
+                hint="run downcroc provider credentials set gmail --client PATH",
             )
 
     def _lock_for(self, account_id: str) -> threading.Lock:

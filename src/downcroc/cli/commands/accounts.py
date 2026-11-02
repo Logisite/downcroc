@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, delete, get, patch, post, put
-from downcroc.cli.commands import account_transport, account_view
+from downcroc.cli.commands import account_transport, account_view, oauth_setup
 from downcroc.cli.commands.account_connect import (
     connect_now,
     connected,
@@ -70,14 +70,57 @@ def _add(client, args: object, ui: Ui) -> dict:
         if secret and args.oauth_client_id:
             hosts["oauth_client_secret"] = path_tools.read_secret(secret)
         put(client, f"/api/providers/{args.provider}", hosts)
-    return post(
-        client,
-        "/api/accounts",
-        {
-            "provider": args.provider,
-            "address": args.address,
-            "label": args.label,
-        },
+    try:
+        return post(
+            client,
+            "/api/accounts",
+            {
+                "provider": args.provider,
+                "address": args.address,
+                "label": args.label,
+            },
+        )
+    except CliError as error:
+        if error.code != "account_exists" or not ui.interactive:
+            raise
+        existing = _find_account(client, args.address)
+        if existing is None:
+            raise
+        if not prompts.confirm(
+            "That address already exists. Use the existing mailbox?",
+            ui=ui,
+            default=True,
+        ):
+            raise
+        if (
+            existing["status"] == "connected"
+            and args.provider == "gmail"
+            and prompts.confirm(
+                "Add a Gmail API binding to this mailbox?",
+                ui=ui,
+                default=True,
+            )
+        ):
+            provider = get(client, "/api/providers/gmail")
+            if not provider["ready"]:
+                oauth_setup.import_client(ui)
+            post(
+                client,
+                f"/api/accounts/{existing['id']}/transports",
+                {"kind": "gmail_api"},
+            )
+        return existing
+
+
+def _find_account(client, address: str) -> dict | None:
+    wanted = address.strip().lower()
+    return next(
+        (
+            item
+            for item in get(client, "/api/accounts")
+            if item["address"].lower() == wanted
+        ),
+        None,
     )
 
 
@@ -307,6 +350,8 @@ def _attempt(client, args: object, ui: Ui) -> int:
         if ui.json_mode:
             json_out(attempt)
         return 0
+    if getattr(args, "redirect_url", None):
+        oauth_setup.deliver_redirect(args.redirect_url)
     account = wait(client, args.account_id, args.timeout, attempt.get("id"))
     if ui.json_mode:
         json_out(account)

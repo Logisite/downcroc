@@ -5,6 +5,7 @@ import time
 
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import get, post
+from downcroc.cli.commands import oauth_setup
 from downcroc.cli.errors import CliError, no_terminal
 from downcroc.cli.output import json_out, record
 from downcroc.cli.ui import prompts
@@ -152,6 +153,15 @@ def _app_password(client, account: dict, provider: dict, args: object, ui: Ui) -
 
 
 def _oauth(client, account: dict, args: object, ui: Ui) -> dict:
+    if ui.interactive:
+        from downcroc.cli.commands import oauth_wizard
+
+        return oauth_wizard.run(
+            client,
+            account,
+            ui,
+            timeout=getattr(args, "timeout", None),
+        )
     params = {}
     if getattr(args, "client", None):
         params["client_id"] = args.client
@@ -164,6 +174,9 @@ def _oauth(client, account: dict, args: object, ui: Ui) -> dict:
             f"the link expires at {attempt['expires_at']}",
             file=sys.stderr,
         )
+    redirect = getattr(args, "redirect_url", None)
+    if redirect:
+        oauth_setup.deliver_redirect(redirect)
     account = wait(
         client,
         account["id"],
