@@ -172,7 +172,9 @@ def _status(args: object, paths: object, ui: Ui) -> int:
         lines["sending"] = (
             f"paused since {sending.get('since') or '-'}"
             f", until {sending.get('until') or 'resume'}"
-            f" ({sending.get('reason') or 'no reason'})"
+            f" ({sending.get('reason') or 'no reason'}), "
+            f"{sending.get('held_jobs', 0)} held jobs in "
+            f"{sending.get('held_batches', 0)} batches"
         )
     else:
         lines["sending"] = "running"

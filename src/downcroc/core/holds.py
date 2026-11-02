@@ -52,6 +52,26 @@ class HoldsService:
     def service_state(self) -> RuntimeState:
         return self._runtime.get()
 
+    def status_block(self) -> dict[str, object]:
+        state = self._runtime.get()
+        held_jobs = sum(
+            self._jobs.count(state=item.value)
+            for item in (JobState.QUEUED, JobState.RETRY_WAIT, JobState.SENDING)
+        )
+        held_batches = sum(
+            1
+            for batch in self._batches.list(limit=10_000)
+            if batch.state.value in {"sending", "awaiting_approval"}
+        )
+        return {
+            "state": "paused" if state.paused else "running",
+            "since": state.sending_paused_at,
+            "until": state.sending_paused_until,
+            "reason": state.sending_paused_reason,
+            "held_jobs": held_jobs,
+            "held_batches": held_batches,
+        }
+
     def pause_service(
         self, reason: str | None, for_s: int | None
     ) -> tuple[RuntimeState, bool]:

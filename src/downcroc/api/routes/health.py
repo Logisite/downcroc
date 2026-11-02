@@ -15,13 +15,7 @@ def _uptime(request: Request) -> float:
 
 
 def _sending(request: Request) -> dict[str, object]:
-    state = request.app.state.services.holds.service_state()
-    return {
-        "state": "paused" if state.paused else "running",
-        "since": state.sending_paused_at,
-        "until": state.sending_paused_until,
-        "reason": state.sending_paused_reason,
-    }
+    return request.app.state.services.holds.status_block()
 
 
 def _vault(request: Request) -> dict[str, object]:

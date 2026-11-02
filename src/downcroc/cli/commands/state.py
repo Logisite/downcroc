@@ -250,6 +250,10 @@ def _print_body(args: object, report: dict, running: bool) -> None:
                 detail += f" until {sending['until']}"
             if sending.get("reason"):
                 detail += f" ({sending['reason']})"
+            detail += (
+                f", {sending.get('held_jobs', 0)} held jobs in "
+                f"{sending.get('held_batches', 0)} batches"
+            )
             lines["sending"] = detail
         else:
             lines["sending"] = "running"
