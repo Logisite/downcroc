@@ -19,6 +19,8 @@ from downcroc.store.repositories.accounts import AccountRepo
 if TYPE_CHECKING:
     from downcroc.core.transports.service import TransportService
 
+TEST_TIMEOUT_S = 10.0
+
 
 class TransportProbe:
     """Preflight checks for one binding, without touching the send path."""
@@ -72,7 +74,7 @@ class TransportProbe:
                 spec,
                 account,
                 credentials,
-                timeout_s=self._outbound.smtp_timeout_s,
+                timeout_s=min(self._outbound.smtp_timeout_s, TEST_TIMEOUT_S),
             )
         except sender.SmtpFailure as error:
             updated = self._transports.mark_failure(

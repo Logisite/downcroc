@@ -6,6 +6,24 @@ from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record, table
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui
+from downcroc.runtime.clock import parse_utc, utc_now
+
+
+def cooldown(value: str | None) -> str:
+    if not value:
+        return "-"
+    try:
+        left = (parse_utc(value) - parse_utc(utc_now())).total_seconds()
+    except ValueError:
+        return value
+    seconds = int(left)
+    if seconds <= 0:
+        return "-"
+    minutes, seconds = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m" if minutes else f"{hours}h"
 
 
 def choose_account(client, ui: Ui, verb: str, *, archived: bool = False) -> str:
@@ -158,7 +176,7 @@ def transports(client, account_id: str, ui: Ui) -> None:
                 item["health"],
                 item["max_concurrency"],
                 item["rate_per_min"] or "-",
-                item["cooldown_until"] or "-",
+                cooldown(item.get("cooldown_until")),
                 item["last_error_code"] or "-",
                 item["last_success_at"] or "-",
             ]

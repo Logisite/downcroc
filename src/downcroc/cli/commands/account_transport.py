@@ -75,7 +75,17 @@ def _list(client, account_id: str, ui: Ui) -> int:
             print(f"next: downcroc account transport add {account_id} --kind smtp")
         return 0
     table(
-        ["id", "kind", "slot", "priority", "health", "lanes", "rate", "error"],
+        [
+            "id",
+            "kind",
+            "slot",
+            "priority",
+            "health",
+            "cooldown",
+            "lanes",
+            "rate",
+            "error",
+        ],
         [
             [
                 item["id"],
@@ -83,6 +93,7 @@ def _list(client, account_id: str, ui: Ui) -> int:
                 item.get("slot") or "-",
                 item["priority"],
                 item["health"],
+                account_view.cooldown(item.get("cooldown_until")),
                 item["max_concurrency"],
                 item["rate_per_min"] or "-",
                 item["last_error_code"] or "-",

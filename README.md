@@ -43,11 +43,11 @@ Windows.
 For an offline install, pass a local wheel:
 
 ```sh
-scripts/install.sh --wheel downcroc-1.2.6.post6-py3-none-any.whl
+scripts/install.sh --wheel downcroc-1.2.6.post7-py3-none-any.whl
 ```
 
 ```powershell
-.\scripts\install.ps1 -Wheel .\downcroc-1.2.6.post6-py3-none-any.whl
+.\scripts\install.ps1 -Wheel .\downcroc-1.2.6.post7-py3-none-any.whl
 ```
 
 ## Update and remove
@@ -55,7 +55,7 @@ scripts/install.sh --wheel downcroc-1.2.6.post6-py3-none-any.whl
 ```sh
 downcroc update --check
 downcroc update
-downcroc update --version 1.2.6.post6 --force
+downcroc update --version 1.2.6.post7 --force
 downcroc uninstall
 downcroc uninstall --purge
 ```
@@ -69,11 +69,11 @@ data, and state. `--purge` also removes them.
 The installer also accepts a version:
 
 ```sh
-scripts/install.sh --version 1.2.6.post6
+scripts/install.sh --version 1.2.6.post7
 ```
 
 ```powershell
-.\scripts\install.ps1 -Version 1.2.6.post6
+.\scripts\install.ps1 -Version 1.2.6.post7
 ```
 
 ## Quick start
