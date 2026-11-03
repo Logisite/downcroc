@@ -310,7 +310,7 @@ wheels = [
 
 [[package]]
 name = "downcroc"
-version = "1.2.6.post4"
+version = "1.2.6.post5"
 source = { editable = "." }
 dependencies = [
     { name = "aiosmtplib" },

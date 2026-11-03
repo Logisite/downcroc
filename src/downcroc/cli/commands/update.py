@@ -114,16 +114,27 @@ def _wheel(release: dict, directory: Path) -> tuple[Path, str | None]:
     return target, expected
 
 
-def _restart_after_update(paths, settings) -> bool:
+def _restart_after_update(paths, settings, ui) -> bool:
     was_running = status(paths).get("state") == "running"
     if was_running:
+        if not ui.json_mode:
+            print(ui.dim("stopping the daemon..."), flush=True)
         stop(paths, settings)
     return was_running
 
 
-def _restart(paths, settings, was_running: bool, *, no_restart: bool) -> None:
+def _restart(
+    paths,
+    settings,
+    was_running: bool,
+    ui,
+    *,
+    no_restart: bool,
+) -> None:
     if not was_running or no_restart:
         return
+    if not ui.json_mode:
+        print(ui.dim("starting the daemon..."), flush=True)
     start(paths, settings, timeout=settings.daemon.start_timeout_s)
 
 
@@ -196,7 +207,7 @@ def run(args: object) -> int:
             hint="use scripts/install.sh or scripts/install.ps1",
         )
     paths, settings, _ = load()
-    was_running = _restart_after_update(paths, settings)
+    was_running = _restart_after_update(paths, settings, ui)
     try:
         with tempfile.TemporaryDirectory(prefix="downcroc-update-") as directory:
             wheel, expected = _wheel(release, Path(directory))
@@ -207,31 +218,47 @@ def run(args: object) -> int:
                         "the wheel checksum does not match",
                         code="checksum_failed",
                     )
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--upgrade",
-                    "--force-reinstall",
-                    str(wheel),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode != 0:
+            command = [sys.executable, "-m", "pip", "install", "--upgrade"]
+            if args.force:
+                command.extend(["--force-reinstall", "--no-deps"])
+            command.append(str(wheel))
+            if ui.json_mode:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                code = result.returncode
                 detail = (result.stderr or result.stdout).strip()
+            else:
+                print(ui.dim(f"installing downcroc {latest}..."), flush=True)
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+                tail: list[str] = []
+                if process.stdout is not None:
+                    for line in process.stdout:
+                        print(line, end="", flush=True)
+                        tail.append(line)
+                        if len(tail) > 40:
+                            tail.pop(0)
+                code = process.wait()
+                detail = "".join(tail).strip()
+            if code != 0:
                 raise CliError(
                     "the update could not be installed",
                     code="update_failed",
-                    hint=detail[-500:] or f"pip exited with {result.returncode}",
+                    hint=detail[-500:] or f"pip exited with {code}",
                 )
     except BaseException:
-        _restart(paths, settings, was_running, no_restart=args.no_restart)
+        _restart(paths, settings, was_running, ui, no_restart=args.no_restart)
         raise
-    _restart(paths, settings, was_running, no_restart=args.no_restart)
+    _restart(paths, settings, was_running, ui, no_restart=args.no_restart)
     body = {
         "current": current,
         "installed": latest,
