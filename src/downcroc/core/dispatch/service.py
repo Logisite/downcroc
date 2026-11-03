@@ -74,6 +74,7 @@ class Dispatcher(DispatchHelpers):
         self._next_allowed: dict[str, float] = {}
         self._next_followup = 0.0
         self._held: str | None = None
+        self._allowance_logged: set[tuple[str, str]] = set()
 
     def start(self) -> None:
         if self._task is not None:
@@ -168,7 +169,18 @@ class Dispatcher(DispatchHelpers):
             remaining = self._quota.available(account.id, day, policy.daily_allowance)
             if remaining <= 0:
                 blocked_allowance += 1
+                key = (account.id, day)
+                if key not in self._allowance_logged:
+                    self._allowance_logged.add(key)
+                    self._log.info(
+                        "dispatch.allowance_spent",
+                        account=account.id,
+                        day=day,
+                        limit=policy.daily_allowance,
+                        due=len(due),
+                    )
                 continue
+            self._allowance_logged.discard((account.id, day))
             if time.monotonic() < self._next_allowed.get(account.id, 0.0):
                 continue
             usable = self._transports.bindings(account)
