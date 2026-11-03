@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import io
 import re
 import subprocess
 import sys
@@ -9,23 +10,27 @@ import tempfile
 from pathlib import Path
 
 import httpx
+from packaging.version import InvalidVersion, Version
+from rich.console import Console
+from rich.markdown import Markdown
 
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.install_layout import install_prefix
 from downcroc.cli.output import json_out, record
+from downcroc.cli.ui import panel
 from downcroc.runtime.service.lifecycle import start, status, stop
 from downcroc.version import __version__
 
 API = "https://api.github.com/repos/Logisite/downcroc/releases"
-VERSION = re.compile(r"^[vV]?(\d+(?:\.\d+)*)(.*)$")
 
 
-def _version(value: str) -> tuple[int, ...]:
-    match = VERSION.match(value.strip())
-    if not match:
-        raise CliError(f"invalid version: {value}", code="version_invalid")
-    return tuple(int(part) for part in match.group(1).split("."))
+def _version(value: str) -> Version:
+    text = value.strip().lstrip("vV")
+    try:
+        return Version(text)
+    except InvalidVersion as error:
+        raise CliError(f"invalid version: {value}", code="version_invalid") from error
 
 
 def _releases(*, pre: bool) -> list[dict]:
@@ -107,6 +112,29 @@ def _restart(paths, settings, was_running: bool, *, no_restart: bool) -> None:
     start(paths, settings, timeout=settings.daemon.start_timeout_s)
 
 
+def _notes(body: str, ui) -> None:
+    if not body.strip() or ui.json_mode:
+        return
+    stream = io.StringIO()
+    console = Console(
+        file=stream,
+        width=panel.content_width(ui),
+        force_terminal=ui.colour,
+        color_system="standard" if ui.colour else None,
+        highlight=False,
+        emoji=False,
+        soft_wrap=False,
+    )
+    console.print(Markdown(body))
+    text = stream.getvalue().rstrip("\n")
+    text = re.sub(r"\x1b\]8;;.*?\x1b\\", "", text)
+    if not text:
+        return
+    print()
+    for line in panel.frame(ui, "Release notes", text.splitlines()):
+        print(line)
+
+
 def _check(args: object, ui) -> int:
     current = __version__
     release = _release(getattr(args, "target_version", None), pre=args.pre)
@@ -121,9 +149,7 @@ def _check(args: object, ui) -> int:
         json_out(body)
         return 0
     record({"current": current, "latest": latest, "url": body["url"]})
-    if body["notes"]:
-        print()
-        print(body["notes"])
+    _notes(body["notes"], ui)
     return 0
 
 
@@ -201,9 +227,7 @@ def run(args: object) -> int:
     record({"downcroc": latest, "previous": current})
     if body["restarted"]:
         record({"service": "restarted"})
-    if release.get("body"):
-        print()
-        print(release["body"])
+    _notes(release.get("body") or "", ui)
     return 0
 
 
