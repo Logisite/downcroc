@@ -13,6 +13,7 @@ import httpx
 from packaging.version import InvalidVersion, Version
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.theme import Theme
 
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
@@ -23,6 +24,16 @@ from downcroc.runtime.service.lifecycle import start, status, stop
 from downcroc.version import __version__
 
 API = "https://api.github.com/repos/Logisite/downcroc/releases"
+NOTES_THEME = Theme(
+    {
+        "markdown.h1": "bold orange3",
+        "markdown.h2": "bold orange3",
+        "markdown.h3": "bold orange3",
+        "markdown.h4": "bold orange3",
+        "markdown.h5": "bold orange3",
+        "markdown.h6": "bold orange3",
+    }
+)
 
 
 def _version(value: str) -> Version:
@@ -72,7 +83,7 @@ def _release(version: str | None, *, pre: bool) -> dict:
     return max(releases, key=lambda item: _version(item["tag_name"]))
 
 
-def _wheel(release: dict, target: Path) -> tuple[Path, str | None]:
+def _wheel(release: dict, directory: Path) -> tuple[Path, str | None]:
     assets = release.get("assets") or []
     asset = next(
         (item for item in assets if str(item.get("name", "")).endswith(".whl")),
@@ -93,6 +104,10 @@ def _wheel(release: dict, target: Path) -> tuple[Path, str | None]:
             code="download_failed",
             hint=f"github returned {response.status_code}",
         )
+    name = Path(str(asset.get("name") or "downcroc.whl")).name
+    if not name.endswith(".whl"):
+        name = "downcroc.whl"
+    target = directory / name
     target.write_bytes(response.content)
     digest = asset.get("digest") or ""
     expected = digest.split(":", 1)[-1] if digest.startswith("sha256:") else None
@@ -120,7 +135,8 @@ def _notes(body: str, ui) -> None:
         file=stream,
         width=panel.content_width(ui),
         force_terminal=ui.colour,
-        color_system="standard" if ui.colour else None,
+        color_system="256" if ui.colour else None,
+        theme=NOTES_THEME,
         highlight=False,
         emoji=False,
         soft_wrap=False,
@@ -183,7 +199,7 @@ def run(args: object) -> int:
     was_running = _restart_after_update(paths, settings)
     try:
         with tempfile.TemporaryDirectory(prefix="downcroc-update-") as directory:
-            wheel, expected = _wheel(release, Path(directory) / "downcroc.whl")
+            wheel, expected = _wheel(release, Path(directory))
             if expected is not None:
                 actual = hashlib.sha256(wheel.read_bytes()).hexdigest()
                 if not hmac.compare_digest(actual, expected):
@@ -206,10 +222,11 @@ def run(args: object) -> int:
                 check=False,
             )
             if result.returncode != 0:
+                detail = (result.stderr or result.stdout).strip()
                 raise CliError(
                     "the update could not be installed",
                     code="update_failed",
-                    hint=(result.stderr or result.stdout)[-500:],
+                    hint=detail[-500:] or f"pip exited with {result.returncode}",
                 )
     except BaseException:
         _restart(paths, settings, was_running, no_restart=args.no_restart)
