@@ -10,7 +10,7 @@ from pathlib import Path
 from downcroc.cli.errors import Cancelled, CliError, no_terminal
 from downcroc.cli.ui import ansi
 from downcroc.cli.ui.edit import edit_line
-from downcroc.cli.ui.select import Choice, select
+from downcroc.cli.ui.select import Choice, OptionsRequest, Quit, select
 from downcroc.cli.ui.session import Ui, editor
 
 YES = {"y", "yes"}
@@ -222,6 +222,8 @@ def choose(
     ui: Ui,
     default: int | None = None,
     back: bool = True,
+    quit_: bool = False,
+    options_key: bool = False,
 ) -> object | None:
     if not options:
         return None
@@ -235,12 +237,28 @@ def choose(
             )
         return options[default].value
     if not _keyboard(ui):
-        return _choose_plain(title, options, ui=ui, default=default, back=back)
+        return _choose_plain(
+            title,
+            options,
+            ui=ui,
+            default=default,
+            back=back,
+            quit_=quit_,
+            options_key=options_key,
+        )
     choices = [
         Choice(option.label, option.value, option.detail, option.badge)
         for option in options
     ]
-    return select(ui, title, choices, default=default, back=back)
+    return select(
+        ui,
+        title,
+        choices,
+        default=default,
+        back=back,
+        quit_=quit_,
+        options=options_key,
+    )
 
 
 def _choose_plain(
@@ -250,6 +268,8 @@ def _choose_plain(
     ui: Ui,
     default: int | None,
     back: bool,
+    quit_: bool,
+    options_key: bool,
 ) -> object | None:
     print(title)
     for index, option in enumerate(options, start=1):
@@ -262,8 +282,14 @@ def _choose_plain(
             answer = input(f"  {prompt}: ").strip()
         except EOFError as error:
             raise Cancelled() from error
-        if answer.lower() in {"q", "quit"} and back:
-            return None
+        lowered = answer.lower()
+        if lowered in {"q", "quit"}:
+            if quit_:
+                raise Quit()
+            if back:
+                return None
+        if lowered == "o" and options_key:
+            return OptionsRequest(default or 0)
         if not answer and default is not None:
             return options[default].value
         if answer.isdigit() and 1 <= int(answer) <= len(options):

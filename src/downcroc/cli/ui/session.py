@@ -118,6 +118,17 @@ def _config_glyphs() -> str:
     return settings.cli.glyphs
 
 
+def _config_tables() -> bool:
+    from downcroc.runtime.config.loader import ConfigError, read
+    from downcroc.runtime.paths import resolve
+
+    try:
+        settings = read(resolve().config_file)
+    except ConfigError, OSError:
+        return True
+    return settings.cli.tables
+
+
 def _glyph_choice(args: object) -> str:
     value = _flag(args, "glyphs") or os.environ.get("DOWNCROC_GLYPHS")
     if not value or value == "auto":
@@ -162,7 +173,7 @@ def build(args: object) -> Ui:
     )
     columns = shutil.get_terminal_size((100, 24)).columns
     width = columns if _flag(args, "wide") else min(columns, 120)
-    return Ui(
+    ui = Ui(
         interactive=interactive,
         json_mode=json_mode,
         glyphs=_glyph_choice(args),
@@ -173,6 +184,10 @@ def build(args: object) -> Ui:
         timeout=_timeout(args),
         width=max(20, width),
     )
+    from downcroc.cli import output
+
+    output.configure(wide=ui.wide, full=ui.full, tables=_config_tables())
+    return ui
 
 
 def pager_enabled(args: object) -> bool:

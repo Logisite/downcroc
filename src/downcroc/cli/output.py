@@ -72,12 +72,20 @@ BAD = {
     "corrupt",
 }
 
-_CONTEXT = {"wide": False, "full": False}
+_CONTEXT = {"wide": False, "full": False, "tables": True}
+_NARROW_HINTED = False
 
 
-def configure(*, wide: bool = False, full: bool = False) -> None:
+def configure(
+    *,
+    wide: bool = False,
+    full: bool = False,
+    tables: bool | None = None,
+) -> None:
     _CONTEXT["wide"] = wide
     _CONTEXT["full"] = full
+    if tables is not None:
+        _CONTEXT["tables"] = tables
 
 
 def is_full() -> bool:
@@ -135,10 +143,53 @@ def table(headers: list[str], rows: list[list[Any]]) -> None:
     cooked = [_text_row(row, len(headers)) for row in rows]
     live = _terminal_width()
     widths = _layout(headers, cooked, live)
-    if widths is None:
+    narrow = widths is None
+    if narrow and not _CONTEXT["tables"]:
         _stacked(headers, cooked, live)
         return
+    if widths is None:
+        widths = _forced(headers, cooked, live)
     _grid(headers, cooked, widths)
+    if narrow:
+        _narrow_hint(live)
+
+
+def _forced(headers: list[str], rows: list[list[str]], live: int) -> list[int]:
+    natural = [ansi.cells(header) for header in headers]
+    for row in rows:
+        for index, value in enumerate(row):
+            natural[index] = max(natural[index], ansi.cells(value))
+    count = len(headers)
+    widths = [1] * count
+    available = live - (3 * count + 1)
+    remaining = max(0, available - count)
+    weights = [max(0, width - 1) for width in natural]
+    total = sum(weights)
+    used = 0
+    if total and remaining:
+        for index, weight in enumerate(weights):
+            take = min(weight, remaining * weight // total)
+            widths[index] += take
+            used += take
+    remaining -= used
+    while remaining > 0:
+        index = max(range(count), key=lambda spot: weights[spot], default=0)
+        if weights[index] <= 0:
+            break
+        widths[index] += 1
+        weights[index] -= 1
+        remaining -= 1
+    return widths
+
+
+def _narrow_hint(live: int) -> None:
+    global _NARROW_HINTED
+    if _NARROW_HINTED:
+        return
+    _NARROW_HINTED = True
+    text = "narrow terminal: widen the window or set [cli] tables = false to stack rows"
+    for line in _wrap(text, max(20, live)):
+        print(_paint(line, DIM))
 
 
 def _text(value: Any) -> str:

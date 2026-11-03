@@ -31,9 +31,22 @@ DROP_ORDER = (
     "enter select",
     "space toggle",
     "enter done",
-    "q back",
+    "o cli",
+    "b back",
+    "q quit",
     "esc cancel",
 )
+
+
+class Quit(Exception):
+    """Raised when the user chooses to leave the interactive tree."""
+
+
+@dataclass(frozen=True)
+class OptionsRequest:
+    """The user pressed o to open the flag panel for this row."""
+
+    index: int
 
 
 @dataclass(frozen=True)
@@ -49,7 +62,15 @@ def _window(ui: Ui) -> int:
     return max(MIN_ROWS, min(ROWS, available))
 
 
-def _hint(ui: Ui, back: bool, multi: bool, filtering: bool, limit: int) -> str:
+def _hint(
+    ui: Ui,
+    back: bool,
+    multi: bool,
+    filtering: bool,
+    limit: int,
+    quit_: bool,
+    options: bool,
+) -> str:
     if filtering:
         parts = ["type to filter", "enter apply", "esc clear"]
     else:
@@ -57,7 +78,14 @@ def _hint(ui: Ui, back: bool, multi: bool, filtering: bool, limit: int) -> str:
         if multi:
             parts.append("enter done")
         parts.append("/ filter")
-    parts.append("q back" if back else "esc cancel")
+        if options:
+            parts.append("o cli")
+        if back:
+            parts.append("b back")
+        if quit_:
+            parts.append("q quit")
+        elif not back:
+            parts.append("esc cancel")
     for drop in DROP_ORDER:
         if len(parts) <= 1:
             break
@@ -115,6 +143,8 @@ def _lines(
     back: bool,
     limit: int,
     window: int,
+    quit_: bool,
+    options: bool,
 ) -> list[str]:
     labels = [choices[index].label for index in visible]
     widest = max((ansi.cells(label) for label in labels), default=0)
@@ -140,7 +170,7 @@ def _lines(
     if filtering:
         marker = ui.glyph("search")
         lines.append(ui.accent(ansi.fit(f"  {marker} {query}", limit)))
-    lines.append(_hint(ui, back, checked is not None, filtering, limit))
+    lines.append(_hint(ui, back, checked is not None, filtering, limit, quit_, options))
     return lines
 
 
@@ -154,7 +184,9 @@ def select(
     multi: bool = False,
     filterable: bool = True,
     shortcuts: dict[str, int] | None = None,
-) -> list[int] | int | None:
+    quit_: bool = False,
+    options: bool = False,
+) -> list[int] | int | OptionsRequest | None:
     if not choices:
         return [] if multi else None
     cursor = default if default is not None and 0 <= default < len(choices) else 0
@@ -165,7 +197,7 @@ def select(
     limit = panel.content_width(ui)
     panel.gap()
     final: set[int] | None = None
-    result: list[int] | int | None = None
+    result: list[int] | int | OptionsRequest | None = None
     cancelled = False
     with Frame(ui) as screen, Keys() as keys:
         while True:
@@ -193,6 +225,8 @@ def select(
                         back,
                         limit,
                         window,
+                        quit_,
+                        options,
                     ),
                 )
             )
@@ -217,7 +251,15 @@ def select(
                 final = {cursor}
                 result = [cursor] if multi else choices[cursor].value
                 break
-            if key == ESC or key in {"q", "Q"}:
+            if key == "o" and options and cursor >= 0:
+                result = OptionsRequest(cursor)
+                break
+            if key == ESC or key in {"b", "B"}:
+                cancelled = True
+                break
+            if key in {"q", "Q"}:
+                if quit_:
+                    raise Quit()
                 cancelled = True
                 break
             if key in (UP, "k"):

@@ -6,9 +6,10 @@ from downcroc.cli.errors import Cancelled
 from downcroc.cli.parser import build_parser
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui
-from downcroc.cli.ui.tree.editor import edit
+from downcroc.cli.ui.tree.editor import edit, require
+from downcroc.cli.ui.tree.execute import execute
 from downcroc.cli.ui.tree.spec import CommandSpec, Tree, build_tree
-from downcroc.cli.ui.tree.state import Globals, Session
+from downcroc.cli.ui.tree.state import Globals, LeafState, Session
 
 MENU_ONLY = {
     ("account",),
@@ -31,9 +32,13 @@ class Entry:
     node: CommandSpec | None = None
     preset: dict[str, str] = field(default_factory=dict)
     run: bool = False
+    count: int = 0
 
     def option(self) -> prompts.Option:
-        return prompts.Option(self.label, self, self.detail)
+        label = self.label
+        if self.count:
+            label = f"{label}  ({self.count})"
+        return prompts.Option(label, self, self.detail)
 
 
 def open_path(ui: Ui, path: tuple[str, ...] = ()) -> bool:
@@ -45,9 +50,7 @@ def open_path(ui: Ui, path: tuple[str, ...] = ()) -> bool:
         return False
     session = Session(Globals.from_ui(ui))
     if not _submenu(node):
-        edit(
-            ui, node, session.leaf(node.path), session.globals, tree.globals, fresh=True
-        )
+        _run(ui, node, session.leaf(node.path), session.globals)
         return True
     _menu(ui, tree, node, session)
     return True
@@ -55,21 +58,37 @@ def open_path(ui: Ui, path: tuple[str, ...] = ()) -> bool:
 
 def _menu(ui: Ui, tree: Tree, node: CommandSpec, session: Session) -> None:
     stack: list[CommandSpec] = [node]
-    visited: set[tuple[str, ...]] = set()
     while stack:
         current = stack[-1]
+        entries = _entries(current)
         try:
             chosen = prompts.choose(
                 _title(current),
-                [entry.option() for entry in _entries(current)],
+                [entry.option() for entry in entries],
                 ui=ui,
                 back=True,
+                quit_=True,
+                options_key=True,
             )
+        except prompts.Quit:
+            if _confirm_quit(ui):
+                return
+            continue
         except Cancelled:
             stack.pop()
             continue
         if chosen is None:
             stack.pop()
+            continue
+        if isinstance(chosen, prompts.OptionsRequest):
+            entry = entries[chosen.index]
+            target = entry.node or current
+            state = session.leaf(target.path)
+            if entry.preset:
+                state.preset(entry.preset)
+            result = edit(ui, target, state, session.globals, tree.globals)
+            if result == "quit" and _confirm_quit(ui):
+                return
             continue
         entry = chosen if isinstance(chosen, Entry) else None
         if entry is None:
@@ -81,16 +100,24 @@ def _menu(ui: Ui, tree: Tree, node: CommandSpec, session: Session) -> None:
         state = session.leaf(target.path)
         if entry.preset:
             state.preset(entry.preset)
-        fresh = target.path not in visited
-        visited.add(target.path)
-        edit(
-            ui,
-            target,
-            state,
-            session.globals,
-            tree.globals,
-            fresh=fresh,
-        )
+        _run(ui, target, state, session.globals)
+
+
+def _run(ui: Ui, spec: CommandSpec, state: LeafState, globals: Globals) -> None:
+    try:
+        require(ui, spec, state, globals)
+    except Cancelled:
+        return
+    code, message, _ = execute(spec, state, globals)
+    if code or message:
+        print(ui.result(code == 0, f"exit {code}", message))
+
+
+def _confirm_quit(ui: Ui) -> bool:
+    try:
+        return prompts.confirm("Quit downcroc?", ui=ui, default=False)
+    except Cancelled:
+        return False
 
 
 def _submenu(node: CommandSpec) -> bool:
@@ -108,6 +135,7 @@ def _entries(node: CommandSpec) -> list[Entry]:
                     label=f"Run {node.path[-1]}",
                     detail=node.help or "run this command",
                     run=True,
+                    count=len(node.options),
                 )
             )
         entries.extend(_child(child) for child in node.children)
@@ -120,6 +148,7 @@ def _entries(node: CommandSpec) -> list[Entry]:
                 detail=node.help,
                 preset={choices.dest: choice},
                 run=True,
+                count=len(node.options),
             )
             for choice in choices.choices
         ]
@@ -128,6 +157,7 @@ def _entries(node: CommandSpec) -> list[Entry]:
             label=node.path[-1].replace("_", " ") if node.path else "Run",
             detail=node.help or "open this command",
             run=True,
+            count=len(node.options),
         )
     ]
 
@@ -137,6 +167,7 @@ def _child(child: CommandSpec) -> Entry:
         label=child.path[-1].replace("_", " "),
         detail=child.help,
         node=child,
+        count=len(child.options),
     )
 
 

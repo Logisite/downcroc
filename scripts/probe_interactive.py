@@ -234,7 +234,7 @@ def run_story(
     print(f"$ downcroc {' '.join(story.argv)}")
     try:
         terminal.start()
-        terminal.pump(idle=0.8, limit=60, until_output=True)
+        terminal.wait_ready()
         show(terminal.screen)
         for step in story.steps():
             print()

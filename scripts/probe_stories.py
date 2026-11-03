@@ -23,13 +23,14 @@ STORIES = {
         title="root menu, account submenu, back",
         argv=[],
         live=True,
-        keys="down | down | /account | enter | enter | esc | q",
+        keys="down | down | /account | enter | enter | esc | q | y",
     ),
     "account-list": Story(
         name="account-list",
         title="account list options, toggle --archived, run, back",
         argv=["account"],
-        keys="/list | enter | enter | space | r | b | q",
+        live=True,
+        keys="/list | enter | o | space | r | b | q | y",
     ),
     "account-add": Story(
         name="account-add",
@@ -42,7 +43,7 @@ STORIES = {
         name="account-error",
         title="typed account id, failing run, retry path, back",
         argv=["account"],
-        keys="/show | enter | enter | enter | acct_nope | enter | r | b | q",
+        keys="/show | enter | enter | enter | acct_nope | enter | q | y",
     ),
     "send": Story(
         name="send",
@@ -50,8 +51,8 @@ STORIES = {
         argv=[],
         live=True,
         keys=(
-            "/send | enter | enter | down | down | down | enter "
-            "| down | enter | r | b | q"
+            "/send | enter | o | down | down | down | enter "
+            "| down | enter | r | b | q | y"
         ),
     ),
     "help": Story(
@@ -59,34 +60,40 @@ STORIES = {
         title="help topic resolver from the root tree, run a topic",
         argv=[],
         live=True,
-        keys="/help | enter | enter | /vault | enter | enter | r | b | q",
+        keys="/help | enter | enter | /vault | enter | enter | q | y",
     ),
     "vault": Story(
         name="vault",
         title="mutually exclusive pair editor and command preview",
         argv=["vault"],
-        keys="/unlock | enter | enter | enter | down | enter | b | q",
+        keys="/unlock | enter | o | enter | down | enter | b | q | y",
+    ),
+    "global-persist": Story(
+        name="global-persist",
+        title="a global flag stays ticked across commands",
+        argv=["account"],
+        keys="/list | enter | o | down | space | b | /show | enter | o | q | y",
     ),
     "provider": Story(
         name="provider",
         title="provider list and imported oauth client list",
         argv=["provider"],
         live=True,
-        keys="/credentials | enter | enter | /list | enter | enter | r | b | q | q",
+        keys="/credentials | enter | enter | /list | enter | enter | b | q | y",
     ),
     "attempt": Story(
         name="attempt",
         title="oauth attempt shows a relative link lifetime",
         argv=["account"],
         live=True,
-        keys="/attempt | enter | enter | /oauth | enter | enter | r | b | q",
+        keys="/attempt | enter | enter | /oauth | enter | enter | q | y",
     ),
     "unarchive": Story(
         name="unarchive",
         title="archived picker, confirm, unarchive, archived list after",
         argv=["account"],
         live=True,
-        keys="/unarchive | enter | enter | enter | r | y | b | q",
+        keys="/unarchive | enter | enter | enter | y | q | y",
         follow=["account list --archived"],
     ),
 }

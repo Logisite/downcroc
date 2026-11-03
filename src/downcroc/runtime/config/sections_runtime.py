@@ -371,3 +371,10 @@ class CliSettings(BaseModel):
         default="auto",
         description="Glyph set: auto, nerd, or ascii.",
     )
+    tables: bool = Field(
+        default=True,
+        description=(
+            "Always draw boxed tables. Set false to fall back to stacked fields "
+            "when the terminal is too narrow for the grid."
+        ),
+    )

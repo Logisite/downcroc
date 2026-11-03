@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from downcroc.cli.errors import Cancelled
 from downcroc.cli.ui import ansi, panel, prompts
 from downcroc.cli.ui.frame import Frame
 from downcroc.cli.ui.frame import rows as terminal_rows
@@ -43,14 +44,10 @@ def edit(
     state: LeafState,
     globals: Globals,
     globals_spec: tuple[ArgSpec, ...],
-    *,
-    fresh: bool = False,
-) -> None:
+) -> str:
     entries = _rows(spec, globals_spec)
     if not entries:
-        return
-    if fresh:
-        _fill(ui, spec, state)
+        return "back"
     cursor = 0
     last: tuple[int, str] | None = None
     with Keys() as keys, Frame(ui) as frame:
@@ -58,10 +55,13 @@ def edit(
             body, cursor_line, head, tail = _body(
                 ui, spec, entries, cursor, state, globals, last
             )
-            frame.draw(_window(ui, body, cursor_line, head, tail))
+            lines = _window(ui, body, cursor_line, head, tail)
+            frame.draw(panel.frame(ui, _panel_title(spec), lines))
             key = keys.read()
-            if key in (CTRL_C, CTRL_D, ESC, "q", "b", "Q"):
-                return
+            if key in (CTRL_C, CTRL_D, ESC, "b", "B"):
+                return "back"
+            if key in ("q", "Q"):
+                return "quit"
             if key in (UP, "k"):
                 cursor = max(0, cursor - 1)
                 continue
@@ -79,6 +79,13 @@ def edit(
                 last = None
                 continue
             if key == "r":
+                if spec.children:
+                    last = (2, "choose a command first")
+                    continue
+                try:
+                    require(ui, spec, state, globals)
+                except Cancelled:
+                    continue
                 frame.erase()
                 with keys.cooked():
                     code, message, _ = execute(spec, state, globals)
@@ -97,6 +104,12 @@ def edit(
                     cursor = spot
 
 
+def _panel_title(spec: CommandSpec) -> str:
+    if not spec.path:
+        return "downcroc"
+    return "downcroc / " + " / ".join(part.replace("_", " ") for part in spec.path)
+
+
 def _rows(spec: CommandSpec, globals_spec: tuple[ArgSpec, ...]) -> list[Row]:
     entries = [Row("arg", arg, "Arguments") for arg in spec.positionals]
     entries.extend(Row("arg", arg, "Options") for arg in spec.options)
@@ -104,15 +117,28 @@ def _rows(spec: CommandSpec, globals_spec: tuple[ArgSpec, ...]) -> list[Row]:
     return entries
 
 
-def _fill(ui: Ui, spec: CommandSpec, state: LeafState) -> None:
+def require(
+    ui: Ui,
+    spec: CommandSpec,
+    state: LeafState,
+    globals: Globals,
+) -> None:
     for arg in spec.positionals:
-        if state.get(arg.dest) in EMPTY and has_resolver(spec.path, arg.dest):
-            _pick(ui, spec, Row("arg", arg, "Arguments"), state, Globals())
+        if state.get(arg.dest) not in EMPTY:
+            continue
+        row = Row("arg", arg, "Arguments")
+        if has_resolver(spec.path, arg.dest):
+            _pick(ui, spec, row, state, globals)
+        elif arg.required:
+            _text(ui, spec, row, state, globals)
     for arg in spec.options:
         if state.get(arg.dest) not in EMPTY or not arg.required:
             continue
+        row = Row("arg", arg, "Options")
         if has_resolver(spec.path, arg.dest):
-            _pick(ui, spec, Row("arg", arg, "Options"), state, Globals())
+            _pick(ui, spec, row, state, globals)
+        else:
+            _text(ui, spec, row, state, globals)
 
 
 def _body(
@@ -140,7 +166,10 @@ def _body(
     for index, entry in enumerate(entries):
         if entry.group != section:
             if body:
-                body.append("")
+                if entry.group == "Global options":
+                    body.append(ui.dim("\u2500" * limit))
+                else:
+                    body.append("")
             body.append(ui.accent(entry.group))
             section = entry.group
         if index == cursor:
@@ -151,7 +180,7 @@ def _body(
     return [*head, *body], cursor_line, len(head), tail
 
 
-_HINT = "enter edit   space toggle   r run   x reset   b back"
+_HINT = "space toggle   enter edit   r run   x reset   b back   q quit"
 
 
 def _window(
@@ -161,7 +190,7 @@ def _window(
     head: int,
     tail: int,
 ) -> list[str]:
-    available = max(6, terminal_rows(ui) - 10)
+    available = max(6, terminal_rows(ui) - 14)
     if len(body) <= available:
         return body
     room = max(3, available - head - tail)

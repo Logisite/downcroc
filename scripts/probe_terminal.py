@@ -318,6 +318,22 @@ class Pty:
             return
         self.pump(idle=idle, limit=limit)
 
+    def wait_ready(self, timeout: float = 60.0) -> None:
+        """Wait until the first menu panel is on screen, not just any byte."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if not self.alive():
+                return
+            self.pump(idle=0.4, limit=1.0)
+            if any(
+                marker in line
+                for line in self.screen.lines()
+                for marker in ("\u2552", "\u2554")
+            ):
+                self.pump(idle=0.5, limit=2.0)
+                return
+        self.pump(idle=0.5, limit=2.0)
+
     def alive(self) -> bool:
         return self.process is not None and self.process.poll() is None
 
