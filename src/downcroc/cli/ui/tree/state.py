@@ -75,7 +75,6 @@ class LeafState:
 @dataclass
 class Session:
     globals: Globals
-    leaves: dict[tuple[str, ...], LeafState] = field(default_factory=dict)
 
-    def leaf(self, path: tuple[str, ...]) -> LeafState:
-        return self.leaves.setdefault(path, LeafState())
+    def leaf(self, _path: tuple[str, ...]) -> LeafState:
+        return LeafState()
