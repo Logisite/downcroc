@@ -68,6 +68,14 @@ STORIES = {
         argv=["vault"],
         keys="/unlock | enter | o | enter | down | enter | b | q | y",
     ),
+    "vault-locked": Story(
+        name="vault-locked",
+        title="a locked vault offers unlock and returns to the menu",
+        argv=["account"],
+        live=True,
+        lock_vault=True,
+        keys="/attempt | enter | enter | /oauth | enter | enter | enter | pass | enter | q | y",
+    ),
     "global-persist": Story(
         name="global-persist",
         title="a global flag stays ticked across commands",

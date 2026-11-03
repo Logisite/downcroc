@@ -19,6 +19,7 @@ from downcroc.cli.ui.keys import (
     Keys,
 )
 from downcroc.cli.ui.session import Ui
+from downcroc.cli.ui.tree import unlock
 from downcroc.cli.ui.tree.argv import compose, preview
 from downcroc.cli.ui.tree.execute import execute
 from downcroc.cli.ui.tree.spec import BOOL, MULTI, PAIR, ArgSpec, CommandSpec
@@ -88,7 +89,16 @@ def edit(
                     continue
                 frame.erase()
                 with keys.cooked():
-                    code, message, _ = execute(spec, state, globals)
+                    code, message, _, error_code = execute(spec, state, globals)
+                    if unlock.is_locked(error_code, message):
+                        outcome = unlock.offer(ui)
+                        if outcome is not None:
+                            last = (
+                                (0, "vault unlocked")
+                                if outcome
+                                else (1, "vault unlock failed")
+                            )
+                            continue
                 last = (code, message)
                 continue
             if key in (ENTER, SPACE):

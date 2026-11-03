@@ -37,6 +37,7 @@ class Story:
     argv: list[str]
     keys: str | list[Step]
     live: bool = False
+    lock_vault: bool = False
     follow: list[str] = field(default_factory=list)
 
     def steps(self) -> list[Step]:
@@ -212,6 +213,8 @@ def run_story(
     daemon = Daemon(home, port)
     if story.live:
         daemon.start()
+        if story.lock_vault:
+            daemon.cli("vault", "lock")
     else:
         write_config(home, port)
     argv = [

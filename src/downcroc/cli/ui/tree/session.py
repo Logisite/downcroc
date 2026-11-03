@@ -6,6 +6,7 @@ from downcroc.cli.errors import Cancelled
 from downcroc.cli.parser import build_parser
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui
+from downcroc.cli.ui.tree import unlock
 from downcroc.cli.ui.tree.editor import edit, require
 from downcroc.cli.ui.tree.execute import execute
 from downcroc.cli.ui.tree.spec import CommandSpec, Tree, build_tree
@@ -109,7 +110,11 @@ def _run(ui: Ui, spec: CommandSpec, state: LeafState, globals: Globals) -> None:
         require(ui, spec, state, globals)
     except Cancelled:
         return
-    code, message, _ = execute(spec, state, globals)
+    code, message, _, error_code = execute(spec, state, globals)
+    if unlock.is_locked(error_code, message):
+        outcome = unlock.offer(ui)
+        if outcome is not None:
+            return
     if code or message:
         print(ui.result(code == 0, f"exit {code}", message))
 

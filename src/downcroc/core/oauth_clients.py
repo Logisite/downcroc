@@ -12,6 +12,8 @@ from downcroc.domain.errors import (
     AccountNotFound,
     OAuthClientInUse,
     OAuthClientInvalid,
+    VaultLocked,
+    VaultSecretMissing,
 )
 from downcroc.domain.providers import AuthKind, ProviderSpec
 from downcroc.domain.secrets import client_secret_key
@@ -213,9 +215,17 @@ class OAuthClientService:
     def payload(self, client: OAuthClient) -> ClientJSON:
         try:
             secret = self._vault.get_secret(client.secret_ref)
-        except Exception as error:
+        except VaultLocked:
+            raise
+        except VaultSecretMissing as error:
             raise OAuthClientInvalid(
                 "the stored client secret is missing",
+                hint="import the client JSON again",
+                fields={"client": client.id},
+            ) from error
+        except Exception as error:
+            raise OAuthClientInvalid(
+                "the stored client secret could not be read",
                 hint="import the client JSON again",
                 fields={"client": client.id},
             ) from error
