@@ -172,7 +172,7 @@ class Dispatcher(DispatchHelpers):
                 key = (account.id, day)
                 if key not in self._allowance_logged:
                     self._allowance_logged.add(key)
-                    self._log.info(
+                    self._log.warning(
                         "dispatch.allowance_spent",
                         account=account.id,
                         day=day,
