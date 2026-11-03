@@ -107,26 +107,28 @@ def _flag(args: object, name: str) -> object:
     return getattr(args, name, None)
 
 
-def _config_glyphs() -> str:
-    from downcroc.runtime.config.loader import ConfigError, read
+def _config_cli() -> dict:
+    import tomllib
+
     from downcroc.runtime.paths import resolve
 
     try:
-        settings = read(resolve().config_file)
-    except ConfigError, OSError:
-        return "auto"
-    return settings.cli.glyphs
+        with resolve().config_file.open("rb") as handle:
+            data = tomllib.load(handle)
+    except OSError, ValueError:
+        return {}
+    section = data.get("cli")
+    return section if isinstance(section, dict) else {}
+
+
+def _config_glyphs() -> str:
+    value = _config_cli().get("glyphs")
+    return value if value in {"auto", "nerd", "ascii"} else "auto"
 
 
 def _config_tables() -> bool:
-    from downcroc.runtime.config.loader import ConfigError, read
-    from downcroc.runtime.paths import resolve
-
-    try:
-        settings = read(resolve().config_file)
-    except ConfigError, OSError:
-        return True
-    return settings.cli.tables
+    value = _config_cli().get("tables")
+    return value if isinstance(value, bool) else True
 
 
 def _glyph_choice(args: object) -> str:

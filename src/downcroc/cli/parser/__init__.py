@@ -4,7 +4,16 @@ import argparse
 
 from downcroc.cli.parser import account, batch, other, provider, vault
 from downcroc.cli.parser.common import Parser, root
-from downcroc.version import __version__
+
+
+class VersionAction(argparse.Action):
+    """Load the package version only when --version is actually used."""
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        from downcroc.version import __version__
+
+        print(f"downcroc {__version__}")
+        parser.exit()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,9 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  downcroc help vault"
         ),
     )
-    parser.add_argument(
-        "--version", action="version", version=f"downcroc {__version__}"
-    )
+    parser.add_argument("--version", action=VersionAction, nargs=0)
     root(parser)
     commands = parser.add_subparsers(dest="command", metavar="command")
 
