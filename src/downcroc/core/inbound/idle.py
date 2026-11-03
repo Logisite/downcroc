@@ -16,6 +16,30 @@ from downcroc.runtime.config.schema import InboundSettings
 from downcroc.runtime.logging.setup import EventLogger
 
 
+class _IdleSession:
+    """Idempotent IDLE wrapper so cleanup never sends DONE twice."""
+
+    def __init__(self, box) -> None:
+        self._box = box
+        self.active = False
+
+    def start(self) -> None:
+        self._box.idle.start()
+        self.active = True
+
+    def stop(self) -> None:
+        if not self.active:
+            return
+        self.active = False
+        self._box.idle.stop()
+
+    def noop(self) -> None:
+        self._box.client.noop()
+
+    def poll(self, timeout: float) -> list[bytes]:
+        return self._box.idle.poll(timeout=timeout)
+
+
 class IdleLoops:
     """IDLE liveness, heartbeat, and polling fallback for the IMAP watcher."""
 
@@ -31,16 +55,17 @@ class IdleLoops:
 
     def idle(self, handle: WatcherHandle, box, account: Account) -> None:
         while not handle.stop.is_set():
+            session = _IdleSession(box)
             try:
-                box.idle.start()
+                session.start()
                 started = time.monotonic()
                 last_live = started
                 reason: str | None = None
                 try:
-                    reason = self._poll_idle(handle, box, started, last_live)
+                    reason = self._poll_idle(handle, session, started, last_live)
                 finally:
                     try:
-                        box.idle.stop()
+                        session.stop()
                     except imaplib.IMAP4.error, OSError, ImapToolsError:
                         pass
             except (imaplib.IMAP4.error, OSError, ImapToolsError) as error:
@@ -53,7 +78,7 @@ class IdleLoops:
     def _poll_idle(
         self,
         handle: WatcherHandle,
-        box,
+        session: _IdleSession,
         started: float,
         last_live: float,
     ) -> str | None:
@@ -71,9 +96,9 @@ class IdleLoops:
                 try:
                     # NOOP is not allowed while IDLE is active: end IDLE,
                     # check liveness, then start IDLE again.
-                    box.idle.stop()
-                    box.noop()
-                    box.idle.start()
+                    session.stop()
+                    session.noop()
+                    session.start()
                 except (imaplib.IMAP4.error, OSError, ImapToolsError) as error:
                     handle.mode = "stale"
                     self._stale(handle, round(silent))
@@ -81,7 +106,7 @@ class IdleLoops:
                 last_live = time.monotonic()
                 started = last_live
                 silent = 0.0
-            responses = box.idle.poll(
+            responses = session.poll(
                 timeout=min(1.0, remaining, max(0.1, heartbeat - silent))
             )
             if responses:
