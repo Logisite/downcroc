@@ -13,6 +13,7 @@ from downcroc.cli.ui.tree.state import Globals, LeafState, Session
 
 MENU_ONLY = {
     ("account",),
+    ("account", "transport"),
     ("provider",),
     ("batch",),
     ("template",),

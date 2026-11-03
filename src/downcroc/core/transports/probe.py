@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.transports import validation
-from downcroc.domain.accounts import Account
-from downcroc.domain.errors import AccountNeedsReauth
+from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.domain.errors import AccountNeedsReauth, DomainError
 from downcroc.domain.providers import ProviderSpec
 from downcroc.domain.transports import AccountTransport, TransportKind
 from downcroc.mail.gmail import api as gmail_api
@@ -43,6 +43,18 @@ class TransportProbe:
         binding = self._transports.get(account_id, binding_id)
         account = self._accounts.get(account_id)
         spec = self._registry.get(account.provider)
+        if account.status is AccountStatus.PENDING:
+            return self._refused(
+                binding,
+                "account_pending",
+                "connect the account before testing a transport",
+            )
+        if account.status is AccountStatus.NEEDS_REAUTH:
+            return self._refused(
+                binding,
+                "account_needs_reauth",
+                "the mailbox must be reconnected before testing a transport",
+            )
         if binding.kind is TransportKind.GMAIL_API:
             return await self._test_api(binding, account, spec)
         return await self._test_smtp(binding, account, spec)
@@ -76,12 +88,39 @@ class TransportProbe:
                 "message": error.message,
                 "health": updated.health.value,
             }
+        except DomainError as error:
+            updated = self._transports.mark_failure(
+                binding,
+                code=error.code,
+                message=error.message,
+                transient=False,
+                auth=True,
+            )
+            return {
+                "ok": False,
+                "code": error.code,
+                "message": error.message,
+                "health": updated.health.value,
+            }
         updated = self._transports.mark_success(binding)
         return {
             "ok": True,
             "code": None,
             "message": "the smtp session connected and authenticated",
             "health": updated.health.value,
+        }
+
+    @staticmethod
+    def _refused(
+        binding: AccountTransport,
+        code: str,
+        message: str,
+    ) -> dict[str, object]:
+        return {
+            "ok": False,
+            "code": code,
+            "message": message,
+            "health": binding.health.value,
         }
 
     async def _test_api(
@@ -131,6 +170,20 @@ class TransportProbe:
                 "ok": False,
                 "code": error.code,
                 "message": validation.api_message(error, project_id),
+                "health": updated.health.value,
+            }
+        except DomainError as error:
+            updated = self._transports.mark_failure(
+                binding,
+                code=error.code,
+                message=error.message,
+                transient=False,
+                auth=True,
+            )
+            return {
+                "ok": False,
+                "code": error.code,
+                "message": error.message,
                 "health": updated.health.value,
             }
         updated = self._transports.mark_success(binding)

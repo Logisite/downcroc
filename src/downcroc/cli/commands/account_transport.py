@@ -27,7 +27,7 @@ def run(client, args: object, ui: Ui) -> int:
             action = "list"
         else:
             action = _choose_action(ui)
-    account_id = args.account_id or account_view.choose_account(
+    account_id = getattr(args, "account_id", None) or account_view.choose_account(
         client, ui, "manage transports for"
     )
     if action == "list":
@@ -114,7 +114,7 @@ def _choose_binding(client, account_id: str, ui: Ui, verb: str) -> str:
 
 
 def _add(client, account_id: str, args: object, ui: Ui) -> int:
-    kind = args.kind
+    kind = getattr(args, "kind", None)
     if not kind:
         if not ui.interactive:
             raise CliError(
@@ -125,8 +125,8 @@ def _add(client, account_id: str, args: object, ui: Ui) -> int:
         kind = prompts.choose("Send mechanism", KINDS, ui=ui, back=False)
         if kind is None:
             raise CliError("cancelled", code="cancelled")
-    concurrency = args.max_concurrency
-    rate = args.rate_per_min
+    concurrency = getattr(args, "max_concurrency", None)
+    rate = getattr(args, "rate_per_min", None)
     if kind == "gmail_api":
         if concurrency is None:
             concurrency = _ask_int("Parallel API sends", ui, default=2)
@@ -134,7 +134,7 @@ def _add(client, account_id: str, args: object, ui: Ui) -> int:
             rate = _ask_optional_int("API calls per minute", ui)
     body = {
         "kind": kind,
-        "priority": args.priority,
+        "priority": getattr(args, "priority", 0),
         "max_concurrency": concurrency or 1,
         "rate_per_min": rate,
         "oauth_client_id": getattr(args, "oauth_client", None),
@@ -144,7 +144,7 @@ def _add(client, account_id: str, args: object, ui: Ui) -> int:
 
 
 def _set(client, account_id: str, args: object, ui: Ui) -> int:
-    binding_id = args.binding_id
+    binding_id = getattr(args, "binding_id", None)
     if not binding_id:
         if not ui.interactive:
             raise CliError(
@@ -154,14 +154,18 @@ def _set(client, account_id: str, args: object, ui: Ui) -> int:
             )
         binding_id = _choose_binding(client, account_id, ui, "change")
     changes: dict[str, object] = {}
-    if args.priority is not None:
-        changes["priority"] = args.priority
-    if args.max_concurrency is not None:
-        changes["max_concurrency"] = args.max_concurrency
-    if args.rate_per_min is not None:
-        changes["rate_per_min"] = args.rate_per_min
-    if args.enabled is not None:
-        changes["enabled"] = args.enabled
+    priority = getattr(args, "priority", None)
+    concurrency = getattr(args, "max_concurrency", None)
+    rate = getattr(args, "rate_per_min", None)
+    enabled = getattr(args, "enabled", None)
+    if priority is not None:
+        changes["priority"] = priority
+    if concurrency is not None:
+        changes["max_concurrency"] = concurrency
+    if rate is not None:
+        changes["rate_per_min"] = rate
+    if enabled is not None:
+        changes["enabled"] = enabled
     if not changes:
         if not ui.interactive:
             raise CliError(
@@ -199,7 +203,7 @@ def _ask_changes(client, account_id: str, binding_id: str, ui: Ui) -> dict:
 
 
 def _remove(client, account_id: str, args: object, ui: Ui) -> int:
-    binding_id = args.binding_id
+    binding_id = getattr(args, "binding_id", None)
     if not binding_id:
         if not ui.interactive:
             raise CliError(
@@ -226,7 +230,7 @@ def _remove(client, account_id: str, args: object, ui: Ui) -> int:
 
 
 def _test(client, account_id: str, args: object, ui: Ui) -> int:
-    binding_id = args.binding_id
+    binding_id = getattr(args, "binding_id", None)
     if not binding_id:
         if not ui.interactive:
             raise CliError(
