@@ -52,7 +52,10 @@ def provider(commands: argparse._SubParsersAction) -> None:
     )
     credential_set.add_argument("provider_id", nargs="?")
     credential_set.add_argument(
-        "--client", metavar="PATH", help="path to the client JSON"
+        "--client",
+        dest="client_path",
+        metavar="PATH",
+        help="path to the client JSON",
     )
     credential_set.add_argument("--label", help="a name for this client")
     common(credential_set)

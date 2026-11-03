@@ -55,9 +55,10 @@ def _out(
 
 
 @router.get("", response_model=list[AccountOut])
-def list_accounts(request: Request) -> list[AccountOut]:
+def list_accounts(request: Request, archived: bool = False) -> list[AccountOut]:
     modes = _modes(request)
-    return [_out(request, account, modes) for account in _service(request).list()]
+    rows = _service(request).list(archived=archived)
+    return [_out(request, account, modes) for account in rows]
 
 
 @router.post("", response_model=AccountOut, status_code=201)

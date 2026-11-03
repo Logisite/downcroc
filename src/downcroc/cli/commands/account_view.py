@@ -8,13 +8,17 @@ from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui
 
 
-def choose_account(client, ui: Ui, verb: str) -> str:
-    rows = get(client, "/api/accounts")
+def choose_account(client, ui: Ui, verb: str, *, archived: bool = False) -> str:
+    params = {"archived": "true"} if archived else {}
+    rows = get(client, "/api/accounts", **params)
     if not rows:
+        hint = "archive an account first" if archived else "run downcroc account add"
         raise CliError(
-            "no accounts are configured",
+            "no archived accounts are available"
+            if archived
+            else "no accounts are configured",
             code="usage",
-            hint="run downcroc account add",
+            hint=hint,
             exit_code=2,
         )
     chosen = prompts.choose(
@@ -28,9 +32,18 @@ def choose_account(client, ui: Ui, verb: str) -> str:
     return str(chosen)
 
 
-def listing(rows: list[dict], ui: Ui) -> None:
+def listing(rows: list[dict], ui: Ui, *, archived: bool = False) -> None:
     table(
-        ["id", "address", "provider", "status", "credential", "watcher", "error"],
+        [
+            "id",
+            "address",
+            "provider",
+            "status",
+            "credential",
+            "watcher",
+            "archived",
+            "error",
+        ],
         [
             [
                 item["id"],
@@ -41,11 +54,17 @@ def listing(rows: list[dict], ui: Ui) -> None:
                 else item["status"],
                 "yes" if item["credential_present"] else "no",
                 "on" if item["watcher_enabled"] else "off",
+                item.get("archived_at") or "",
                 item["last_error"],
             ]
             for item in rows
         ],
     )
+    if archived:
+        if not ui.quiet:
+            print()
+            print("next: run downcroc account unarchive ACCOUNT")
+        return
     attention = [item for item in rows if item["status"] != "connected"]
     for item in attention:
         print()
@@ -92,7 +111,7 @@ def show(account: dict) -> None:
     )
 
 
-def added(account: dict, ui: Ui) -> int:
+def added(account: dict, ui: Ui, *, hint: bool = True) -> int:
     if ui.json_mode:
         json_out(account)
         return 0
@@ -102,7 +121,8 @@ def added(account: dict, ui: Ui) -> int:
             "status": account["status"],
         }
     )
-    print(f"next: downcroc account connect {account['id']}")
+    if hint:
+        print(f"next: downcroc account connect {account['id']}")
     return 0
 
 

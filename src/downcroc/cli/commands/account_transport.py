@@ -235,18 +235,31 @@ def _test(client, account_id: str, args: object, ui: Ui) -> int:
                 exit_code=2,
             )
         binding_id = _choose_binding(client, account_id, ui, "test")
-    result = post(client, f"/api/accounts/{account_id}/transports/{binding_id}/test")
+    try:
+        result = post(
+            client, f"/api/accounts/{account_id}/transports/{binding_id}/test"
+        )
+    except CliError as error:
+        if error.code == "daemon_timeout":
+            budget = float(getattr(client, "budget", 0) or 0)
+            raise CliError(
+                f"the transport probe was still running after {budget:.0f}s",
+                code="transport_test_timeout",
+                hint="retry with --timeout 120, then read `downcroc logs --event transport`",
+            ) from error
+        raise
     if ui.json_mode:
         json_out(result)
         return 0
-    record(
-        {
-            "transport": binding_id,
-            "result": "ok" if result["ok"] else result["code"],
-            "health": result["health"],
-            "detail": result["message"],
-        }
-    )
+    fields = {
+        "transport": binding_id,
+        "result": "connected" if result["ok"] else "failed",
+        "health": result["health"],
+    }
+    if not result["ok"] and result.get("code"):
+        fields["code"] = result["code"]
+    fields["reason"] = result["message"]
+    record(fields)
     return 0
 
 

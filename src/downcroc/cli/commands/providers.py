@@ -322,9 +322,9 @@ def run(args: object) -> int:
     if action == "credentials":
         return provider_credentials.run(args, ui)
     if action is None and ui.interactive:
-        from downcroc.cli.ui.menus import providers_menu
+        from downcroc.cli.ui.tree import open_path
 
-        providers_menu(ui)
+        open_path(ui, ("provider",))
         return 0
     if action in {"show", "edit", "remove"} and not getattr(args, "provider_id", None):
         if not ui.interactive:

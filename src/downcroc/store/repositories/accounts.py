@@ -69,13 +69,17 @@ class AccountRepo(AccountDeletionRepo):
     def __init__(self, sessions: sessionmaker[Session]) -> None:
         self._sessions = sessions
 
-    def list(self, *, include_archived: bool = False) -> list[Account]:
+    def list(
+        self, *, include_archived: bool = False, archived_only: bool = False
+    ) -> list[Account]:
         query = (
             select(AccountRow, AccountStateRow)
             .outerjoin(AccountStateRow, AccountStateRow.account_id == AccountRow.id)
             .order_by(AccountRow.created_at, AccountRow.id)
         )
-        if not include_archived:
+        if archived_only:
+            query = query.where(AccountRow.archived_at.is_not(None))
+        elif not include_archived:
             query = query.where(AccountRow.archived_at.is_(None))
         with self._sessions() as session:
             rows = session.execute(query).all()

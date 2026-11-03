@@ -165,11 +165,11 @@ def run(args: object) -> int:
     ui = build(args)
     action = getattr(args, "action", None)
     if action is None:
-        if open_menu(ui, "settings_menu"):
+        if open_menu(ui, "config_menu"):
             return 0
         action = "show"
     if action == "set" and not getattr(args, "key", None):
-        if open_menu(ui, "settings_menu"):
+        if open_menu(ui, "config_set"):
             return 0
         raise CliError("config set needs a field", code="usage", exit_code=2)
     with api(paths) as client:

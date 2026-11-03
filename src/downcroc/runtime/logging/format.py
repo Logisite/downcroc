@@ -86,9 +86,14 @@ def render(entry: dict[str, Any], colour: bool = True) -> str:
     )
     if colour:
         tint = LEVEL_COLOUR.get(level, "")
+        event_tint = (
+            f"{EVENT_COLOUR}{BOLD}"
+            if level in {"warning", "error", "critical"}
+            else EVENT_COLOUR
+        )
         head = (
             f"{DIM}{stamp}{RESET}  {tint}{level:<7}{RESET}  "
-            f"{EVENT_COLOUR}{BOLD}{event:<24}{RESET}"
+            f"{event_tint}{event:<24}{RESET}"
         )
         pairs = f"  {DIM}{fields}{RESET}" if fields else ""
         return (head + pairs).rstrip()

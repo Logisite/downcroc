@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from contextlib import contextmanager
 from typing import Self
 
 from downcroc.cli.errors import Cancelled
@@ -96,6 +97,26 @@ class Keys:
 
     def read(self) -> str:
         return self._read_windows() if self._windows else self._read_posix()
+
+    @contextmanager
+    def cooked(self):
+        """Run command output with normal newline translation.
+
+        A command prints while the editor still owns a raw terminal. Without
+        this, a wrapped line leaves the cursor in the wrong column and the next
+        printed line starts to the right.
+        """
+        if self._windows or self._saved is None:
+            yield
+            return
+        import termios
+        import tty
+
+        termios.tcsetattr(self._fd, termios.TCSADRAIN, self._saved)
+        try:
+            yield
+        finally:
+            tty.setraw(self._fd)
 
     def _read_windows(self) -> str:
         import msvcrt

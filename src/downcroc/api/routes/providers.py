@@ -24,31 +24,26 @@ def _registry(request: Request) -> ProviderRegistry:
     return _services(request).providers
 
 
-def _out(registry: ProviderRegistry, provider_id: str) -> ProviderOut:
-    spec = registry.get(provider_id)
-    source = registry.source_of(provider_id)
-    return ProviderOut.of(spec, source=str(source) if source else None)
+def _out(services: Services, provider_id: str) -> ProviderOut:
+    spec = services.providers.get(provider_id)
+    source = services.providers.source_of(provider_id)
+    imported = bool(services.oauth_clients.list(provider_id))
+    return ProviderOut.of(
+        spec,
+        source=str(source) if source else None,
+        oauth_client_imported=imported,
+    )
 
 
 @router.get("", response_model=list[ProviderOut])
 def list_providers(request: Request) -> list[ProviderOut]:
-    registry = _registry(request)
-    return [
-        ProviderOut.of(
-            spec,
-            source=(
-                str(registry.source_of(spec.id))
-                if registry.source_of(spec.id)
-                else None
-            ),
-        )
-        for spec in registry.list()
-    ]
+    services = _services(request)
+    return [_out(services, spec.id) for spec in services.providers.list()]
 
 
 @router.get("/{provider_id}", response_model=ProviderOut)
 def get_provider(provider_id: str, request: Request) -> ProviderOut:
-    return _out(_registry(request), provider_id)
+    return _out(_services(request), provider_id)
 
 
 @router.post("/reload", response_model=list[ProviderOut])
@@ -88,7 +83,7 @@ def put_provider(provider_id: str, body: ProviderIn, request: Request) -> Provid
                 "field": error.field or "",
             },
         ) from error
-    return _out(registry, provider_id)
+    return _out(_services(request), provider_id)
 
 
 @router.delete("/{provider_id}", status_code=204)

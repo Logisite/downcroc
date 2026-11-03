@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from downcroc.cli import paths as path_tools
-from downcroc.cli.client import api, delete, get, patch, post, put
+from downcroc.cli.client import DEFAULT_TIMEOUT_S, api, delete, get, patch, post, put
 from downcroc.cli.commands import account_transport, account_view, oauth_setup
 from downcroc.cli.commands.account_connect import (
     connect_now,
     connected,
+    expires_in,
     wait,
 )
 from downcroc.cli.commands.policy import account_policy
@@ -42,9 +43,7 @@ def _choose_provider(client, ui: Ui) -> str:
         prompts.Option(
             row["label"],
             row["id"],
-            detail=row["id"]
-            if row["ready"]
-            else "needs setup: " + ", ".join(row["missing"]),
+            detail=_provider_detail(row),
         )
         for row in rows
     ]
@@ -52,6 +51,14 @@ def _choose_provider(client, ui: Ui) -> str:
     if chosen is None:
         raise CliError("cancelled", code="cancelled")
     return str(chosen)
+
+
+def _provider_detail(row: dict) -> str:
+    if not row["ready"]:
+        return "needs setup: " + ", ".join(row["missing"])
+    if row["auth_kind"] == "oauth2":
+        return "browser sign-in, recommended"
+    return "app password"
 
 
 def _add(client, args: object, ui: Ui) -> dict:
@@ -124,18 +131,34 @@ def _find_account(client, address: str) -> dict | None:
     )
 
 
+def _timeout(args: object, settings) -> float:
+    given = getattr(args, "timeout", None)
+    if given is not None:
+        return float(given)
+    if (
+        getattr(args, "action", None) == "transport"
+        and getattr(args, "transport_action", None) == "test"
+    ):
+        probe = max(
+            settings.outbound.smtp_timeout_s,
+            settings.outbound.api_timeout_s,
+        )
+        return probe + 5.0
+    return DEFAULT_TIMEOUT_S
+
+
 def run(args: object) -> int:
-    paths, _, _ = load()
+    paths, settings, _ = load()
     ui = build(args)
     action = getattr(args, "action", None)
     if action is None:
         if ui.interactive:
-            from downcroc.cli.ui.menus import accounts_menu
+            from downcroc.cli.ui.tree import open_path
 
-            accounts_menu(ui)
+            open_path(ui, ("account",))
             return 0
         action = "list"
-    with api(paths) as client:
+    with api(paths, timeout=_timeout(args, settings)) as client:
         if action in {
             "show",
             "delete",
@@ -156,7 +179,12 @@ def run(args: object) -> int:
                     code="usage",
                     exit_code=2,
                 )
-            args.account_id = account_view.choose_account(client, ui, action)
+            args.account_id = account_view.choose_account(
+                client,
+                ui,
+                action,
+                archived=action == "unarchive",
+            )
         if action in {"list", "home"}:
             return _listing(client, args, ui)
         if action == "providers":
@@ -168,7 +196,8 @@ def run(args: object) -> int:
             return 0
         if action == "add":
             account = _add(client, args, ui)
-            return account_view.added(account, ui)
+            account_view.added(account, ui, hint=not ui.interactive)
+            return _offer_connect(client, account, args, ui)
         if action == "delete":
             return _delete(client, args, ui)
         if action == "deletion":
@@ -255,18 +284,19 @@ def run(args: object) -> int:
 
 
 def _listing(client, args: object, ui: Ui) -> int:
-    rows = get(client, "/api/accounts")
+    archived = bool(getattr(args, "archived", False))
+    rows = get(client, "/api/accounts", archived="true" if archived else None)
     if ui.json_mode:
         json_out(rows)
         return 0
     if not rows:
-        print("no accounts yet")
-        if not ui.quiet:
+        print("no archived accounts" if archived else "no accounts yet")
+        if not ui.quiet and not archived:
             print(
                 "next: downcroc account add --provider gmail --address you@example.com"
             )
         return 0
-    account_view.listing(rows, ui)
+    account_view.listing(rows, ui, archived=archived)
     return 0
 
 
@@ -345,7 +375,7 @@ def _attempt(client, args: object, ui: Ui) -> int:
     attempt = post(client, f"/api/accounts/{args.account_id}/attempts", **params)
     if not ui.json_mode:
         print(f"open {attempt['authorization_url']}")
-        print(f"the link expires at {attempt['expires_at']}")
+        print(f"the link expires in {expires_in(attempt)}")
     if not args.wait:
         if ui.json_mode:
             json_out(attempt)
@@ -364,6 +394,30 @@ def _attempt(client, args: object, ui: Ui) -> int:
 def _connect(client, args: object, ui: Ui) -> int:
     account = get(client, f"/api/accounts/{args.account_id}")
     updated = connect_now(client, account, args, ui)
+    connected(updated, ui)
+    return 0
+
+
+def _offer_connect(client, account: dict, args: object, ui: Ui) -> int:
+    if not ui.interactive or account["status"] != "pending":
+        return 0
+    provider = get(client, f"/api/providers/{account['provider']}")
+    question = (
+        "Open the browser sign-in for this mailbox now?"
+        if provider["auth_kind"] == "oauth2"
+        else "Enter the app password for this mailbox now?"
+    )
+    if not prompts.confirm(question, ui=ui, default=True):
+        print(f"next: downcroc account connect {account['id']}")
+        return 0
+    try:
+        updated = connect_now(client, account, args, ui)
+    except CliError as error:
+        print(ui.result(False, error.label))
+        if error.hint:
+            print(f"  hint: {error.hint}")
+        print(f"resume with: downcroc account connect {account['id']}")
+        return 0
     connected(updated, ui)
     return 0
 

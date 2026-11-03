@@ -185,14 +185,22 @@ def _account_step(args: object, ui: Ui) -> dict | None:
 
 
 def _gmail_door(args: object, ui: Ui, rows: list[dict]) -> str | None:
-    ready = {row["id"]: row for row in rows}
-    doors = []
-    for key, label, cost in (
-        ("gmail-app-password", "App password", "about 2 minutes, no browser"),
-        ("gmail", "OAuth client", "about 10 minutes in the console, once"),
-    ):
-        note = "" if key in ready else "not declared"
-        doors.append(prompts.Option(label, key, cost if not note else note))
+    declared = {row["id"] for row in rows}
+    doors = [
+        prompts.Option(
+            "OAuth client",
+            "gmail",
+            "recommended; API lanes and faster sends",
+        ),
+        prompts.Option(
+            "App password",
+            "gmail-app-password",
+            "fallback; one throttled SMTP seat",
+        ),
+    ]
+    for index, door in enumerate(doors):
+        if door.value not in declared:
+            doors[index] = prompts.Option(door.label, door.value, "not declared")
     if not ui.interactive:
         raise CliError(
             "the Gmail sign-in method is required",

@@ -91,7 +91,9 @@ class AccountsService(AccountLoginMixin):
         self._log.info("account.created", account=account.id, provider=provider)
         return account
 
-    def list(self) -> list[Account]:
+    def list(self, *, archived: bool = False) -> list[Account]:
+        if archived:
+            return self._accounts.list(archived_only=True)
         return self._accounts.list()
 
     def get(self, account_id: str) -> Account:

@@ -47,7 +47,7 @@ def _set(args: object, ui: Ui) -> int:
     with api(paths) as client:
         if not getattr(args, "provider_id", None):
             args.provider_id = choose_provider(client, ui, "Provider for this client")
-        path = getattr(args, "client", None)
+        path = getattr(args, "client_path", None)
         if not path:
             if not ui.interactive:
                 raise no_terminal("--client")

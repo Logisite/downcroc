@@ -377,10 +377,10 @@ def home(args: object, ui: Ui) -> int:
         code = run_args(ui, *argv)
         if code != 0:
             return code
-    from downcroc.cli.ui.menus import home_menu
+    from downcroc.cli.ui.tree import open_path
 
     try:
-        home_menu(ui)
+        open_path(ui)
     except CliError as error:
         if error.code != "cancelled":
             raise

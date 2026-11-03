@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from downcroc.domain.accounts import Account
 from downcroc.domain.attempts import ConnectAttempt
 from downcroc.domain.policy import SendPolicy
-from downcroc.domain.providers import ProviderSpec
+from downcroc.domain.providers import AuthKind, ProviderSpec
 from downcroc.domain.transports import AccountTransport
 from downcroc.providers.registry import readiness
 
@@ -333,8 +333,21 @@ class ProviderOut(BaseModel):
     source: str | None = None
 
     @classmethod
-    def of(cls, spec: ProviderSpec, *, source: str | None = None) -> ProviderOut:
+    def of(
+        cls,
+        spec: ProviderSpec,
+        *,
+        source: str | None = None,
+        oauth_client_imported: bool = False,
+    ) -> ProviderOut:
         ready, missing = readiness(spec)
+        if oauth_client_imported and spec.auth_kind is AuthKind.OAUTH2:
+            missing = [
+                item
+                for item in missing
+                if item not in {"oauth_client_id", "oauth_client_secret"}
+            ]
+            ready = not missing
         return cls(
             id=spec.id,
             label=spec.label,
@@ -350,7 +363,7 @@ class ProviderOut(BaseModel):
             requires_user_agent=spec.requires_user_agent,
             attachment_max_bytes=spec.attachment_max_bytes,
             notes=spec.notes,
-            oauth_configured=spec.oauth_configured,
+            oauth_configured=spec.oauth_configured or oauth_client_imported,
             transport=spec.transport,
             api_base_url=spec.api_base_url,
             api_max_concurrency=spec.api_max_concurrency,

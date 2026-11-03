@@ -62,6 +62,11 @@ def account(commands: argparse._SubParsersAction) -> None:
     actions = parser.add_subparsers(dest="action", required=False)
 
     listing = actions.add_parser("list", help="list accounts")
+    listing.add_argument(
+        "--archived",
+        action="store_true",
+        help="list archived accounts instead",
+    )
     common(listing)
 
     show = actions.add_parser("show", help="show one account")

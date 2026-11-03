@@ -5,7 +5,7 @@ from typing import Any
 
 from downcroc.cli.client import delete, get, post
 from downcroc.cli.commands import oauth_setup
-from downcroc.cli.commands.account_connect import wait
+from downcroc.cli.commands.account_connect import expires_in, wait
 from downcroc.cli.errors import CliError
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui
@@ -196,7 +196,7 @@ def _signin(session: _Session) -> str:
         )
         print()
         print(f"Open this URL:\n  {session.attempt['authorization_url']}")
-        print(f"It expires at {session.attempt['expires_at']}")
+        print(f"It expires in {expires_in(session.attempt)}")
         webbrowser.open(session.attempt["authorization_url"])
     choice = _choose(
         session.ui,

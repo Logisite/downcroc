@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import time
+from datetime import UTC, datetime
 
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import get, post
@@ -10,10 +11,27 @@ from downcroc.cli.errors import CliError, no_terminal
 from downcroc.cli.output import json_out, record
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui
+from downcroc.runtime.clock import parse_utc
 
 MAX_ATTEMPTS = 3
 DEFAULT_WAIT_S = 300.0
 _ATTEMPT_FAILED = {"failed", "cancelled", "expired"}
+
+
+def expires_in(attempt: dict) -> str:
+    """Describe how long a sign-in link stays valid, not its wall clock time."""
+    value = str(attempt.get("expires_at") or "")
+    try:
+        left = parse_utc(value) - datetime.now(UTC)
+    except ValueError:
+        return value or "unknown"
+    minutes = int(left.total_seconds() // 60)
+    if minutes < 1:
+        return "under a minute"
+    if minutes < 60:
+        return f"{minutes} min"
+    hours, rest = divmod(minutes, 60)
+    return f"{hours} h {rest} min" if rest else f"{hours} h"
 
 
 def password(args: object, ui: Ui, *, flag: str = "--password-stdin") -> str:
@@ -170,10 +188,7 @@ def _oauth(client, account: dict, args: object, ui: Ui) -> dict:
     attempt = post(client, f"/api/accounts/{account['id']}/attempts", **params)
     if not ui.json_mode:
         print(f"open {attempt['authorization_url']}", file=sys.stderr)
-        print(
-            f"the link expires at {attempt['expires_at']}",
-            file=sys.stderr,
-        )
+        print(f"the link expires in {expires_in(attempt)}", file=sys.stderr)
     redirect = getattr(args, "redirect_url", None)
     if redirect:
         oauth_setup.deliver_redirect(redirect)
