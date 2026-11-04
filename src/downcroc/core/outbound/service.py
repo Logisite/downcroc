@@ -9,6 +9,7 @@ from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound.attempts import AttemptRecorder
 from downcroc.core.outbound.gmail_delivery import GmailDelivery
 from downcroc.core.outbound.job_facade import JobFacadeMixin
+from downcroc.core.outbound.manual import ManualJobs
 from downcroc.core.outbound.quota_accountant import QuotaAccountant
 from downcroc.core.outbound.reconcile import SentReconciler
 from downcroc.core.outbound.smtp_delivery import SmtpDelivery
@@ -63,6 +64,7 @@ class OutboundService(JobFacadeMixin):
         transports: TransportService,
         policy: PolicyResolver,
         quota: QuotaRepo,
+        manual: ManualJobs,
         connectivity: object | None = None,
     ) -> None:
         self._jobs = jobs
@@ -76,6 +78,7 @@ class OutboundService(JobFacadeMixin):
         self._transports = transports
         self._policy = policy
         self._quota = quota
+        self._manual = manual
         self._credentials = CredentialResolver(accounts, vault, tokens, clients)
         self._accountant = QuotaAccountant(quota, send_attempts, bus, log)
         self._pool = SmtpSessionPool(settings, log)

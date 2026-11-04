@@ -170,3 +170,4 @@ class MailPruneOut(BaseModel):
     bytes: int
     dry_run: bool
     account_id: str | None = None
+    stats_rebuilt: bool = True

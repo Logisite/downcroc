@@ -188,17 +188,20 @@ class JobRepo(JobSenderRepo, JobStateRepo):
             session.delete(row)
         return job
 
-    def activity_rows(self) -> list[tuple[str, str | None, str | None, str]]:
+    def activity_rows(
+        self,
+    ) -> list[tuple[str, str | None, str | None, str | None, str]]:
         with self._sessions() as session:
             rows = session.execute(
                 select(
+                    JobRow.id,
                     JobRow.account_id,
                     JobRow.sent_at,
                     JobRow.updated_at,
                     JobRow.state,
                 )
             )
-            return [(row[0], row[1], row[2], row[3]) for row in rows]
+            return [(row[0], row[1], row[2], row[3], row[4]) for row in rows]
 
     def prunable(self, cutoff: str, keep: int) -> list[Job]:
         terminal = (

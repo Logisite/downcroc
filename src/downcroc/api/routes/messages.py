@@ -66,6 +66,7 @@ def prune_mail(body: MailPruneRequest, request: Request) -> MailPruneOut:
     if not body.dry_run:
         require(body.confirm)
     services = _services(request)
+    stats_rebuilt = True
     with MAINTENANCE:
         chosen = services.messages.prunable_self(account_id=body.account_id)
         size = sum(item.bytes for item in chosen)
@@ -74,12 +75,20 @@ def prune_mail(body: MailPruneRequest, request: Request) -> MailPruneOut:
                 for path in item.attachment_paths:
                     services.content.discard(path)
             services.messages.delete_mail([item.message_id for item in chosen])
-            services.stats.rebuild(None)
+            try:
+                services.stats.rebuild(None)
+            except Exception as error:  # noqa: BLE001 - the mail is already gone
+                stats_rebuilt = False
+                request.app.state.log.error(
+                    "mail.prune_stats_failed",
+                    error=type(error).__name__,
+                )
     return MailPruneOut(
         messages=len(chosen),
         bytes=size,
         dry_run=body.dry_run,
         account_id=body.account_id,
+        stats_rebuilt=stats_rebuilt,
     )
 
 

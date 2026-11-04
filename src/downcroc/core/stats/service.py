@@ -28,6 +28,7 @@ from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
 from downcroc.store.repositories.quota import QuotaRepo
+from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 
 class StatsService:
@@ -43,6 +44,7 @@ class StatsService:
         quota: QuotaRepo,
         policy: PolicyResolver,
         log: EventLogger,
+        send_attempts: SendAttemptRepo,
     ) -> None:
         self._settings = settings
         self._activity = activity
@@ -60,6 +62,7 @@ class StatsService:
             accounts,
             jobs,
             messages,
+            send_attempts,
             self._updater,
             policy,
             log,

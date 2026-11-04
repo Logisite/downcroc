@@ -14,6 +14,7 @@ from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.activity import ActivityRepo, day_key, hour_key
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
+from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 SENT_STATES = frozenset({"sent", "sent_unconfirmed"})
 
@@ -32,6 +33,7 @@ class RebuildService:
         accounts: AccountRepo,
         jobs: JobRepo,
         messages: MessageRepo,
+        send_attempts: SendAttemptRepo,
         counters: BatchCounterUpdater,
         policy: PolicyResolver,
         log: EventLogger,
@@ -40,6 +42,7 @@ class RebuildService:
         self._accounts = accounts
         self._jobs = jobs
         self._messages = messages
+        self._send_attempts = send_attempts
         self._counters = counters
         self._policy = policy
         self._log = log
@@ -75,6 +78,7 @@ class RebuildService:
                 message_rows,
                 covered,
                 allowances,
+                self._send_attempts.attribution(),
             )
             _merge_suppressed(
                 hourly,
@@ -118,17 +122,21 @@ def _since_day(since: str | None) -> str | None:
 
 
 def _build_activity(
-    job_rows: list[tuple[str, str | None, str | None, str]],
+    job_rows: list[tuple[str, str | None, str | None, str | None, str]],
     message_rows: list[tuple[str, str, bool, str, str | None]],
     since_day: str | None,
     allowances: dict[str, int],
+    attribution: dict[str, str],
 ) -> tuple[
     dict[tuple[str, str], dict[str, int]], dict[tuple[str, str], dict[str, int]]
 ]:
     hourly: dict[tuple[str, str], dict[str, int]] = {}
     daily: dict[tuple[str, str], dict[str, int]] = {}
 
-    for account_id, sent_at, updated_at, state in job_rows:
+    for job_id, account_id, sent_at, updated_at, state in job_rows:
+        account_id = account_id or attribution.get(job_id)
+        if account_id is None:
+            continue
         if state in SENT_STATES and sent_at:
             _bump(hourly, daily, account_id, sent_at, "sent", since_day, allowances)
         if state == "failed" and updated_at:

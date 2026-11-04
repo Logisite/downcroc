@@ -20,6 +20,7 @@ from downcroc.core.holds import HoldsService
 from downcroc.core.inbound import InboundService
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound import OutboundService
+from downcroc.core.outbound.manual import ManualJobs
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.policy_service import PolicyService
 from downcroc.core.portability import PortabilityService
@@ -145,6 +146,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         quota_repo,
         policy,
         log,
+        send_attempts,
     )
     clients = OAuthClientService(
         oauth_client_repo,
@@ -221,6 +223,13 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         transports,
         policy,
         quota_repo,
+        ManualJobs(
+            account_repo,
+            job_repo,
+            content,
+            transports,
+            policy,
+        ),
         connectivity_state,
     )
     inbound.open()

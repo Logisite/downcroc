@@ -239,6 +239,8 @@ def _prune(client, args: object, ui: Ui) -> int:
         return 0
     verb = "would remove" if result["dry_run"] else "removed"
     print(f"{verb} {result['messages']} messages ({result['bytes']} bytes)")
+    if not result.get("stats_rebuilt", True):
+        print("activity counters could not be rebuilt; run downcroc stats rebuild")
     return 0
 
 

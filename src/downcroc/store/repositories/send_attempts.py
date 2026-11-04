@@ -121,6 +121,23 @@ class SendAttemptRepo:
             )
             return [_to_attempt(row) for row in rows]
 
+    def attribution(self) -> dict[str, str]:
+        """Map job id to the account of its latest attributed attempt.
+
+        Auto-routed jobs deliberately keep ``account_id`` empty on the job row,
+        so the account that actually carried the message only exists here.
+        """
+        with self._sessions() as session:
+            rows = session.execute(
+                select(
+                    SendAttemptRow.job_id,
+                    SendAttemptRow.account_id,
+                )
+                .where(SendAttemptRow.account_id.is_not(None))
+                .order_by(SendAttemptRow.started_at, SendAttemptRow.id)
+            )
+            return {row[0]: row[1] for row in rows}
+
     def latest_for_job(self, job_id: str) -> SendAttempt | None:
         with self._sessions() as session:
             row = session.scalars(
