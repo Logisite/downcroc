@@ -64,6 +64,7 @@ class QuotaAccountant:
             self._quota.release(account.id, day)
             raise
         used, reserved_now = self._quota.status(account.id, day)
+        remaining = max(0, limit - used - reserved_now)
         self._log.info(
             "quota.reserved",
             account=account.id,
@@ -71,6 +72,7 @@ class QuotaAccountant:
             used=used,
             reserved=reserved_now,
             limit=limit,
+            remaining=remaining,
         )
         self._bus.publish(
             "quota.reserved",
@@ -80,15 +82,23 @@ class QuotaAccountant:
                 "used": used,
                 "reserved": reserved_now,
                 "limit": limit,
+                "remaining": remaining,
             },
         )
         return True
 
-    def commit(self, account_id: str, day: str, attempt_id: str) -> None:
+    def commit(
+        self,
+        account_id: str,
+        day: str,
+        attempt_id: str,
+        limit: int,
+    ) -> None:
         if self._attempts.quota_state(attempt_id) == "committed":
             return
         used = self._quota.commit(account_id, day)
         reserved = self._quota.reserved(account_id, day)
+        remaining = max(0, limit - used - reserved)
         self._attempts.set_quota(attempt_id, day, "committed")
         self._log.info(
             "quota.committed",
@@ -96,10 +106,19 @@ class QuotaAccountant:
             day=day,
             used=used,
             reserved=reserved,
+            limit=limit,
+            remaining=remaining,
         )
         self._bus.publish(
             "quota.committed",
-            {"account": account_id, "day": day, "used": used, "reserved": reserved},
+            {
+                "account": account_id,
+                "day": day,
+                "used": used,
+                "reserved": reserved,
+                "limit": limit,
+                "remaining": remaining,
+            },
         )
 
     def release(

@@ -5,7 +5,9 @@ import subprocess
 import sys
 import time
 import urllib.request
+from datetime import UTC, datetime
 from email.message import EmailMessage
+from email.utils import format_datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -84,12 +86,14 @@ def raw_message(
     subject: str = "Hello",
     body: str = "Body",
     sender: str = "sender@local.test",
+    date: datetime | None = None,
 ) -> bytes:
     message = EmailMessage()
     message["Message-ID"] = f"<{message_id}>"
     message["From"] = f"Sender <{sender}>"
     message["To"] = "gmail@local.test"
     message["Subject"] = subject
+    message["Date"] = format_datetime(date or datetime.now(UTC))
     message.set_content(body)
     return message.as_bytes()
 

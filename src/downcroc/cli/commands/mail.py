@@ -4,7 +4,7 @@ from email.message import Message
 from pathlib import Path
 
 from downcroc.cli import paths as path_tools
-from downcroc.cli.client import api, bytes_of, get, get_page
+from downcroc.cli.client import api, bytes_of, get, get_page, post
 from downcroc.cli.context import load
 from downcroc.cli.output import json_out, page_footer, record, table
 from downcroc.cli.ui import prompts
@@ -217,6 +217,31 @@ def _thread(client, args: object, ui: Ui) -> int:
     return 0
 
 
+def _prune(client, args: object, ui: Ui) -> int:
+    dry_run = bool(getattr(args, "dry_run", False))
+    if not dry_run:
+        prompts.confirm(
+            "remove inbox copies of mail sent by your own accounts?",
+            ui=ui,
+            yes_flag=bool(getattr(args, "yes", False)),
+        )
+    result = post(
+        client,
+        "/api/messages/prune",
+        {
+            "account_id": getattr(args, "account", None),
+            "dry_run": dry_run,
+            "confirm": not dry_run,
+        },
+    )
+    if ui.json_mode:
+        json_out(result)
+        return 0
+    verb = "would remove" if result["dry_run"] else "removed"
+    print(f"{verb} {result['messages']} messages ({result['bytes']} bytes)")
+    return 0
+
+
 def run(args: object) -> int:
     ui = build(args)
     paths, _, _ = load()
@@ -236,6 +261,8 @@ def run(args: object) -> int:
             return _save(args, ui, payload, disposition)
         if action == "thread":
             return _thread(client, args, ui)
+        if action == "prune":
+            return _prune(client, args, ui)
         message = get(client, f"/api/messages/{args.message_id}")
         if ui.json_mode:
             json_out(message)

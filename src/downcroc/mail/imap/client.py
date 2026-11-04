@@ -57,10 +57,18 @@ def search_initial(box: MailBox, days: int, limit: int) -> list[int]:
     criteria = "ALL"
     if days > 0:
         moment = datetime.now(UTC) - timedelta(days=days)
-        stamp = f"{moment.day:02d}-{calendar.month_abbr[moment.month]}-{moment.year}"
-        criteria = f"SINCE {stamp}"
+        criteria = f"SINCE {_imap_date(moment)}"
     uids = _search(box, criteria)
     return uids[-limit:]
+
+
+def search_since(box: MailBox, moment: datetime, limit: int) -> list[int]:
+    uids = _search(box, f"SINCE {_imap_date(moment)}")
+    return uids[-limit:]
+
+
+def _imap_date(moment: datetime) -> str:
+    return f"{moment.day:02d}-{calendar.month_abbr[moment.month]}-{moment.year}"
 
 
 def search_all(box: MailBox) -> list[int]:

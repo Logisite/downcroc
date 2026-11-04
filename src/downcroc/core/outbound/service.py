@@ -223,10 +223,11 @@ class OutboundService(JobFacadeMixin):
         day: str,
         attempt_id: str,
     ) -> Job:
+        limit = self._policy.effective(account).daily_allowance
         if outcome.status == "sent":
             sent = self._jobs.mark_sent(job.id, utc_now())
             self._sent(sent, account, started)
-            self._accountant.commit(account.id, day, attempt_id)
+            self._accountant.commit(account.id, day, attempt_id, limit)
             return sent
         if outcome.status == "uncertain":
             result = self._jobs.mark_sent_unconfirmed(
@@ -240,7 +241,7 @@ class OutboundService(JobFacadeMixin):
                 account=account.id,
                 code=outcome.code,
             )
-            self._accountant.commit(account.id, day, attempt_id)
+            self._accountant.commit(account.id, day, attempt_id, limit)
             return result
         if outcome.status == "reauth":
             self._accounts.mark_needs_reauth(

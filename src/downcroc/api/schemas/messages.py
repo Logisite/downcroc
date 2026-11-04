@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from downcroc.domain.messages import (
     Attachment,
@@ -155,3 +155,18 @@ class ThreadOut(BaseModel):
 class ThreadDetailOut(BaseModel):
     thread: ThreadOut
     messages: list[MessageSummaryOut]
+
+
+class MailPruneRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    account_id: str | None = None
+    dry_run: bool = False
+    confirm: bool = False
+
+
+class MailPruneOut(BaseModel):
+    messages: int
+    bytes: int
+    dry_run: bool
+    account_id: str | None = None

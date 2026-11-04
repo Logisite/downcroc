@@ -28,6 +28,7 @@ def reply_raw(
     references: tuple[str, ...] = (),
     date: datetime | None = None,
     text: str = "A reply",
+    headers: dict[str, str] | None = None,
 ) -> bytes:
     message = EmailMessage()
     message["From"] = f"Sender <{from_address}>"
@@ -39,6 +40,8 @@ def reply_raw(
     if references:
         message["References"] = " ".join(f"<{item.strip('<>')}>" for item in references)
     message["Date"] = format_datetime(date or datetime.now(UTC))
+    for name, value in (headers or {}).items():
+        message[name] = value
     message.set_content(text)
     return message.as_bytes()
 
@@ -54,6 +57,7 @@ def deliver_reply(
     references: tuple[str, ...] = (),
     date: datetime | None = None,
     text: str = "A reply",
+    headers: dict[str, str] | None = None,
 ) -> int:
     raw = reply_raw(
         to_address=to_address,
@@ -64,6 +68,7 @@ def deliver_reply(
         references=references,
         date=date,
         text=text,
+        headers=headers,
     )
     return fakes.deliver(to_address, raw)
 

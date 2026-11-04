@@ -144,6 +144,14 @@ class InboundSettings(BaseModel):
             "uses the Gmail API only as the completeness sweep."
         ),
     )
+    ingest_since_init: bool = Field(
+        default=True,
+        description=(
+            "Only ingest messages dated on or after this installation was "
+            "first initialized. Turn this off to backfill older mail up to "
+            "the configured initial-sync window."
+        ),
+    )
     api_poll_s: float = Field(
         default=60.0,
         ge=10,

@@ -45,6 +45,7 @@ class SweepScheduler:
         log: EventLogger,
         settings: InboundSettings,
         api_timeout_s: float,
+        initialized_at: str,
     ) -> None:
         self._queue = queue_
         self._tokens = tokens
@@ -54,6 +55,7 @@ class SweepScheduler:
         self._log = log
         self._settings = settings
         self._api_timeout_s = api_timeout_s
+        self._initialized_at = initialized_at
         self._stop = threading.Event()
 
     def start(self) -> threading.Thread:
@@ -188,8 +190,12 @@ class SweepScheduler:
         spec: ProviderSpec,
         token: str,
     ) -> list[GmailMessageRef]:
-        cutoff = _cutoff(account, self._settings.sweep_initial_days)
-        query = f"after:{cutoff} -in:spam -in:trash"
+        cutoff = _cutoff(
+            account,
+            self._settings.sweep_initial_days,
+            self._initialized_at if self._settings.ingest_since_init else None,
+        )
+        query = f"in:inbox after:{cutoff} -in:spam -in:trash"
         refs: dict[str, GmailMessageRef] = {}
         page: str | None = None
         while len(refs) < self._settings.sweep_limit and not self._stop.is_set():
@@ -276,13 +282,16 @@ def _order(account: Account) -> tuple[bool, str, str]:
     return (account.last_sweep_at is not None, account.last_sweep_at or "", account.id)
 
 
-def _cutoff(account: Account, days: int) -> str:
-    moment: datetime
+def _cutoff(account: Account, days: int, initialized_at: str | None) -> str:
+    moment = datetime.now(UTC) - timedelta(days=days)
+    if initialized_at is not None:
+        try:
+            moment = max(moment, parse_utc(initialized_at))
+        except ValueError:
+            pass
     if account.last_sweep_at is not None:
         try:
-            moment = parse_utc(account.last_sweep_at)
+            moment = max(moment, parse_utc(account.last_sweep_at))
         except ValueError:
-            moment = datetime.now(UTC) - timedelta(days=days)
-    else:
-        moment = datetime.now(UTC) - timedelta(days=days)
+            pass
     return moment.strftime("%Y/%m/%d")

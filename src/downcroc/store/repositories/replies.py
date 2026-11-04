@@ -64,6 +64,18 @@ def resolve(
             root_job_id=job.id,
             batch_id=thread.batch_id,
         )
+    participant = _resolve_participant(session, incoming)
+    if participant is not None:
+        thread, job = participant
+        return Attribution(
+            thread=thread,
+            relation="probable",
+            method="participant",
+            reply_state="probable",
+            job_id=None,
+            root_job_id=job.id,
+            batch_id=thread.batch_id,
+        )
     reason = None
     if incoming.in_reply_to or incoming.references:
         reason = "unknown_thread"
@@ -213,6 +225,37 @@ def _resolve_dsn(
     )
 
 
+def _resolve_participant(
+    session: Session, incoming: IncomingMessage
+) -> tuple[ThreadRow, JobRow] | None:
+    """Match a reply when the provider rewrote its Message-ID headers."""
+    if not incoming.from_address:
+        return None
+    reply_shaped = bool(
+        incoming.is_auto_reply
+        or incoming.in_reply_to
+        or incoming.references
+        or has_reply_prefix(incoming.subject)
+    )
+    if not reply_shaped:
+        return None
+    jobs = session.scalars(
+        select(JobRow)
+        .where(
+            JobRow.recipient == incoming.from_address,
+            JobRow.batch_id != "manual",
+            JobRow.state.in_(("sent", "sent_unconfirmed")),
+        )
+        .order_by(JobRow.sent_at.desc(), JobRow.created_at.desc())
+    )
+    windows: dict[str, int] = {}
+    for job in jobs:
+        if not _inside_window(session, job.batch_id, job, incoming.date, windows):
+            continue
+        return _thread_for_job(session, job, incoming), job
+    return None
+
+
 def _resolve_subject(
     session: Session, incoming: IncomingMessage
 ) -> tuple[ThreadRow, JobRow] | None:
@@ -224,7 +267,7 @@ def _resolve_subject(
         .where(
             JobRow.recipient == incoming.from_address,
             JobRow.batch_id != "manual",
-            JobRow.state == "sent",
+            JobRow.state.in_(("sent", "sent_unconfirmed")),
         )
         .order_by(JobRow.sent_at.desc(), JobRow.created_at.desc())
     )
@@ -335,11 +378,12 @@ def _inside_window(
     date: str,
     cache: dict[str, int],
 ) -> bool:
-    if not job.sent_at:
+    sent_at = job.sent_at or job.updated_at
+    if not sent_at:
         return False
     days = _window_days(session, batch_id, cache)
     try:
-        return parse_utc(date) <= parse_utc(job.sent_at) + timedelta(days=days)
+        return parse_utc(date) <= parse_utc(sent_at) + timedelta(days=days)
     except ValueError:
         return False
 

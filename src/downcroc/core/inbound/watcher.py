@@ -29,6 +29,7 @@ from downcroc.providers.token import (
     TokenRefreshFailed,
     TokenRefreshUnavailable,
 )
+from downcroc.runtime.clock import parse_utc
 from downcroc.runtime.config.schema import ConnectSettings, InboundSettings
 from downcroc.runtime.logging.setup import EventLogger
 
@@ -45,6 +46,7 @@ class WatcherRunner:
         log: EventLogger,
         settings: InboundSettings,
         connect: ConnectSettings,
+        initialized_at: str,
     ) -> None:
         self._queue = queue_
         self._guard = guard
@@ -55,6 +57,7 @@ class WatcherRunner:
         self._log = log
         self._settings = settings
         self._connect_settings = connect
+        self._initialized_at = initialized_at
         self._loops = IdleLoops(queue_, log, settings)
 
     def retry_in(self, failures: int) -> int:
@@ -259,11 +262,18 @@ class WatcherRunner:
             last_uid = 0
             resync = True
         if initial:
-            uids = imap.search_initial(
-                box,
-                self._settings.initial_sync_days,
-                self._settings.initial_sync_limit,
-            )
+            if self._settings.ingest_since_init:
+                uids = imap.search_since(
+                    box,
+                    parse_utc(self._initialized_at),
+                    self._settings.initial_sync_limit,
+                )
+            else:
+                uids = imap.search_initial(
+                    box,
+                    self._settings.initial_sync_days,
+                    self._settings.initial_sync_limit,
+                )
         elif resync:
             uids = imap.search_all(box)
         else:

@@ -4,13 +4,17 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Query, Request, Response
 
+from downcroc.api.confirm import require
 from downcroc.api.schemas.messages import (
+    MailPruneOut,
+    MailPruneRequest,
     MessageOut,
     MessageSummaryOut,
     ThreadDetailOut,
     ThreadOut,
 )
 from downcroc.core.bootstrap import Services
+from downcroc.core.maintenance import MAINTENANCE
 from downcroc.store.content import safe_filename
 
 router = APIRouter(tags=["mail"])
@@ -55,6 +59,28 @@ def list_messages(
         )
     )
     return [MessageSummaryOut.of(message) for message in messages]
+
+
+@router.post("/api/messages/prune", response_model=MailPruneOut)
+def prune_mail(body: MailPruneRequest, request: Request) -> MailPruneOut:
+    if not body.dry_run:
+        require(body.confirm)
+    services = _services(request)
+    with MAINTENANCE:
+        chosen = services.messages.prunable_self(account_id=body.account_id)
+        size = sum(item.bytes for item in chosen)
+        if not body.dry_run:
+            for item in chosen:
+                for path in item.attachment_paths:
+                    services.content.discard(path)
+            services.messages.delete_mail([item.message_id for item in chosen])
+            services.stats.rebuild(None)
+    return MailPruneOut(
+        messages=len(chosen),
+        bytes=size,
+        dry_run=body.dry_run,
+        account_id=body.account_id,
+    )
 
 
 @router.get("/api/messages/{message_id}", response_model=MessageOut)

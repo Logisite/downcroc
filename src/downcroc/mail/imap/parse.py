@@ -54,12 +54,23 @@ def parse_message(
             for index, item in enumerate(message.attachments, start=1)
         ),
         is_dsn=dsn.is_dsn,
+        is_auto_reply=_auto_reply(message.obj),
         dsn_status=dsn.action,
         dsn_code=dsn.code,
         dsn_recipient=dsn.recipient,
         dsn_original_message_id=dsn.original_message_id,
         provider_id=provider_id,
     )
+
+
+def _auto_reply(root) -> bool:
+    submitted = str(root.get("Auto-Submitted") or "").strip().casefold()
+    if submitted and submitted != "no":
+        return True
+    if root.get("X-Autoreply") or root.get("X-Autorespond"):
+        return True
+    precedence = str(root.get("Precedence") or "").strip().casefold()
+    return precedence == "auto_reply"
 
 
 def _date(moment: datetime) -> str:

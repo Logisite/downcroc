@@ -25,11 +25,22 @@ def classify_dsn(root: Message) -> DsnInfo:
     sender = parseaddr(str(root.get("From") or ""))[1].lower()
     automated = sender.startswith(("mailer-daemon@", "postmaster@"))
     return_path = str(root.get("Return-Path") or "").strip()
+    subject = str(root.get("Subject") or "").strip().casefold()
+    looks_like_dsn = subject.startswith(
+        (
+            "delivery status notification",
+            "undeliverable",
+            "returned mail",
+            "failure notice",
+            "mail delivery failed",
+        )
+    )
     is_dsn = (
         delivery_part
         or (multipart_report and report_type == "delivery-status")
         or (multipart_report and automated)
-        or return_path == "<>"
+        or (automated and looks_like_dsn)
+        or (return_path == "<>" and looks_like_dsn)
     )
     if not is_dsn:
         return DsnInfo(is_dsn=False)

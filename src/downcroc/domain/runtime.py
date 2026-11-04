@@ -9,6 +9,7 @@ class RuntimeState:
     sending_paused_until: str | None
     sending_paused_reason: str | None
     updated_at: str
+    initialized_at: str = ""
 
     @property
     def paused(self) -> bool:

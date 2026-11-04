@@ -17,6 +17,7 @@ from downcroc.domain.messages import (
     MessageSummary,
     Thread,
 )
+from downcroc.store.db.models.accounts import AccountRow
 from downcroc.store.db.models.messages import (
     AttachmentRow,
     MessageRow,
@@ -289,6 +290,46 @@ class MessageRepo(InboundMixin):
                 .where(MessageRow.ingested_at < cutoff)
             ).all()
             for message, attachment in rows:
+                item = found.setdefault(
+                    message.id,
+                    _MailAccumulator(
+                        thread_id=message.thread_id,
+                        bytes=len(message.body_text or "")
+                        + len(message.body_html or ""),
+                    ),
+                )
+                if attachment is not None:
+                    item.bytes += attachment.size
+                    item.attachment_paths.append(attachment.path)
+        return [
+            PrunableMail(
+                message_id=message_id,
+                thread_id=item.thread_id,
+                bytes=item.bytes,
+                attachment_paths=tuple(item.attachment_paths),
+            )
+            for message_id, item in found.items()
+        ]
+
+    def prunable_self(self, account_id: str | None = None) -> list[PrunableMail]:
+        """Inbox rows that are copies of mail sent by one of our accounts."""
+        accounts = select(AccountRow.address)
+        query = (
+            select(MessageRow, AttachmentRow)
+            .outerjoin(AttachmentRow, AttachmentRow.message_id == MessageRow.id)
+            .where(
+                MessageRow.folder == "INBOX",
+                MessageRow.from_address.in_(accounts),
+                MessageRow.job_id.is_(None),
+                MessageRow.reply_state == "none",
+                MessageRow.is_dsn.is_(False),
+            )
+        )
+        if account_id is not None:
+            query = query.where(MessageRow.account_id == account_id)
+        found: dict[str, _MailAccumulator] = {}
+        with self._sessions() as session:
+            for message, attachment in session.execute(query).all():
                 item = found.setdefault(
                     message.id,
                     _MailAccumulator(

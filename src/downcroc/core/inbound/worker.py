@@ -15,7 +15,8 @@ from downcroc.core.inbound.signals import (
 from downcroc.core.stats import StatsService
 from downcroc.domain.errors import AccountNotFound
 from downcroc.domain.messages import IncomingMessage, PreparedAttachment
-from downcroc.runtime.clock import utc_now
+from downcroc.runtime.clock import parse_utc, utc_now
+from downcroc.runtime.config.schema import InboundSettings
 from downcroc.runtime.ids import new_id
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
@@ -33,6 +34,8 @@ class QueueWorker:
         stats: StatsService,
         bus: EventBus,
         log: EventLogger,
+        settings: InboundSettings,
+        initialized_at: str,
     ) -> None:
         self._queue = queue_
         self._accounts = accounts
@@ -41,6 +44,8 @@ class QueueWorker:
         self._stats = stats
         self._bus = bus
         self._log = log
+        self._settings = settings
+        self._initialized_at = initialized_at
 
     def run(self) -> None:
         while True:
@@ -73,6 +78,14 @@ class QueueWorker:
 
     def _handle_ingest(self, job: IngestJob) -> None:
         incoming = job.incoming
+        if self._before_initialization(incoming.date):
+            self._log.info(
+                "message.skipped_before_init",
+                account=job.account_id,
+                date=incoming.date,
+                initialized_at=self._initialized_at,
+            )
+            return
         existing = self._messages.find_existing(
             job.account_id,
             FOLDER,
@@ -164,6 +177,15 @@ class QueueWorker:
                     "message_id": result.message_id,
                 },
             )
+
+    def _before_initialization(self, date: str) -> bool:
+        if not self._settings.ingest_since_init or not self._initialized_at:
+            return False
+        try:
+            started = parse_utc(self._initialized_at).replace(microsecond=0)
+            return parse_utc(date) < started
+        except ValueError:
+            return False
 
     def _log_attribution(
         self,

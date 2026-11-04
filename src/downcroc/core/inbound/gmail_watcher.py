@@ -40,7 +40,7 @@ from downcroc.runtime.config.schema import InboundSettings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.messages import MessageRepo
 
-LABELS = ("INBOX", "SENT")
+LABELS = ("INBOX",)
 
 
 class GmailWatcher:
@@ -56,6 +56,7 @@ class GmailWatcher:
         log: EventLogger,
         settings: InboundSettings,
         api_timeout_s: float,
+        initialized_at: str,
     ) -> None:
         self._queue = queue_
         self._guard = guard
@@ -65,6 +66,7 @@ class GmailWatcher:
         self._log = log
         self._settings = settings
         self._api_timeout_s = api_timeout_s
+        self._initialized_at = initialized_at
 
     def run(self, handle: WatcherHandle) -> None:
         failure: WatchFailure | None = None
@@ -234,6 +236,7 @@ class GmailWatcher:
             timeout_s=self._api_timeout_s,
             project_id=project_id(self._clients, account),
             stop=handle.stop,
+            since=(self._initialized_at if self._settings.ingest_since_init else None),
         )
         count = 0
         for ref in refs:

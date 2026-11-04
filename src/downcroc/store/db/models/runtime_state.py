@@ -15,3 +15,4 @@ class RuntimeStateRow(Base):
     sending_paused_until: Mapped[str | None] = mapped_column(Text)
     sending_paused_reason: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[str] = mapped_column(Text, nullable=False)
+    initialized_at: Mapped[str | None] = mapped_column(Text)

@@ -147,32 +147,44 @@ def backfill_refs(
     timeout_s: float,
     project_id: str | None = None,
     stop: object | None = None,
+    since: str | None = None,
 ) -> tuple[GmailMessageRef, ...]:
-    since = _days_ago(days)
-    stamp = since.strftime("%Y/%m/%d") if since is not None else None
+    moment = _parse_since(since) or _days_ago(days)
+    stamp = moment.strftime("%Y/%m/%d") if moment is not None else None
+    query = "in:inbox" if stamp is None else f"in:inbox after:{stamp}"
     refs: dict[str, GmailMessageRef] = {}
-    for label in ("in:inbox", "in:sent"):
-        query = label if stamp is None else f"{label} after:{stamp}"
-        page: str | None = None
-        while len(refs) < limit:
-            remaining = limit - len(refs)
-            found = list_messages(
-                spec,
-                access_token,
-                query,
-                timeout_s=timeout_s,
-                page_token=page,
-                max_results=min(100, remaining),
-                project_id=project_id,
-            )
-            for ref in found.messages:
-                refs.setdefault(ref.id, ref)
-            page = found.next_page_token
-            if page is None or (
-                stop is not None and getattr(stop, "is_set", lambda: False)()
-            ):
-                break
+    page: str | None = None
+    while len(refs) < limit:
+        remaining = limit - len(refs)
+        found = list_messages(
+            spec,
+            access_token,
+            query,
+            timeout_s=timeout_s,
+            page_token=page,
+            max_results=min(100, remaining),
+            project_id=project_id,
+        )
+        for ref in found.messages:
+            refs.setdefault(ref.id, ref)
+        page = found.next_page_token
+        if page is None or (
+            stop is not None and getattr(stop, "is_set", lambda: False)()
+        ):
+            break
     return tuple(refs.values())
+
+
+def _parse_since(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone(UTC)
 
 
 def get_message(

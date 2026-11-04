@@ -164,6 +164,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings.inbound,
         settings.connect,
         settings.outbound.api_timeout_s,
+        runtime_repo,
     )
     credentials = CredentialResolver(account_repo, vault, tokens, clients)
     transports = TransportService(

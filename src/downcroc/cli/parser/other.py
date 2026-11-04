@@ -325,6 +325,15 @@ def mail(commands: argparse._SubParsersAction) -> None:
     attachment.add_argument("--force", action="store_true", help="overwrite")
     common(attachment)
 
+    prune = actions.add_parser(
+        "prune",
+        help="remove inbox copies of mail sent by your own accounts",
+        epilog="example:\n  downcroc mail prune --dry-run",
+    )
+    prune.add_argument("--account", help="only this account")
+    prune.add_argument("--dry-run", action="store_true", help="report without deleting")
+    common(prune, yes=True)
+
 
 def logs(commands: argparse._SubParsersAction) -> None:
     parser = commands.add_parser(

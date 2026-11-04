@@ -30,6 +30,7 @@ from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.messages import MessageRepo
+from downcroc.store.repositories.runtime_state import RuntimeStateRepo
 
 
 class InboundService:
@@ -48,12 +49,14 @@ class InboundService:
         settings: InboundSettings,
         connect: ConnectSettings,
         api_timeout_s: float,
+        runtime: RuntimeStateRepo,
     ) -> None:
         self._accounts = accounts
         self._stats = stats
         self._clients = clients
         self._log = log
         self._settings = settings
+        self._initialized_at = runtime.get().initialized_at
         self._queue: queue.Queue[object] = queue.Queue()
         self._guard = threading.RLock()
         self._watchers: dict[str, WatcherHandle] = {}
@@ -71,6 +74,7 @@ class InboundService:
             log,
             settings,
             connect,
+            self._initialized_at,
         )
         self._gmail = GmailWatcher(
             self._queue,
@@ -81,6 +85,7 @@ class InboundService:
             log,
             settings,
             api_timeout_s,
+            self._initialized_at,
         )
         self._sweep = SweepScheduler(
             self._queue,
@@ -91,6 +96,7 @@ class InboundService:
             log,
             settings,
             api_timeout_s,
+            self._initialized_at,
         )
         self._sweep_thread: threading.Thread | None = None
         self._worker = QueueWorker(
@@ -101,6 +107,8 @@ class InboundService:
             stats,
             bus,
             log,
+            settings,
+            self._initialized_at,
         )
         self._ingester = threading.Thread(
             target=self._worker.run,

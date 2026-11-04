@@ -13,6 +13,7 @@ def _state(row: RuntimeStateRow) -> RuntimeState:
         sending_paused_until=row.sending_paused_until,
         sending_paused_reason=row.sending_paused_reason,
         updated_at=row.updated_at,
+        initialized_at=row.initialized_at or row.updated_at,
     )
 
 
@@ -24,9 +25,16 @@ class RuntimeStateRepo:
         with self._sessions.begin() as session:
             row = session.get(RuntimeStateRow, 1)
             if row is None:
-                row = RuntimeStateRow(id=1, updated_at=utc_now())
+                now = utc_now()
+                row = RuntimeStateRow(
+                    id=1,
+                    updated_at=now,
+                    initialized_at=now,
+                )
                 session.add(row)
                 session.flush()
+            elif row.initialized_at is None:
+                row.initialized_at = row.updated_at or utc_now()
             return _state(row)
 
     def pause(
@@ -74,7 +82,10 @@ class RuntimeStateRepo:
     def _row(self, session: Session) -> RuntimeStateRow:
         row = session.get(RuntimeStateRow, 1)
         if row is None:
-            row = RuntimeStateRow(id=1, updated_at=utc_now())
+            now = utc_now()
+            row = RuntimeStateRow(id=1, updated_at=now, initialized_at=now)
             session.add(row)
             session.flush()
+        elif row.initialized_at is None:
+            row.initialized_at = row.updated_at or utc_now()
         return row

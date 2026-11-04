@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from tests.conftest import Stack
 from tests.harness.gmail import FakeGmail
 from tests.harness.inbound import (
@@ -78,7 +80,6 @@ def test_cli_auto_uses_imap_for_password_accounts(stack_factory) -> None:
 
 def test_cli_gmail_api_owner_backfills_and_syncs_history(stack_factory) -> None:
     gmail = FakeGmail().start()
-    gmail.add(_raw("first@example.test", subject="First"))
     try:
         stack = stack_factory(
             config_extra=_inbound_config(),
@@ -86,6 +87,8 @@ def test_cli_gmail_api_owner_backfills_and_syncs_history(stack_factory) -> None:
             extra_providers=lambda fakes: gmail.provider_toml(fakes),
         )
         account_id = _oauth_account(stack, gmail)
+        gmail.add(_raw("first@example.test", subject="First"))
+        gmail.add(_raw("sent@example.test", subject="Sent"), labels=("SENT",))
 
         kinds = {
             item["kind"]
@@ -118,6 +121,9 @@ def test_cli_gmail_api_owner_backfills_and_syncs_history(stack_factory) -> None:
             ),
             timeout=45.0,
         )
+        assert [item["message_id"] for item in _messages(stack, account_id)] == [
+            "first@example.test"
+        ]
         row = _row(stack, account_id)
         assert row["owner"] == "gmail_api"
         assert row["history_id"]
@@ -135,7 +141,6 @@ def test_cli_gmail_api_owner_backfills_and_syncs_history(stack_factory) -> None:
 
 def test_cli_expired_history_resyncs_without_duplicates(stack_factory) -> None:
     gmail = FakeGmail().start()
-    gmail.add(_raw("first@example.test", subject="First"))
     try:
         stack = stack_factory(
             config_extra=_inbound_config(),
@@ -143,6 +148,7 @@ def test_cli_expired_history_resyncs_without_duplicates(stack_factory) -> None:
             extra_providers=lambda fakes: gmail.provider_toml(fakes),
         )
         account_id = _oauth_account(stack, gmail)
+        gmail.add(_raw("first@example.test", subject="First"))
         _json(
             stack,
             "account",
@@ -175,13 +181,8 @@ def test_cli_expired_history_resyncs_without_duplicates(stack_factory) -> None:
         gmail.stop()
 
 
-def test_cli_sweep_catches_archived_mail_without_moving_imap(stack_factory) -> None:
+def test_cli_sweep_stays_in_the_inbox(stack_factory) -> None:
     gmail = FakeGmail().start()
-    gmail.add(_raw("inbox@example.test", subject="Inbox"))
-    gmail.add(
-        _raw("archived@example.test", subject="Archived"),
-        labels=("IMPORTANT",),
-    )
     try:
         stack = stack_factory(
             config_extra=_inbound_config(),
@@ -189,6 +190,15 @@ def test_cli_sweep_catches_archived_mail_without_moving_imap(stack_factory) -> N
             extra_providers=lambda fakes: gmail.provider_toml(fakes),
         )
         account_id = _oauth_account(stack, gmail)
+        gmail.add(_raw("inbox@example.test", subject="Inbox"))
+        gmail.add(
+            _raw("archived@example.test", subject="Archived"),
+            labels=("IMPORTANT",),
+        )
+        gmail.add(
+            _raw("sent@example.test", subject="Sent copy"),
+            labels=("SENT",),
+        )
 
         body = _data(stack, "doctor", "inbound", "--json")
         row = next(
@@ -196,7 +206,9 @@ def test_cli_sweep_catches_archived_mail_without_moving_imap(stack_factory) -> N
         )
         assert row["owner"] == "imap"
 
-        _until(lambda: len(_messages(stack, account_id)) == 2, timeout=60.0)
+        _until(lambda: len(_messages(stack, account_id)) == 1, timeout=60.0)
+        stored = _messages(stack, account_id)
+        assert [item["message_id"] for item in stored] == ["inbox@example.test"]
 
         after = _data(stack, "doctor", "inbound", "--json")
         row = next(
@@ -212,7 +224,9 @@ def test_cli_sweep_catches_archived_mail_without_moving_imap(stack_factory) -> N
 
         again = _row(stack, account_id)
         assert again["last_sweep_at"] == swept_at
-        assert len(_messages(stack, account_id)) == 2
+        assert [item["message_id"] for item in _messages(stack, account_id)] == [
+            "inbox@example.test"
+        ]
     finally:
         gmail.stop()
 
@@ -292,3 +306,38 @@ def test_cli_idle_cap_falls_back_and_reports(stack_factory) -> None:
     assert denied[0]["mode"] == "imap_poll"
     assert len(allowed) == 1
     assert allowed[0]["mode"] in {"idle", "reconnecting"}
+
+
+def test_gmail_backfill_respects_ingest_since_init(stack_factory) -> None:
+    gmail = FakeGmail().start()
+    gmail.add(
+        _raw(
+            "old@example.test",
+            subject="Old",
+            date=datetime(2020, 1, 1, tzinfo=UTC),
+        ),
+        labels=("INBOX",),
+    )
+    try:
+        stack = stack_factory(
+            config_extra=_inbound_config(ingest_since_init=True),
+            accounts=[],
+            extra_providers=lambda fakes: gmail.provider_toml(fakes),
+        )
+        account_id = _oauth_account(stack, gmail)
+        gmail.add(_raw("new@example.test", subject="New"))
+        _json(
+            stack,
+            "account",
+            "inbound",
+            account_id,
+            "--source",
+            "gmail_api",
+            "--json",
+        )
+        _until(lambda: len(_messages(stack, account_id)) == 1, timeout=45.0)
+        assert [item["message_id"] for item in _messages(stack, account_id)] == [
+            "new@example.test"
+        ]
+    finally:
+        gmail.stop()

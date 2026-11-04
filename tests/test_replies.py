@@ -354,3 +354,51 @@ def test_probable_fallback_and_late_replies_stay_separate(stack_factory) -> None
         item["message_id"] == orphan["id"] and item["reason"] == "unknown_thread"
         for item in unattributed
     )
+
+
+def test_auto_reply_is_probable_not_a_bounce(stack_factory) -> None:
+    stack = stack_factory(
+        accounts=["alice@local.test"],
+        config_extra=dispatch_config(),
+    )
+    account = stack.accounts[0]
+    to_address = account_address(stack, account)
+    document = campaign_of(1, options={"approval": "auto"})
+    document["messages"][0]["subject"] = "Quarterly update"
+    document["messages"][0]["to"] = {"email": "person1@example.com"}
+    batch = submit(stack, document, "auto-reply.json")
+    _done(stack, batch["id"])
+
+    deliver_reply(
+        stack.fakes,
+        to_address=to_address,
+        from_address="person1@example.com",
+        subject="Automatic reply: Away until Monday",
+        message_id="auto-reply@example.com",
+        headers={
+            "Auto-Submitted": "auto-replied",
+            "Return-Path": "<>",
+        },
+    )
+    found = sync_and_wait(stack, account, 1)
+    row = _by_header(stack, account, "auto-reply@example.com")
+    assert row["is_dsn"] is False
+    assert row["reply_state"] == "probable"
+    assert row["job_id"] is None
+    thread = stack.api.get(f"/api/threads/{row['thread_id']}")["thread"]
+    assert thread["batch_id"] == batch["id"]
+    assert _counts(stack, batch["id"]) == {
+        "sent": 1,
+        "inbound": 1,
+        "replies": 0,
+        "late_replies": 0,
+        "bounces": 0,
+    }
+    assert len(found) == 1
+    linked = events(stack)["message.classified"]
+    assert any(
+        item["message_id"] == row["id"]
+        and item["kind"] == "reply"
+        and item["confidence"] == "probable"
+        for item in linked
+    )
