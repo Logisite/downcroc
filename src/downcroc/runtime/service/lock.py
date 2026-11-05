@@ -76,8 +76,32 @@ def running(path: Path) -> ServiceInfo | None:
     return info
 
 
+def lock_held(path: Path) -> bool:
+    """Return whether an OS lock is actually held on the instance file.
+
+    The pid written in the file is only a hint. A clean stop leaves the last
+    pid behind, and that pid may be reused by an unrelated process, so the
+    kernel lock is the only reliable owner check.
+    """
+    try:
+        handle = path.open("a+b")
+    except OSError:
+        return False
+    try:
+        InstanceLock._lock(handle)
+    except OSError:
+        return True
+    else:
+        InstanceLock._unlock(handle)
+        return False
+    finally:
+        handle.close()
+
+
 def lock_pid(path: Path) -> int | None:
     """Return the live pid holding the instance lock, or None."""
+    if not lock_held(path):
+        return None
     try:
         text = path.read_text(encoding="ascii").strip()
     except OSError:

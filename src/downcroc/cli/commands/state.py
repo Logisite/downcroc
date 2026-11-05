@@ -230,10 +230,16 @@ def _print_body(args: object, report: dict, running: bool) -> None:
     lines: dict[str, str] = {}
     if running:
         lines["daemon"] = f"running, pid {report['pid']}, {report['url']}"
-    elif report.get("state") == "stopped":
-        lines["daemon"] = "stopped, run: downcroc service start"
+    elif report.get("state") == "unreachable":
+        lines["daemon"] = (
+            f"not answering, pid {report['pid']}, run: downcroc logs --since 5m"
+        )
+    elif report.get("state") == "stale":
+        lines["daemon"] = (
+            f"stopped, pid {report['pid']} is gone, run: downcroc service start"
+        )
     else:
-        lines["daemon"] = f"{report.get('state')}, run: downcroc service start"
+        lines["daemon"] = "stopped, run: downcroc service start"
     lines["paths"] = f"config {paths.config}, data {paths.data}"
     lines["log"] = f"{paths.log_file}, {_age(paths.log_file)}"
     if running:
@@ -299,7 +305,8 @@ def _absent(args: object, ui: Ui, paths: object) -> int:
 
 def _state(args: object, paths: object) -> dict:
     report = status(paths)
-    info: dict = {"report": report, "running": report.get("state") == "running"}
+    state = report.get("state", "stopped")
+    info: dict = {"report": report, "state": state, "running": state == "running"}
     if not info["running"]:
         return info
     try:
@@ -309,18 +316,31 @@ def _state(args: object, paths: object) -> dict:
             info["summary"] = get(client, "/api/stats/summary")
     except CliError:
         info["running"] = False
+        info["state"] = "unreachable"
     return info
 
 
 def _home_header(ui: Ui, info: dict) -> None:
     report = info["report"]
-    running = info["running"]
-    where = f"daemon running, pid {report['pid']}" if running else "daemon stopped"
+    state = info["state"]
+    if info["running"]:
+        where = f"daemon running, pid {report['pid']}"
+    elif state == "unreachable":
+        where = f"daemon pid {report['pid']} is not answering"
+    elif state == "stale":
+        where = f"daemon stopped, pid {report.get('pid')} is gone"
+    else:
+        where = "daemon stopped"
     print(
         f"{ui.accent(ui.glyph('mail'))} {ui.bold('downcroc')} {__version__}   {ui.dim(where)}"
     )
-    if not running:
-        print(f"  {ui.dim('next: downcroc service start')}")
+    if not info["running"]:
+        hint = (
+            "next: downcroc logs --since 5m"
+            if state == "unreachable"
+            else "next: downcroc service start"
+        )
+        print(f"  {ui.dim(hint)}")
         print()
         return
     vault = info.get("vault")
@@ -346,6 +366,8 @@ def _needs_vault(info: dict) -> str | None:
 
 
 def _prompt_step(ui: Ui, info: dict) -> tuple[str, list[str]] | None:
+    if info["state"] == "unreachable":
+        return "Stop the daemon now?", ["service", "stop"]
     if not info["running"]:
         return "Start the daemon now?", ["service", "start"]
     vault_step = _needs_vault(info)
@@ -374,9 +396,13 @@ def home(args: object, ui: Ui) -> int:
         question, argv = step
         if not prompts.confirm(question, ui=ui, default=True):
             return 0
+        before = info["state"]
         code = run_args(ui, *argv)
         if code != 0:
             return code
+        if before != "running" and _state(args, paths)["state"] == before:
+            print(ui.dim("state did not change; run downcroc logs --since 5m"))
+            return 1
     from downcroc.cli.ui.tree import open_path
 
     try:

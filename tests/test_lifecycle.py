@@ -124,7 +124,9 @@ def test_empty_home_starts_serves_and_stops(tmp_path: Path) -> None:
         _stop(env)
     assert not _service_path(root, "service.json").exists()
     assert not _service_path(root, "daemon.token").exists()
-    assert _json(env, "service", "status", "--json") == {"state": "stopped"}
+    stopped = _run(env, "service", "status", "--json")
+    assert stopped.returncode == 1
+    assert json.loads(stopped.stdout) == {"state": "stopped"}
 
 
 def test_shutdown_requires_the_control_token(tmp_path: Path) -> None:
@@ -164,8 +166,8 @@ def test_second_start_names_the_running_daemon(tmp_path: Path) -> None:
         assert first.returncode == 0, first.stderr
         pid = json.loads(_service_path(root, "service.json").read_text())["pid"]
         second = _run(env, "service", "start")
-        assert second.returncode == 1
-        assert str(pid) in second.stderr
+        assert second.returncode == 0
+        assert str(pid) in second.stdout
     finally:
         _stop(env)
 
@@ -240,4 +242,4 @@ def test_service_commands_work_without_a_config(
     root = tmp_path / "bare"
     env = _environment(root)
     result = _run(env, "service", action)
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == (0 if action == "stop" else 1)

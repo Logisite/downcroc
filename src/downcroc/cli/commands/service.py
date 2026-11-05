@@ -11,7 +11,7 @@ from downcroc.cli.ui.menu import open_menu
 from downcroc.cli.ui.session import Ui, build
 from downcroc.cli.ui.spine import Spine, StartReport
 from downcroc.runtime.service import install as service_install
-from downcroc.runtime.service.lifecycle import start, status, stop
+from downcroc.runtime.service.lifecycle import _health, start, status, stop
 from downcroc.runtime.service.lock import AlreadyRunning
 
 DEFINITION_WIDTH = 100
@@ -60,18 +60,28 @@ def _start(args: object, paths: object, settings: object, ui: Ui) -> int:
 def _already(args: object, error: AlreadyRunning) -> int:
     info = error.info
     ui = build(args)
+    if info is None:
+        raise CliError(
+            str(error),
+            code="service_start_failed",
+            hint="run downcroc service stop, then downcroc service start",
+        )
+    if _health(info) is None:
+        raise CliError(
+            f"daemon pid {info.pid} is not answering",
+            code="service_start_failed",
+            hint="run downcroc service stop, then downcroc service start",
+        )
     if ui.json_mode:
         json_out(
             {
                 "state": "running",
-                "pid": info.pid if info else None,
-                "url": info.base_url if info else None,
+                "pid": info.pid,
+                "url": info.base_url,
                 "changed": False,
             }
         )
         return 0
-    if info is None:
-        raise CliError(str(error), code="service_start_failed")
     record({"daemon": f"already running, pid {info.pid}, {info.base_url}"})
     return 0
 
