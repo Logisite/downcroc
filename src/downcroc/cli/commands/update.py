@@ -44,13 +44,28 @@ def _version(value: str) -> Version:
         raise CliError(f"invalid version: {value}", code="version_invalid") from error
 
 
+def _request(url: str, *, timeout: float, **options) -> httpx.Response:
+    try:
+        return httpx.get(
+            url,
+            timeout=timeout,
+            trust_env=True,
+            **options,
+        )
+    except httpx.RequestError as error:
+        raise CliError(
+            "cannot reach GitHub",
+            code="offline",
+            hint="check your internet connection, then try again",
+        ) from error
+
+
 def _releases(*, pre: bool) -> list[dict]:
-    response = httpx.get(
+    response = _request(
         API,
+        timeout=20,
         params={"per_page": 30},
         headers={"Accept": "application/vnd.github+json", "User-Agent": "downcroc"},
-        timeout=20,
-        trust_env=True,
     )
     if response.status_code != 200:
         raise CliError(
@@ -58,9 +73,23 @@ def _releases(*, pre: bool) -> list[dict]:
             code="release_feed_failed",
             hint=f"github returned {response.status_code}",
         )
+    try:
+        feed = response.json()
+    except ValueError as error:
+        raise CliError(
+            "the release feed could not be read",
+            code="release_feed_failed",
+            hint="github returned an unreadable response",
+        ) from error
+    if not isinstance(feed, list):
+        raise CliError(
+            "the release feed could not be read",
+            code="release_feed_failed",
+            hint="github returned an unreadable response",
+        )
     found = [
         item
-        for item in response.json()
+        for item in feed
         if not item.get("draft") and (pre or not item.get("prerelease"))
     ]
     return found
@@ -91,12 +120,11 @@ def _wheel(release: dict, directory: Path) -> tuple[Path, str | None]:
     )
     if asset is None:
         raise CliError("the release has no wheel", code="release_invalid")
-    response = httpx.get(
+    response = _request(
         asset["browser_download_url"],
-        headers={"User-Agent": "downcroc"},
         timeout=60,
         follow_redirects=True,
-        trust_env=True,
+        headers={"User-Agent": "downcroc"},
     )
     if response.status_code != 200:
         raise CliError(
