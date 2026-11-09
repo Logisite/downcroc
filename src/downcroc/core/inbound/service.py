@@ -50,10 +50,13 @@ class InboundService:
         connect: ConnectSettings,
         api_timeout_s: float,
         runtime: RuntimeStateRepo,
+        connectivity: object | None = None,
     ) -> None:
         self._accounts = accounts
         self._stats = stats
         self._clients = clients
+        self._connectivity = connectivity
+        self._was_online = True
         self._log = log
         self._settings = settings
         self._initialized_at = runtime.get().initialized_at
@@ -234,6 +237,14 @@ class InboundService:
     def _reconcile(self) -> None:
         if not self._running:
             return
+        if self._connectivity is not None and not self._connectivity.online:
+            if self._was_online:
+                self._was_online = False
+                self._log.info("watcher.paused", reason="connectivity")
+            return
+        if not self._was_online:
+            self._was_online = True
+            self._log.info("watcher.resumed", reason="connectivity")
         accounts = {account.id: account for account in self._accounts.list()}
         with self._guard:
             handles = dict(self._watchers)

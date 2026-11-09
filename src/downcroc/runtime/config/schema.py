@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from downcroc.core.connectivity.settings import ConnectivitySettings
 from downcroc.runtime.config.sections_mail import (
     ConfigSettings,
     ConnectSettings,
@@ -25,6 +26,7 @@ __all__ = [
     "CliSettings",
     "ConfigSettings",
     "ConnectSettings",
+    "ConnectivitySettings",
     "DaemonSettings",
     "DispatchSettings",
     "EventsSettings",
@@ -98,4 +100,8 @@ class Settings(BaseModel):
     cli: CliSettings = Field(
         default_factory=CliSettings,
         description="Command line client behaviour.",
+    )
+    connectivity: ConnectivitySettings = Field(
+        default_factory=ConnectivitySettings,
+        description="Internet reachability watchdog.",
     )

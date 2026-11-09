@@ -50,6 +50,7 @@ class Dispatcher(DispatchHelpers):
         policy: PolicyResolver,
         bus: EventBus,
         log: EventLogger,
+        connectivity: object | None = None,
     ) -> None:
         self._dispatch = settings.dispatch
         self._outbound_settings = settings.outbound
@@ -74,6 +75,8 @@ class Dispatcher(DispatchHelpers):
         self._next_allowed: dict[str, float] = {}
         self._next_followup = 0.0
         self._held: str | None = None
+        self._was_online = True
+        self._connectivity = connectivity
         self._allowance_logged: set[tuple[str, str]] = set()
 
     def start(self) -> None:
@@ -124,6 +127,17 @@ class Dispatcher(DispatchHelpers):
     async def _cycle(self) -> None:
         if self._vault.status().state != "unlocked":
             return
+        if self._connectivity is not None and not self._connectivity.online:
+            if self._was_online:
+                self._was_online = False
+                self._log.info("dispatch.paused", reason="connectivity")
+                self._bus.publish("dispatch.paused", {"reason": "connectivity"})
+            return
+        if not self._was_online:
+            self._was_online = True
+            self._log.info("dispatch.resumed", reason="connectivity")
+            self._bus.publish("dispatch.resumed", {"reason": "connectivity"})
+            await self._outbound.verify_sessions()
         self._notice_seats()
         await self._outbound.reap_sessions()
         await asyncio.to_thread(self._followups.cancel_stopped)

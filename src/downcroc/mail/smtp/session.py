@@ -224,6 +224,22 @@ class SmtpSessionPool:
             entry.last_used = time.monotonic()
             return result
 
+    async def verify_all(self) -> None:
+        kept = 0
+        dropped = 0
+        for binding_id, entry in list(self._entries.items()):
+            lock = self._locks.setdefault(binding_id, asyncio.Lock())
+            async with lock:
+                if self._entries.get(binding_id) is not entry:
+                    continue
+                entry.last_check = 0.0
+                if await self._verify(binding_id, entry) is None:
+                    dropped += 1
+                else:
+                    kept += 1
+        if kept or dropped:
+            self._log.info("smtp.sessions_verified", kept=kept, dropped=dropped)
+
     async def reap(self) -> None:
         now = time.monotonic()
         idle = self._settings.keepalive_idle_s

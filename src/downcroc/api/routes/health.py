@@ -28,6 +28,19 @@ def _sending_block(request: Request) -> dict[str, object]:
     return request.app.state.services.holds.status_block()
 
 
+def _connectivity(request: Request) -> dict[str, object]:
+    services = request.app.state.services
+    monitor = getattr(services, "connectivity", None)
+    state = getattr(services, "connectivity_state", None)
+    enabled = bool(getattr(monitor, "_settings", object()).enabled) if monitor else True
+    online = state.online if state is not None else True
+    return {
+        "online": online,
+        "enabled": enabled,
+        "since": state.since if state is not None else None,
+    }
+
+
 def _vault(request: Request) -> dict[str, object]:
     status = request.app.state.services.vault.status()
     return {
@@ -47,6 +60,7 @@ def health(request: Request) -> dict[str, object]:
         "pid": request.app.state.pid,
         "uptime_s": _uptime(request),
         "sending": _sending(request)["state"],
+        "connectivity": _connectivity(request),
     }
 
 
@@ -63,4 +77,5 @@ def status(request: Request) -> dict[str, object]:
         "uptime_s": _uptime(request),
         "vault": _vault(request),
         "sending": _sending_block(request),
+        "connectivity": _connectivity(request),
     }

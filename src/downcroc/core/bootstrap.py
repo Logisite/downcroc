@@ -10,6 +10,7 @@ from downcroc.core.accounts_service import AccountsService
 from downcroc.core.batches import BatchesService
 from downcroc.core.capacity import CapacityService
 from downcroc.core.config_service import ConfigService
+from downcroc.core.connectivity import ConnectivityMonitor, ConnectivityState
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.dispatch import Dispatcher, FailureLog, FailureService
 from downcroc.core.doctor import DoctorService
@@ -84,8 +85,11 @@ class Services:
     backup: BackupService
     restore: RestoreService
     config: ConfigService
+    connectivity_state: ConnectivityState
+    connectivity: ConnectivityMonitor
 
     def close(self) -> None:
+        self.connectivity.stop()
         self.inbound.close()
         self.engine.dispose()
 
@@ -96,6 +100,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     sessions = sessions_for(engine)
     events = EventRepo(sessions, settings.events.ring_size)
     bus = EventBus(events, settings.events.queue_size)
+    connectivity_state = ConnectivityState()
     policy_repo = PolicyRepo(sessions)
     policy = PolicyResolver(settings, policy_repo)
     policy_repo.clear_expired()
@@ -165,6 +170,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         settings.connect,
         settings.outbound.api_timeout_s,
         runtime_repo,
+        connectivity_state,
     )
     credentials = CredentialResolver(account_repo, vault, tokens, clients)
     transports = TransportService(
@@ -215,6 +221,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         transports,
         policy,
         quota_repo,
+        connectivity_state,
     )
     inbound.open()
     capacity = CapacityService(
@@ -327,7 +334,12 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         policy,
         bus,
         log,
+        connectivity_state,
     )
+    connectivity = ConnectivityMonitor(
+        settings.connectivity, connectivity_state, bus, log
+    )
+    connectivity.start()
     backup = BackupService(paths, log)
     restore = RestoreService(paths, log)
     config = ConfigService(paths, settings, log, followups)
@@ -361,4 +373,6 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         backup=backup,
         restore=restore,
         config=config,
+        connectivity_state=connectivity_state,
+        connectivity=connectivity,
     )

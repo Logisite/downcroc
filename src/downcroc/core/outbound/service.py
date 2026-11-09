@@ -63,6 +63,7 @@ class OutboundService(JobFacadeMixin):
         transports: TransportService,
         policy: PolicyResolver,
         quota: QuotaRepo,
+        connectivity: object | None = None,
     ) -> None:
         self._jobs = jobs
         self._accounts = accounts
@@ -78,6 +79,7 @@ class OutboundService(JobFacadeMixin):
         self._credentials = CredentialResolver(accounts, vault, tokens, clients)
         self._accountant = QuotaAccountant(quota, send_attempts, bus, log)
         self._pool = SmtpSessionPool(settings, log)
+        self._connectivity = connectivity
         self._attempts = send_attempts
         self._recorder = AttemptRecorder(send_attempts)
         smtp = SmtpDelivery(transports, self._pool, self._recorder, bus, log, settings)
@@ -104,6 +106,7 @@ class OutboundService(JobFacadeMixin):
         self._owner = f"outbound-{uuid.uuid4().hex[:12]}"
 
     async def send(self, job_id: str) -> Job:
+        self._require_online()
         self._credentials.ensure_unlocked()
         job = self._jobs.get(job_id)
         account = self._manual.sender_for(job)
@@ -129,6 +132,7 @@ class OutboundService(JobFacadeMixin):
         manual: bool = False,
         allowed_kinds: frozenset | None = None,
     ) -> Job:
+        self._require_online()
         self._log.debug("outbound.unlock", job=job.id)
         self._credentials.ensure_unlocked()
         self._log.debug("outbound.account", job=job.id)
@@ -334,10 +338,22 @@ class OutboundService(JobFacadeMixin):
         gmail_api.close()
 
     async def reap_sessions(self) -> None:
+        if self._connectivity is not None and not self._connectivity.online:
+            return
         await self._pool.reap()
 
     async def prune_sessions(self, valid: set[str]) -> None:
         await self._pool.prune(valid)
+
+    async def verify_sessions(self) -> None:
+        await self._pool.verify_all()
+
+    def _require_online(self) -> None:
+        if self._connectivity is not None and not self._connectivity.online:
+            raise JobNotSendable(
+                "the internet is down",
+                hint="sending is paused and resumes when connectivity returns",
+            )
 
     def _require_connected(self, account: Account) -> None:
         if account.status is AccountStatus.NEEDS_REAUTH:

@@ -249,6 +249,13 @@ def _print_body(args: object, report: dict, running: bool) -> None:
             accounts = get(client, "/api/accounts")
             summary = get(client, "/api/stats/summary")
             failed = get(client, "/api/failed", limit=1)
+            health = get(client, "/api/health")
+        connectivity = health.get("connectivity") or {}
+        if connectivity.get("enabled") and not connectivity.get("online"):
+            lines["connectivity"] = (
+                f"offline since {connectivity.get('since') or 'unknown'}"
+                " - network work is paused"
+            )
         lines["vault"] = vault["state"]
         if sending.get("state") == "paused":
             detail = f"paused since {sending.get('since') or '-'}"
