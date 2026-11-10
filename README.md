@@ -35,11 +35,6 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/Logisite/downcroc/master/scripts/install.ps1 | iex
 ```
 
-The script downloads the matching release wheel, installs it into a user
-prefix, creates the `downcroc` launcher, and prints the installed version.
-The default prefix is `~/.local` on Unix and `%LOCALAPPDATA%\downcroc` on
-Windows.
-
 For an offline install, pass a local wheel:
 
 ```sh
