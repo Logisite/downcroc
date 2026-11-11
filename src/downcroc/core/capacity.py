@@ -152,7 +152,7 @@ class CapacityService(CapacityEtaMixin):
             throughput = 1
         serial = fleet.api_lanes == 0 and fleet.smtp_seats > 0
         lanes = throughput if messages else 0
-        seats = 1 if pinned else fleet.smtp_seats
+        seats = fleet.smtp_seats
         waves = max(1, math.ceil(messages / throughput)) if messages else 0
         duration_min = max(0, waves - 1) * policy.jitter_min
         duration_max = max(0, waves - 1) * policy.jitter_max

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import time
 
 from downcroc.core.accounts import AccountEligibility
 from downcroc.core.policy import PolicyResolver
@@ -12,6 +13,7 @@ from downcroc.domain.providers import AuthKind
 from downcroc.domain.transports import TransportKind
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.runtime.config.schema import DispatchSettings
+from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.quota import QuotaRepo
 
@@ -34,6 +36,7 @@ class SlotResolver:
         health: BindingHealth,
         limiter: TransportLimiter,
         eligibility: AccountEligibility,
+        log: EventLogger,
     ) -> None:
         self._accounts = accounts
         self._registry = registry
@@ -43,6 +46,11 @@ class SlotResolver:
         self._health = health
         self._limiter = limiter
         self._eligibility = eligibility
+        self._log = log
+        self._held: tuple[str, ...] = ()
+        self._held_since = 0.0
+        self._held_picks = 0
+        self._seat_reason = "boot"
 
     def pick(
         self,
@@ -84,7 +92,53 @@ class SlotResolver:
                     smtp_ready=has_smtp,
                 )
             )
-        return choose_slots(entries, self._dispatch.smtp_seats)
+        held = self._eligible_held(entries)
+        if not held:
+            self._seat_reason = "rotation" if self._held else "boot"
+        plan = choose_slots(entries, self._dispatch.smtp_seats, held=held)
+        self._remember(plan)
+        return plan
+
+    def _eligible_held(self, entries: list[SlotEntry]) -> tuple[str, ...]:
+        if not self._dispatch.smtp_seat_sticky or not self._held:
+            return ()
+        ready = {
+            entry.account_id
+            for entry in entries
+            if entry.has_smtp and entry.smtp_ready and entry.remaining > 0
+        }
+        if any(item not in ready for item in self._held):
+            self._seat_reason = "failover"
+            return ()
+        if self._dispatch.smtp_seat_max_s and (
+            time.monotonic() - self._held_since >= self._dispatch.smtp_seat_max_s
+        ):
+            self._seat_reason = "max_s"
+            return ()
+        if self._dispatch.smtp_seat_max_sends and (
+            self._held_picks >= self._dispatch.smtp_seat_max_sends
+        ):
+            self._seat_reason = "max_sends"
+            return ()
+        self._held_picks += 1
+        return self._held
+
+    def _remember(self, plan: SlotPlan) -> None:
+        active = tuple(plan.active)
+        if active == self._held:
+            return
+        self._held = active
+        self._held_since = time.monotonic()
+        self._held_picks = 0
+        self._log.info(
+            "dispatch.smtp_seat",
+            account=active[0] if active else None,
+            binding=None,
+            reason=self._seat_reason,
+            held_for_s=0,
+            sends=0,
+            order=list(active),
+        )
 
     def allowed_kinds(
         self,

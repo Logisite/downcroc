@@ -74,7 +74,11 @@ class SlotPlan:
         return "none"
 
 
-def choose_slots(entries: list[SlotEntry], seats: int) -> SlotPlan:
+def choose_slots(
+    entries: list[SlotEntry],
+    seats: int,
+    held: tuple[str, ...] = (),
+) -> SlotPlan:
     """Choose the active SMTP rotation from the live queue.
 
     Pinned accounts always keep a turn because their job cannot move. The
@@ -89,22 +93,26 @@ def choose_slots(entries: list[SlotEntry], seats: int) -> SlotPlan:
     ordered = sorted(
         eligible,
         key=lambda entry: (
-            0 if entry.pinned else 1,
             0 if entry.password else 1,
             entry.turn,
             entry.jitter,
             entry.account_id,
         ),
     )
-    pinned = [entry for entry in ordered if entry.pinned]
-    auto = [entry for entry in ordered if not entry.pinned]
-    active = pinned + auto[:width]
+    by_id = {entry.account_id: entry for entry in ordered}
+    active = [by_id[item] for item in held if item in by_id][:width]
+    active_ids = {entry.account_id for entry in active}
+    active += [entry for entry in ordered if entry.account_id not in active_ids][
+        : max(0, width - len(active))
+    ]
     return SlotPlan(
         seats=width,
         active=tuple(entry.account_id for entry in active),
         queue=tuple(entry.account_id for entry in ordered),
-        waiting=tuple(entry.account_id for entry in auto[width:]),
-        pinned_overflow=max(0, len(pinned) - width),
+        waiting=tuple(
+            entry.account_id for entry in ordered if entry.account_id not in active_ids
+        ),
+        pinned_overflow=0,
         password_active=tuple(entry.account_id for entry in active if entry.password),
         oauth_active=tuple(entry.account_id for entry in active if not entry.password),
     )

@@ -214,6 +214,26 @@ class DispatchSettings(BaseModel):
             "parallel sending. Values above 3 are risky and strongly warned."
         ),
     )
+    smtp_seat_sticky: bool = Field(
+        default=True,
+        description="Hold an SMTP seat until a cap, failure, or batch drain.",
+    )
+    smtp_seat_max_s: int = Field(
+        default=0,
+        ge=0,
+        le=86_400,
+        description="Seconds before a sticky seat rotates; 0 disables the cap.",
+    )
+    smtp_seat_max_sends: int = Field(
+        default=0,
+        ge=0,
+        le=1_000_000,
+        description="Sends before a sticky seat rotates; 0 disables the cap.",
+    )
+    smtp_seat_after_batch: bool = Field(
+        default=False,
+        description="Rotate the sticky seat after the current batch drains.",
+    )
     network_cooldown_after: int = Field(
         default=2,
         ge=1,

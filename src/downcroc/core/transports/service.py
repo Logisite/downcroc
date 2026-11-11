@@ -75,6 +75,7 @@ class TransportService:
             self._health,
             self._limiter,
             eligibility,
+            log,
         )
         self._provision = Provisioner(transports, registry, clients, dispatch, self.add)
 

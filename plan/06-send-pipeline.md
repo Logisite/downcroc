@@ -30,6 +30,13 @@ Batch, job, and pending estimates carry `as_of` and `basis`. They are computed o
 live policy, quota, holds, and transport state, so a policy or config change is visible on the
 next request without a background refresh.
 
+## SMTP seats
+
+The SMTP seat is a transport reservation, not an account status. At most `dispatch.smtp_seats`
+connections are open. A sticky seat is held until a cap, failure, or batch drain, then the next
+account in randomized round-robin order takes it. Pinned jobs bind the account, not the
+transport: an unseated API-capable account sends through the Gmail API.
+
 ## Provider response classification
 
 Every reserved send attempt ends with a terminal outcome and a `finished_at` timestamp. A failure
