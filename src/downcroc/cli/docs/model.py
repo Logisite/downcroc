@@ -8,6 +8,17 @@ HEADING = re.compile(r"^(#{1,3})\s+(.+?)\s*$")
 FENCE = re.compile(r"^```([A-Za-z0-9_+-]*)\s*$")
 ADMONITION = re.compile(r'^!!!\s+([a-z]+)(?:\s+"([^"]*)")?\s*$')
 IMAGE = re.compile(r"^!\[([^\]]*)\]\(([^)]+)\)\s*$")
+NAV = {
+    "": 0,
+    "getting-started": 1,
+    "concepts": 2,
+    "operations": 3,
+    "cli": 4,
+    "reference": 5,
+    "security": 6,
+    "troubleshooting": 7,
+    "release-notes": 8,
+}
 
 
 @dataclass(frozen=True)
@@ -48,7 +59,8 @@ class Page:
 
 def load_pages(root: Path) -> list[Page]:
     pages = []
-    for path in sorted(root.rglob("*.md")):
+    paths = sorted(root.rglob("*.md"), key=lambda path: _nav_key(root, path))
+    for path in paths:
         rel = path.relative_to(root).as_posix()
         text = path.read_text(encoding="utf-8")
         meta, body = frontmatter(text)
@@ -72,6 +84,12 @@ def load_pages(root: Path) -> list[Page]:
             )
         )
     return pages
+
+
+def _nav_key(root: Path, path: Path) -> tuple[int, int, str]:
+    rel = path.relative_to(root).as_posix()
+    section = rel.split("/", 1)[0] if "/" in rel else ""
+    return (NAV.get(section, 99), 0, rel)
 
 
 def frontmatter(text: str) -> tuple[dict[str, object], str]:
