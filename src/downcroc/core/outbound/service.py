@@ -8,11 +8,11 @@ from downcroc.core.credentials import CredentialResolver
 from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound.attempts import AttemptRecorder
+from downcroc.core.outbound.attempts.quota import QuotaAccountant
 from downcroc.core.outbound.gmail_delivery import GmailDelivery
 from downcroc.core.outbound.jobs.create import require_usable
 from downcroc.core.outbound.jobs.facade import JobFacade
 from downcroc.core.outbound.jobs.manual import ManualJobs
-from downcroc.core.outbound.quota_accountant import QuotaAccountant
 from downcroc.core.outbound.reconcile import SentReconciler
 from downcroc.core.outbound.smtp_delivery import SmtpDelivery
 from downcroc.core.outbound.transport_delivery import (
@@ -215,7 +215,11 @@ class OutboundService(JobFacade):
                 retryable=False,
             )
             self._accountant.release(
-                account.id, day, "send_preparation_failed", attempt_id
+                account.id,
+                day,
+                "send_preparation_failed",
+                attempt_id,
+                job_id=claimed.id,
             )
             raise
         try:
@@ -228,8 +232,24 @@ class OutboundService(JobFacade):
                 attempt_id,
                 allowed_kinds,
             )
-        except BaseException:
-            self._accountant.release(account.id, day, "send_exception", attempt_id)
+        except BaseException as error:
+            self._finish_attempt(
+                claimed,
+                account,
+                None,
+                "pending",
+                attempt_id,
+                outcome="failed",
+                code=error.__class__.__name__,
+                message=str(error)[:500],
+            )
+            self._accountant.release(
+                account.id,
+                day,
+                "send_exception",
+                attempt_id,
+                job_id=claimed.id,
+            )
             raise
         return self._apply(claimed, account, outcome, started, day, attempt_id)
 
@@ -243,6 +263,17 @@ class OutboundService(JobFacade):
         attempt_id: str,
     ) -> Job:
         limit = self._policy.effective(account).daily_allowance
+        if outcome.status in {"deferred", "reauth", "failed"}:
+            self._finish_attempt(
+                job,
+                account,
+                outcome.binding,
+                outcome.binding.kind.value if outcome.binding else "pending",
+                attempt_id,
+                outcome="deferred" if outcome.status == "deferred" else "failed",
+                code=outcome.code or outcome.status,
+                message=outcome.message,
+            )
         if outcome.status == "sent":
             sent = self._jobs.mark_sent(job.id, utc_now())
             self._sent(sent, account, started)
@@ -266,14 +297,44 @@ class OutboundService(JobFacade):
             self._accounts.mark_needs_reauth(
                 account.id, outcome.code or "account_needs_reauth"
             )
+            self._finish_attempt(
+                job,
+                account,
+                outcome.binding,
+                outcome.binding.kind.value if outcome.binding else "pending",
+                attempt_id,
+                outcome="failed",
+                code=outcome.code or "account_needs_reauth",
+                message=outcome.message or "the mailbox must be reconnected",
+            )
             self._jobs.mark_queued(
                 job.id,
                 code=outcome.code,
                 message=outcome.message,
                 retryable=False,
             )
+            self._log.warning(
+                "job.blocked",
+                job=job.id,
+                account=account.id,
+                code=outcome.code or "account_needs_reauth",
+                retryable=False,
+            )
+            self._bus.publish(
+                "job.blocked",
+                {
+                    "job": job.id,
+                    "account": account.id,
+                    "code": outcome.code or "account_needs_reauth",
+                    "retryable": False,
+                },
+            )
             self._accountant.release(
-                account.id, day, outcome.code or "account_needs_reauth", attempt_id
+                account.id,
+                day,
+                outcome.code or "account_needs_reauth",
+                attempt_id,
+                job_id=job.id,
             )
             raise AccountNeedsReauth(
                 "the mailbox must be reconnected",
@@ -286,7 +347,11 @@ class OutboundService(JobFacade):
                 else utc_now()
             )
             self._accountant.release(
-                account.id, day, outcome.code or "send_deferred", attempt_id
+                account.id,
+                day,
+                outcome.code or "send_deferred",
+                attempt_id,
+                job_id=job.id,
             )
             return self._jobs.mark_retry(
                 job.id,
@@ -296,13 +361,49 @@ class OutboundService(JobFacade):
                 retryable=True,
             )
         self._accountant.release(
-            account.id, day, outcome.code or "send_failed", attempt_id
+            account.id,
+            day,
+            outcome.code or "send_failed",
+            attempt_id,
+            job_id=job.id,
+        )
+        self._log.warning(
+            "job.failed",
+            job=job.id,
+            account=account.id,
+            code=outcome.code or "send_failed",
+            message=(outcome.message or "")[:300],
         )
         return self._jobs.mark_failed(
             job.id,
             code=outcome.code or "send_failed",
             message=outcome.message or "",
             retryable=False,
+        )
+
+    def _finish_attempt(
+        self,
+        job: Job,
+        account: Account,
+        binding,
+        transport: str,
+        attempt_id: str,
+        *,
+        outcome: str,
+        code: str | None,
+        message: str | None,
+    ) -> None:
+        self._recorder.record(
+            job,
+            account,
+            binding,
+            transport,
+            utc_now(),
+            attempt_id=attempt_id,
+            outcome=outcome,
+            accepted=False,
+            code=code,
+            message=message,
         )
 
     def _prepare_failed(
@@ -317,7 +418,7 @@ class OutboundService(JobFacade):
             job,
             account,
             None,
-            "smtp",
+            "pending",
             started_at,
             attempt_id=attempt_id,
             outcome="failed",

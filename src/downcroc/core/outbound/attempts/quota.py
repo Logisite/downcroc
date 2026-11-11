@@ -127,6 +127,8 @@ class QuotaAccountant:
         day: str,
         reason: str,
         attempt_id: str,
+        *,
+        job_id: str | None = None,
     ) -> None:
         if self._attempts.quota_state(attempt_id) in {"released", "committed"}:
             return
@@ -139,6 +141,8 @@ class QuotaAccountant:
             day=day,
             reason=reason,
             reserved=reserved,
+            job=job_id,
+            attempt=attempt_id,
         )
         self._bus.publish(
             "quota.released",
@@ -147,5 +151,7 @@ class QuotaAccountant:
                 "day": day,
                 "reason": reason,
                 "reserved": reserved,
+                "job": job_id,
+                "attempt": attempt_id,
             },
         )

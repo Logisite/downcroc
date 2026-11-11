@@ -97,7 +97,7 @@ class SendAttemptRepo:
     ) -> None:
         with self._sessions.begin() as session:
             row = session.get(SendAttemptRow, attempt_id)
-            if row is None:
+            if row is None or row.outcome != "reserved":
                 return
             row.binding_id = binding_id
             row.transport = transport
@@ -160,6 +160,19 @@ class SendAttemptRepo:
                 .where(SendAttemptRow.id == attempt_id)
                 .values(quota_day=day, quota_state=state)
             )
+
+    def reconcile_interrupted(self) -> int:
+        with self._sessions.begin() as session:
+            result = session.execute(
+                update(SendAttemptRow)
+                .where(SendAttemptRow.outcome == "reserved")
+                .values(
+                    outcome="interrupted",
+                    finished_at=utc_now(),
+                    quota_state="released",
+                )
+            )
+            return int(result.rowcount or 0)
 
     def release_reserved(self) -> int:
         with self._sessions.begin() as session:

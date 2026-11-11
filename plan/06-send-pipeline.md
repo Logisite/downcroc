@@ -32,6 +32,10 @@ next request without a background refresh.
 
 ## Provider response classification
 
+Every reserved send attempt ends with a terminal outcome and a `finished_at` timestamp. A failure
+before the transport attempt is finalized against `pending`, a reauth failure blocks the job with
+`retryable=false`, and startup reconciliation closes stale reservations as `interrupted`.
+
 The provider response is the source of truth. SMTP classification reads the enhanced status code
 and the response text, not the numeric reply alone. A daily limit or rate limit marks the binding
 `quota_exhausted` and leaves the job in `retry_wait`; an unknown recipient fails the job; a policy

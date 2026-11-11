@@ -282,7 +282,25 @@ class Dispatcher(DispatchHelpers):
         try:
             result = await self._outbound.deliver(job, account, allowed_kinds=kinds)
         except DomainError as error:
-            self._log.debug("dispatch.error", job=job.id, code=error.code)
+            level = (
+                self._log.warning
+                if error.code
+                in {
+                    "account_needs_reauth",
+                    "credential_missing",
+                    "job_not_sendable",
+                    "invalid_job",
+                    "vault_locked",
+                }
+                else self._log.debug
+            )
+            level(
+                "dispatch.error",
+                job=job.id,
+                account=account.id,
+                code=error.code,
+                error=error.__class__.__name__,
+            )
             result = self._jobs.get(job.id)
         except Exception as error:  # noqa: BLE001 - one job must not kill the cycle
             self._log.error(

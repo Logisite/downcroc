@@ -60,6 +60,9 @@ class _SmtpHandler(socketserver.StreamRequestHandler):
                 self._send("250 2.0.0 OK")
 
     def _auth(self, text: str) -> None:
+        if self.server.owner.smtp_auth_rejected():  # type: ignore[attr-defined]
+            self._send("535 5.7.8 authentication failed")
+            return
         parts = text.split()
         if len(parts) == 2:
             self._send("334 ")
@@ -231,6 +234,7 @@ class FakeMailServers:
     _inboxes: dict[str, _Mailbox] = field(default_factory=dict)
     _rejected: set[str] = field(default_factory=set)
     _smtp_responses: dict[str, str] = field(default_factory=dict)
+    _smtp_auth_rejected: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _smtp: _Threaded | None = None
     _imap: _Threaded | None = None
@@ -295,6 +299,14 @@ class FakeMailServers:
         with self._lock:
             self._smtp_responses[address.strip().lower()] = response
 
+    def reject_smtp_auth(self) -> None:
+        with self._lock:
+            self._smtp_auth_rejected = True
+
+    def smtp_auth_rejected(self) -> bool:
+        with self._lock:
+            return self._smtp_auth_rejected
+
     def rcpt_failure(self, line: str) -> str | None:
         address = line.split(":", 1)[-1].strip().strip("<>")
         local = address.split("@", 1)[0].lower()
@@ -333,6 +345,7 @@ class FakeMailServers:
             self._inboxes.clear()
             self._rejected.clear()
             self._smtp_responses.clear()
+            self._smtp_auth_rejected = False
 
     @property
     def providers_toml(self) -> str:

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from downcroc.core.connectivity import ConnectivityState
 from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
+from downcroc.core.outbound.attempts.reconcile import reconcile_interrupted
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.policy_service import PolicyService
 from downcroc.core.stats import StatsService
@@ -100,6 +101,7 @@ def open_foundation(settings: Settings, paths: Paths, log: EventLogger) -> Found
             continue
         quota.commit(attempt.account_id, attempt.quota_day)
         send_attempts.set_quota(attempt.id, attempt.quota_day, "committed")
+    reconcile_interrupted(send_attempts, log)
     stale = send_attempts.release_reserved()
     quota.reset_reservations()
     if stale:
