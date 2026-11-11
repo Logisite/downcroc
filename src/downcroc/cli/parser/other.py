@@ -342,7 +342,8 @@ def logs(commands: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  downcroc logs --level warning --since 15m\n"
-            "  downcroc logs --event watcher. --json"
+            "  downcroc logs --event watcher. --json\n"
+            "  downcroc logs --addresses --since 15m"
         ),
     )
     parser.add_argument("--event", help="event name prefix, for example job.")
@@ -355,6 +356,11 @@ def logs(commands: argparse._SubParsersAction) -> None:
         "--limit", type=_log_limit, default=200, help="maximum lines (1-5000)"
     )
     parser.add_argument("--follow", action="store_true", help="keep printing new lines")
+    parser.add_argument(
+        "--addresses",
+        action="store_true",
+        help="show account addresses instead of ids",
+    )
     common(parser)
 
 

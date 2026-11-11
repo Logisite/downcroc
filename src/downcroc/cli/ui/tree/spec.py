@@ -219,6 +219,8 @@ def _spec(action: argparse.Action, *, global_option: bool = False) -> ArgSpec | 
     kind = _kind(action, positional)
     choices = tuple(str(choice) for choice in action.choices or ())
     default = None if action.default is argparse.SUPPRESS else action.default
+    if action.dest == "addresses":
+        default = True
     return ArgSpec(
         dest=action.dest,
         flags=flags,

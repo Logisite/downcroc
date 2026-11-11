@@ -10,6 +10,7 @@ from types import FrameType
 
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError, UsageError, render
+from downcroc.cli.logs_addresses import AddressBook
 from downcroc.cli.output import colour_enabled
 from downcroc.cli.ui.session import Ui, build
 from downcroc.runtime.logging.format import render as render_entry
@@ -59,7 +60,9 @@ def matches(entry: dict, args: object, cutoff: datetime | None) -> bool:
     return True
 
 
-def _print(entry: dict, raw: bool) -> None:
+def _print(entry: dict, raw: bool, book: AddressBook, addresses: bool) -> None:
+    if addresses:
+        entry = book.apply(entry, json_mode=raw)
     if raw:
         print(json.dumps(entry, ensure_ascii=False), flush=True)
     else:
@@ -115,15 +118,19 @@ def run(args: object) -> int:
     cutoff = _cutoff(args)
     if not paths.log_file.exists():
         return _missing(paths, ui)
+    book = AddressBook(paths)
+    if args.addresses:
+        book.refresh()
+        args.account = book.filter(args.account)
     if args.follow:
-        return _follow(paths, args, cutoff, ui)
+        return _follow(paths, args, cutoff, ui, book)
 
     found: list[dict] = []
     for path in oldest_first(paths):
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
     shown = found[-args.limit :]
     for entry in shown:
-        _print(entry, ui.json_mode)
+        _print(entry, ui.json_mode, book, args.addresses)
     if not found:
         print("no events match", file=sys.stderr)
     elif len(found) > len(shown) and not ui.json_mode:
@@ -134,13 +141,19 @@ def run(args: object) -> int:
     return 0
 
 
-def _follow(paths: Paths, args: object, cutoff: datetime | None, ui: Ui) -> int:
+def _follow(
+    paths: Paths,
+    args: object,
+    cutoff: datetime | None,
+    ui: Ui,
+    book: AddressBook,
+) -> int:
     found: list[dict] = []
     for path in oldest_first(paths):
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
     shown = found[-args.limit :]
     for entry in shown:
-        _print(entry, ui.json_mode)
+        _print(entry, ui.json_mode, book, args.addresses)
     if len(found) > len(shown) and not ui.json_mode:
         print(
             f"showing {len(shown)} of {len(found)}, use --since or --limit",
@@ -189,8 +202,10 @@ def _follow(paths: Paths, args: object, cutoff: datetime | None, ui: Ui) -> int:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if str(entry.get("event", "")).startswith("account."):
+                book.refresh()
             if matches(entry, args, cutoff):
-                _print(entry, ui.json_mode)
+                _print(entry, ui.json_mode, book, args.addresses)
     except KeyboardInterrupt:
         return 0
     finally:
