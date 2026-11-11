@@ -11,6 +11,7 @@ def build_outbound(
     settings = foundation.settings
     return OutboundService(
         foundation.jobs,
+        foundation.batches,
         foundation.accounts,
         foundation.providers,
         foundation.vault,

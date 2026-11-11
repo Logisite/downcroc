@@ -160,7 +160,7 @@ async def send_job(job_id: str, request: Request) -> JobOut:
     services.holds.ensure_can_send(
         job_id=job_id,
         account_id=current.account_id,
-        batch_id=current.batch_id,
+        batch_id=services.outbound.hold_batch_id(current),
     )
     job = await services.outbound.send(job_id)
     return JobOut.of(job, services.capacity.job_eta(job))

@@ -138,7 +138,11 @@ downcroc/
       credentials/presence.py  vault-backed credential presence
     accounts_service.py connect, verify, disable, reauth handling
     outbound/
-      service.py        build a job and send it
+      service.py        send one job through the selected transport
+      jobs/
+        create.py       manual field validation, batch sentinel, sender checks
+        manual.py       create one ad-hoc job, choose the mailbox
+        facade.py       job list, count, get, create, and hold scope
       credentials.py    resolve oauth or app password send credentials
       reconcile.py      reconcile a crashed send against the sent folder
     batches/

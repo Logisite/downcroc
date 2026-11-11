@@ -170,7 +170,9 @@ or `followups.bump-1`. Every error names the source it belongs to. Unknown schem
 
 `POST /api/jobs` and `POST /api/jobs/{id}/send` exist to prove the outbound pipeline before
 batches and the dispatcher arrive. They are thin calls into the outbound service, not a second
-scheduler. A one-off job uses `batch_id = "manual"` until it is attached to a real batch.
+scheduler. A one-off job uses `batch_id = "manual"` until it is attached to a real batch. Any
+other batch id must name an existing batch. Creation and sending reject an archived, paused, or
+disconnected account, and the `manual` sentinel is resolved before the hold check.
 
 ### Mail, threads, replies
 

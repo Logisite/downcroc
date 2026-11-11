@@ -8,8 +8,9 @@ from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound.attempts import AttemptRecorder
 from downcroc.core.outbound.gmail_delivery import GmailDelivery
-from downcroc.core.outbound.job_facade import JobFacadeMixin
-from downcroc.core.outbound.manual import ManualJobs
+from downcroc.core.outbound.jobs.create import require_usable
+from downcroc.core.outbound.jobs.facade import JobFacade
+from downcroc.core.outbound.jobs.manual import ManualJobs
 from downcroc.core.outbound.quota_accountant import QuotaAccountant
 from downcroc.core.outbound.reconcile import SentReconciler
 from downcroc.core.outbound.smtp_delivery import SmtpDelivery
@@ -21,7 +22,7 @@ from downcroc.core.policy import PolicyResolver
 from downcroc.core.stats import StatsService
 from downcroc.core.transports import TransportService
 from downcroc.core.vault import VaultService
-from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (
     AccountNeedsReauth,
     ContentCorrupt,
@@ -40,15 +41,17 @@ from downcroc.runtime.ids import new_id
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
+from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.quota import QuotaRepo
 from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 
-class OutboundService(JobFacadeMixin):
+class OutboundService(JobFacade):
     def __init__(
         self,
         jobs: JobRepo,
+        batches: BatchRepo,
         accounts: AccountRepo,
         providers: ProviderRegistry,
         vault: VaultService,
@@ -64,7 +67,6 @@ class OutboundService(JobFacadeMixin):
         transports: TransportService,
         policy: PolicyResolver,
         quota: QuotaRepo,
-        manual: ManualJobs,
         connectivity: object | None = None,
     ) -> None:
         self._jobs = jobs
@@ -78,7 +80,6 @@ class OutboundService(JobFacadeMixin):
         self._transports = transports
         self._policy = policy
         self._quota = quota
-        self._manual = manual
         self._credentials = CredentialResolver(accounts, vault, tokens, clients)
         self._accountant = QuotaAccountant(quota, send_attempts, bus, log)
         self._pool = SmtpSessionPool(settings, log)
@@ -107,13 +108,21 @@ class OutboundService(JobFacadeMixin):
             connect,
         )
         self._owner = f"outbound-{uuid.uuid4().hex[:12]}"
+        self._manual = ManualJobs(
+            accounts,
+            jobs,
+            content,
+            transports,
+            policy,
+            batches,
+        )
 
     async def send(self, job_id: str) -> Job:
         self._require_online()
         self._credentials.ensure_unlocked()
         job = self._jobs.get(job_id)
         account = self._manual.sender_for(job)
-        self._require_connected(account)
+        require_usable(account)
         claimed = self._jobs.claim(
             job_id,
             self._owner,
@@ -143,7 +152,7 @@ class OutboundService(JobFacadeMixin):
         if claimed.state is not JobState.SENDING or claimed.lease_owner is None:
             raise JobNotSendable("the job is not leased for sending")
         account = account or self._accounts.get(claimed.account_id)
-        self._require_connected(account)
+        require_usable(account)
         self._log.debug(
             "outbound.deliver",
             job=claimed.id,
@@ -356,16 +365,4 @@ class OutboundService(JobFacadeMixin):
             raise JobNotSendable(
                 "the internet is down",
                 hint="sending is paused and resumes when connectivity returns",
-            )
-
-    def _require_connected(self, account: Account) -> None:
-        if account.status is AccountStatus.NEEDS_REAUTH:
-            raise AccountNeedsReauth(
-                "the account needs to be reconnected",
-                hint="start a new connect attempt",
-            )
-        if account.status is not AccountStatus.CONNECTED:
-            raise AccountNeedsReauth(
-                "the account is not connected",
-                hint="connect the account before sending",
             )

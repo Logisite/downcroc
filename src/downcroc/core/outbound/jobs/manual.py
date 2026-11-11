@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import re
 
+from downcroc.core.outbound.jobs.create import is_usable, require_batch, require_usable
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.transports import TransportService
-from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.core.transports.seats import SlotPlan
+from downcroc.domain.accounts import Account
 from downcroc.domain.errors import AccountNeedsReauth, InvalidJob
 from downcroc.domain.jobs import Job, NewJob
 from downcroc.mail.mime.builder import build_message, mint_message_id
@@ -12,6 +14,7 @@ from downcroc.runtime.clock import utc_now
 from downcroc.runtime.ids import new_id
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
+from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
 
 ADDRESS = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -27,12 +30,14 @@ class ManualJobs:
         content: ContentStore,
         transports: TransportService,
         policy: PolicyResolver,
+        batches: BatchRepo,
     ) -> None:
         self._accounts = accounts
         self._jobs = jobs
         self._content = content
         self._transports = transports
         self._policy = policy
+        self._batches = batches
 
     def create(
         self,
@@ -46,6 +51,7 @@ class ManualJobs:
         batch_id: str = "manual",
     ) -> Job:
         account = self._accounts.get(account_id)
+        require_usable(account)
         recipient = recipient.strip().lower()
         subject = subject.strip()
         fields: dict[str, str] = {}
@@ -59,6 +65,7 @@ class ManualJobs:
             fields["batch_id"] = "must not be empty"
         if fields:
             raise InvalidJob("the job fields are not valid", fields=fields)
+        require_batch(self._batches, batch_id)
         job_id = new_id("job")
         message_id = mint_message_id(account.address, self._jobs.message_id_exists)
         payload = build_message(
@@ -96,16 +103,19 @@ class ManualJobs:
         ]
         for account_id in ordered:
             account = self._accounts.get(account_id)
-            if self._transports.allowed_kinds(account, plan):
+            if self._can_carry(account, plan):
                 return account
         for account in self._accounts.list():
-            if (
-                account.status is AccountStatus.CONNECTED
-                and self._policy.effective(account).enabled
-                and self._transports.allowed_kinds(account, plan)
-            ):
+            if self._can_carry(account, plan):
                 return account
         raise AccountNeedsReauth(
             "no mailbox can carry this job",
             hint="connect an account before sending",
         )
+
+    def _can_carry(self, account: Account, plan: SlotPlan) -> bool:
+        if not is_usable(account):
+            return False
+        if not self._policy.effective(account).enabled:
+            return False
+        return bool(self._transports.allowed_kinds(account, plan))

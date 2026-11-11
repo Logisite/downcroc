@@ -23,7 +23,8 @@ exist, the client may disconnect and the work continues.
 Until intake and dispatch exist, a one-off job is created through `POST /api/jobs` and sent
 through `POST /api/jobs/{id}/send`. That path builds the MIME message, mints the Message-ID, and
 runs the same SMTP send and Sent-folder reconciliation described here. It is a pre-dispatch seam,
-not a second scheduler; normal batches will use the dispatcher.
+not a second scheduler; normal batches will use the dispatcher. Manual creation and sending share
+the batch transport selection and reject archived, paused, or disconnected senders.
 
 ## Inputs
 
