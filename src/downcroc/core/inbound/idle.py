@@ -53,7 +53,7 @@ class IdleLoops:
         self._log = log
         self._settings = settings
 
-    def idle(self, handle: WatcherHandle, box, account: Account) -> None:
+    def idle(self, handle: WatcherHandle, box, account: Account, host: str) -> None:
         while not handle.stop.is_set():
             session = _IdleSession(box)
             try:
@@ -62,7 +62,7 @@ class IdleLoops:
                 last_live = started
                 reason: str | None = None
                 try:
-                    reason = self._poll_idle(handle, session, started, last_live)
+                    reason = self._poll_idle(handle, session, started, last_live, host)
                 finally:
                     try:
                         session.stop()
@@ -81,6 +81,7 @@ class IdleLoops:
         session: _IdleSession,
         started: float,
         last_live: float,
+        host: str,
     ) -> str | None:
         while not handle.stop.is_set():
             if handle.refresh.is_set():
@@ -101,7 +102,7 @@ class IdleLoops:
                     session.start()
                 except (imaplib.IMAP4.error, OSError, ImapToolsError) as error:
                     handle.mode = "stale"
-                    self._stale(handle, round(silent))
+                    self._stale(handle, round(silent), host)
                     raise WatchFailure("imap_protocol_error") from error
                 last_live = time.monotonic()
                 started = last_live
@@ -127,16 +128,23 @@ class IdleLoops:
                 return
             handle.stop.wait(timeout=min(1.0, remaining))
 
-    def _stale(self, handle: WatcherHandle, silent_s: int) -> None:
+    def _stale(self, handle: WatcherHandle, silent_s: int, host: str) -> None:
         self._log.warning(
             "inbound.idle_stale",
             account=handle.account.id,
-            silent_s=silent_s,
+            host=host,
+            uid=handle.account.last_uid,
+            idle_s=silent_s,
         )
         self._queue.put(
             WatcherEvent(
                 "inbound.idle_stale",
-                {"account": handle.account.id, "silent_s": silent_s},
+                {
+                    "account": handle.account.id,
+                    "host": host,
+                    "uid": handle.account.last_uid,
+                    "idle_s": silent_s,
+                },
             )
         )
 

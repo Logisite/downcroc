@@ -144,6 +144,7 @@ class SweepScheduler:
                 found=found,
                 ingested=ingested,
                 skipped=skipped,
+                skip_reasons={"not_ingested": skipped} if skipped else {},
             )
             self._queue.put(
                 WatcherEvent(
@@ -153,6 +154,7 @@ class SweepScheduler:
                         "found": found,
                         "ingested": ingested,
                         "skipped": skipped,
+                        "skip_reasons": ({"not_ingested": skipped} if skipped else {}),
                     },
                 )
             )

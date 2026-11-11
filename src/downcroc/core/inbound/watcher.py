@@ -125,6 +125,10 @@ class WatcherRunner:
                     {
                         "account": account_id,
                         "reason": reason,
+                        "cause": reason,
+                        "host": getattr(handle, "host", None),
+                        "uid": handle.account.last_uid,
+                        "attempt": handle.failures,
                         "retry_in_s": 0,
                     },
                 )
@@ -134,6 +138,11 @@ class WatcherRunner:
             "watcher.stopped",
             account=handle.account.id,
             reason=reason,
+            cause=handle.stop_reason or ("error" if failure else "loop_exit"),
+            error=failure.reason if failure else None,
+            host=getattr(handle, "host", None),
+            uid=handle.account.last_uid,
+            attempt=handle.failures,
             retry_in_s=retry,
         )
 
@@ -163,6 +172,7 @@ class WatcherRunner:
     def _watch(self, handle: WatcherHandle) -> None:
         account = handle.account
         spec = self._clients.spec_for_account(account)
+        handle.host = spec.imap_host
         box = self._connect(spec, account)
         idle = spec.supports_idle and handle.allow_idle
         handle.mode = "idle" if idle else "imap_poll"
@@ -205,7 +215,7 @@ class WatcherRunner:
                 if handle.stop.is_set():
                     break
                 if idle:
-                    self._loops.idle(handle, box, account)
+                    self._loops.idle(handle, box, account, spec.imap_host)
                 else:
                     self._loops.poll(handle, account)
                 if not handle.stop.is_set():

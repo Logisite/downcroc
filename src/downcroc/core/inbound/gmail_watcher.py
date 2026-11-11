@@ -120,6 +120,11 @@ class GmailWatcher:
             "watcher.stopped",
             account=handle.account.id,
             reason=reason,
+            cause=handle.stop_reason or ("error" if failure else "loop_exit"),
+            error=failure.reason if failure else None,
+            host=getattr(handle, "host", None),
+            uid=handle.account.last_uid,
+            attempt=handle.failures,
             source="gmail_api",
             retry_in_s=retry,
         )
@@ -127,6 +132,7 @@ class GmailWatcher:
     def _watch(self, handle: WatcherHandle) -> None:
         account = handle.account
         spec = self._clients.spec_for_account(account)
+        handle.host = spec.api_base_url
         handle.mode = "api_poll"
         token = self._tokens.access_token(account, spec=spec)
         history_id = (

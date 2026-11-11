@@ -17,6 +17,7 @@ from downcroc.domain.errors import (
 )
 from downcroc.domain.providers import AuthKind, ProviderSpec
 from downcroc.providers.oauth import client as oauth_client
+from downcroc.providers.oauth import events as oauth_events
 from downcroc.providers.oauth import pkce
 from downcroc.providers.oauth.callback import (
     CALLBACK_PATH,
@@ -80,12 +81,7 @@ class OAuthFlow:
 
     def _expire(self, attempt: ConnectAttempt, reason: str) -> None:
         if self.attempts.set_state(attempt.id, AttemptState.EXPIRED, reason):
-            self.log.warning(
-                "oauth.failed",
-                code=reason,
-                attempt=attempt.id,
-                account=attempt.account_id,
-            )
+            oauth_events.expired(self.log, attempt, reason)
 
     def _start(self, account: Account, spec: ProviderSpec) -> ConnectAttempt:
         try:
@@ -178,6 +174,7 @@ class OAuthFlow:
                 hint="start a new attempt instead",
             )
         self._stop(attempt_id)
+        oauth_events.cancelled(self.log, attempt, "user")
         return self.attempts.get(attempt_id)
 
     def stop_for_account(self, account_id: str) -> None:
@@ -188,8 +185,10 @@ class OAuthFlow:
                 if listener.attempt.account_id == account_id
             ]
         for attempt_id in attempts:
+            attempt = self.attempts.get(attempt_id)
             self.attempts.set_state(attempt_id, AttemptState.CANCELLED)
             self._stop(attempt_id)
+            oauth_events.cancelled(self.log, attempt, "account_stop")
 
     def close_all(self, reason: str) -> None:
         with self._listeners_lock:
@@ -203,6 +202,7 @@ class OAuthFlow:
                 listener.thread.join(remaining)
         for listener in listeners:
             self.attempts.set_state(listener.attempt.id, AttemptState.EXPIRED, reason)
+            oauth_events.cancelled(self.log, listener.attempt, reason)
 
     def _serve(self, listener: Listener) -> None:
         expired = False
@@ -239,12 +239,7 @@ class OAuthFlow:
                 self.attempts.set_state(
                     listener.attempt.id, AttemptState.EXPIRED, "expired"
                 )
-                self.log.warning(
-                    "oauth.failed",
-                    code="expired",
-                    attempt=listener.attempt.id,
-                    account=listener.attempt.account_id,
-                )
+                oauth_events.expired(self.log, listener.attempt, "expired")
             listener.server.server_close()
             with self._listeners_lock:
                 self._listeners.pop(listener.attempt.id, None)
