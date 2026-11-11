@@ -39,18 +39,25 @@ class Frame:
         self._claimed = 0
 
     def __enter__(self) -> Self:
-        self._stream.write(ansi.hide_cursor())
-        self._stream.flush()
+        self.hide_cursor()
         return self
 
     def __exit__(self, *_exc: object) -> None:
         self.erase()
+        self.show_cursor()
+
+    def hide_cursor(self) -> None:
+        self._stream.write(ansi.hide_cursor())
+        self._stream.flush()
+
+    def show_cursor(self) -> None:
         self._stream.write(ansi.show_cursor())
         self._stream.flush()
 
     def draw(self, lines: list[str]) -> None:
         limit = max(1, columns(self._ui) - 1)
         fitted = [ansi.fit(line, limit) for line in lines]
+        self.hide_cursor()
         self.erase()
         self._reserve(len(fitted))
         self._stream.write("\r\n".join(fitted) + "\r\n")

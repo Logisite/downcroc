@@ -13,6 +13,7 @@ from downcroc.core.batches.views import (
     Preview,
     PreviewFollowUp,
     PreviewMessage,
+    PreviewOverlap,
 )
 from downcroc.core.capacity import CapacityService
 from downcroc.core.events import EventBus
@@ -32,7 +33,7 @@ from downcroc.domain.errors import (
     SampleAlreadySent,
 )
 from downcroc.domain.jobs import JobState
-from downcroc.runtime.clock import utc_now
+from downcroc.runtime.clock import utc_after, utc_now
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.ids import new_id
 from downcroc.runtime.logging.setup import EventLogger
@@ -200,6 +201,7 @@ class BatchesService:
             )
         except AccountUnavailable:
             plan = None
+        overlap = self._overlap(campaign, key)
         assignments = plan.assignments if plan else {}
         chosen = campaign.messages
         if key is not None:
@@ -241,8 +243,28 @@ class BatchesService:
                 for step in campaign.followups
             ),
             duplicates=campaign.duplicates,
+            overlap=overlap,
             attachments=planning.attachments(campaign),
         )
+
+    def _overlap(self, campaign: Campaign, key: str | None) -> PreviewOverlap | None:
+        payload = snapshot.campaign_bytes(campaign)
+        digest = hashlib.sha256(payload).hexdigest()
+        recipients = {
+            message.recipient.email.casefold() for message in campaign.messages
+        }
+        since = utc_after(-self._settings.retention.jobs_days * 86_400)
+        counts = self._jobs.overlap(recipients, since)
+        if not counts:
+            return None
+        self._log.warning(
+            "batch.duplicate_warning",
+            count=sum(counts.values()),
+            batches=sorted(counts),
+            source_hash=digest,
+            key=key,
+        )
+        return PreviewOverlap(sum(counts.values()), tuple(sorted(counts)))
 
     def list(
         self, *, state: str | None = None, limit: int = 100, offset: int = 0

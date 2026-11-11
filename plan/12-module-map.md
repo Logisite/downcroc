@@ -257,6 +257,10 @@ downcroc/
     client.py           loopback HTTP client and API errors
     context.py          paths and config loading
     output.py           tables, records, JSON, colour detection
+    ui/
+      edit.py           line editor, visible caret, tab completion
+      complete.py       filesystem-only path completion
+      auth.py           credential preflight status strip
     commands/
       serve.py service.py openapi.py auth.py vault.py accounts.py batches.py jobs.py
       failed.py config.py stats.py mail.py backup.py restore.py logs.py

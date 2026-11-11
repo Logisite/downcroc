@@ -73,6 +73,11 @@ def batch(commands: argparse._SubParsersAction) -> None:
         action="store_true",
         help="validate and preview without writing a batch",
     )
+    submit.add_argument(
+        "--allow-overlap",
+        action="store_true",
+        help="submit even when recipients appear in recent batches",
+    )
     common(submit)
 
     validate = actions.add_parser(

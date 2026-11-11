@@ -252,6 +252,11 @@ class PreviewAttachmentsOut(BaseModel):
         return cls(count=value.count, bytes=value.bytes)
 
 
+class PreviewOverlapOut(BaseModel):
+    count: int
+    batches: list[str]
+
+
 class PreviewOut(BaseModel):
     source_kind: str
     campaign_key: str
@@ -267,6 +272,7 @@ class PreviewOut(BaseModel):
     routing: PreviewRoutingOut | None
     followups: list[PreviewFollowUpOut]
     duplicates: int
+    overlap: PreviewOverlapOut | None = None
     attachments: PreviewAttachmentsOut | None
     capacity: dict[str, object] | None = None
 
@@ -293,6 +299,14 @@ class PreviewOut(BaseModel):
             ),
             followups=[PreviewFollowUpOut.of(step) for step in preview.followups],
             duplicates=preview.duplicates,
+            overlap=(
+                PreviewOverlapOut(
+                    count=preview.overlap.count,
+                    batches=list(preview.overlap.batches),
+                )
+                if preview.overlap
+                else None
+            ),
             attachments=(
                 PreviewAttachmentsOut.of(preview.attachments)
                 if preview.attachments

@@ -36,6 +36,12 @@ class PreviewFollowUp:
 
 
 @dataclass(frozen=True)
+class PreviewOverlap:
+    count: int
+    batches: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class PreviewAttachments:
     count: int
     bytes: int
@@ -57,6 +63,7 @@ class Preview:
     routing: PreviewRouting | None = None
     followups: tuple[PreviewFollowUp, ...] = ()
     duplicates: int = 0
+    overlap: PreviewOverlap | None = None
     attachments: PreviewAttachments | None = None
 
 

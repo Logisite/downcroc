@@ -115,6 +115,21 @@ class JobRepo(JobSenderRepo, JobStateRepo):
             )
             return row is not None
 
+    def overlap(self, recipients: set[str], since: str) -> dict[str, int]:
+        if not recipients:
+            return {}
+        with self._sessions() as session:
+            rows = session.execute(
+                select(JobRow.batch_id, func.count())
+                .where(
+                    JobRow.recipient.in_(recipients),
+                    JobRow.created_at >= since,
+                    JobRow.batch_id != "manual",
+                )
+                .group_by(JobRow.batch_id)
+            )
+            return {batch_id: int(count) for batch_id, count in rows}
+
     def due(self, account_id: str, now: str, limit: int = 50) -> list[Job]:
         sendable = JobRow.state.in_(_SENDABLE) & (
             (JobRow.next_attempt_at.is_(None)) | (JobRow.next_attempt_at <= now)

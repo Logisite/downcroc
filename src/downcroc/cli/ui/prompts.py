@@ -101,7 +101,18 @@ def ask(
         return _plain(label, default=default, required=required, field=field)
     if not _keyboard(ui):
         return _plain(label, default=default, required=required, field=field)
-    return edit_line(ui, label, default=default, required=required)
+    paths = (
+        (field or "") in {"FILE", "--client", "--path"}
+        or "path" in label.casefold()
+        or "file" in label.casefold()
+    )
+    return edit_line(
+        ui,
+        label,
+        default=default,
+        required=required,
+        complete_paths=paths,
+    )
 
 
 def ask_secret(

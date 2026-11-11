@@ -22,6 +22,10 @@ def source_body(args: object) -> dict:
     }
 
 
+def _cancelled() -> None:
+    raise CliError("cancelled", code="cancelled")
+
+
 def _confirm_batch(ui: Ui, args: object, batch: dict, question: str) -> None:
     if getattr(args, "yes", False):
         return
@@ -77,6 +81,21 @@ def _validate(args: object, ui: Ui) -> int:
     paths, settings, _ = load()
     source = path_tools.resolve_input(args.path)
     body = inputs.validate(source, getattr(args, "template", None), settings, paths)
+    if body.get("ok"):
+        try:
+            with api(paths, timeout=getattr(args, "timeout", None)) as client:
+                preview = post(
+                    client,
+                    "/api/batches/preview",
+                    {
+                        "path": str(source),
+                        "template": getattr(args, "template", None),
+                        "account": getattr(args, "account", None),
+                    },
+                )
+            body["overlap"] = preview.get("overlap")
+        except CliError:
+            body["overlap"] = None
     if ui.json_mode:
         json_out(body)
     else:
@@ -147,6 +166,17 @@ def _submit(client, args: object, ui: Ui) -> int:
             print()
             print("dry run, nothing was written")
         return 0
+    preview = post(client, "/api/batches/preview", body)
+    overlap = preview.get("overlap") or {}
+    if overlap and not getattr(args, "allow_overlap", False):
+        count = overlap.get("count", 0)
+        batches = ", ".join(overlap.get("batches") or [])
+        prompts.confirm(
+            f"{count} recipients already appear in {batches}. Submit anyway?",
+            ui=ui,
+            default=False,
+            yes_flag=False,
+        ) or _cancelled()
     batch = post(client, "/api/batches", {**body, "key": key})
     reused = bool(batch.get("reused"))
     if args.approve != "none" and batch["state"] == "awaiting_approval":

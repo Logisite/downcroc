@@ -152,6 +152,7 @@ def show_preview(
     table_view: bool = False,
 ) -> None:
     messages = preview["messages"]
+    _show_overlap(preview, ui)
     if not table_view:
         cards(preview, messages[:1] if key is not None else messages, ui, key)
         when.show_capacity(preview.get("capacity"), ui)
@@ -200,6 +201,21 @@ def cards(preview: dict, messages: list[dict], ui: Ui, key: str | None) -> None:
     ):
         print()
         print(ui.dim(f"{preview['sampled']} of {preview['total']} shown, pass --all"))
+
+
+def _overlap(document: dict) -> str:
+    overlap = document.get("overlap") or {}
+    count = int(overlap.get("count") or 0)
+    if not count:
+        return ""
+    batches = ", ".join(overlap.get("batches") or [])
+    return f"{count:,} recipients also appear in {batches}"
+
+
+def _show_overlap(document: dict, ui: Ui) -> None:
+    text = _overlap(document)
+    if text:
+        print(ui.paint(f"overlap: {text}", "warn"))
 
 
 def approval(preview: dict) -> str:
@@ -256,6 +272,7 @@ def show_validation(body: dict) -> None:
                 ),
                 "followups": len(body.get("followups") or []),
                 "duplicates": body.get("duplicates", 0),
+                "overlap": _overlap(body) or "none",
             }
         )
         for field in body.get("ignored") or []:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from downcroc.cli.errors import Cancelled
 from downcroc.cli.ui import ansi, panel
+from downcroc.cli.ui import complete as completion
 from downcroc.cli.ui.frame import Frame, columns
 from downcroc.cli.ui.keys import (
     BACKSPACE,
@@ -17,6 +18,7 @@ from downcroc.cli.ui.keys import (
     LEFT,
     RIGHT,
     SPACE,
+    TAB,
     Keys,
 )
 from downcroc.cli.ui.session import Ui
@@ -29,6 +31,7 @@ def edit_line(
     default: str | None = None,
     mask: bool = False,
     required: bool = True,
+    complete_paths: bool = False,
 ) -> str:
     title = f"{label}  [{default}]" if default else label
     panel.gap()
@@ -48,6 +51,7 @@ def edit_line(
                     rows.append(ui.paint(error, "bad"))
                 frame.draw(panel.frame(ui, title, rows))
                 frame.place(column + panel.MARGIN + panel.PAD, row=2)
+                frame.show_cursor()
                 drawn = state
             key = keys.read()
             error = ""
@@ -60,6 +64,14 @@ def edit_line(
                     error = "a value is required"
                     continue
                 break
+            if key == TAB and complete_paths:
+                found = completion.complete(buffer, cursor)
+                buffer, cursor = found.buffer, found.cursor
+                if not found.matches:
+                    error = "no match"
+                elif len(found.matches) > 1:
+                    error = _matches(found.matches, found.truncated)
+                continue
             if key == BACKSPACE:
                 if cursor:
                     buffer = buffer[: cursor - 1] + buffer[cursor:]
@@ -103,6 +115,21 @@ def _drop_word(buffer: str, cursor: int) -> int:
     return spot
 
 
+def _matches(matches: tuple[str, ...], truncated: bool) -> str:
+    text = "  ".join(matches)
+    return f"{text}  ..." if truncated else text
+
+
+def _window(text: str, cursor: int, room: int) -> tuple[int, int]:
+    start = 0
+    while start < cursor and ansi.cells(text[start:cursor]) > max(0, room - 1):
+        start += 1
+    end = start
+    while end < len(text) and ansi.cells(text[start : end + 1]) <= room:
+        end += 1
+    return start, end
+
+
 def _render(
     ui: Ui,
     buffer: str,
@@ -119,8 +146,8 @@ def _render(
         source = default
     else:
         room = max(4, limit - 4)
-        start = max(0, cursor - room + 1) if len(shown) > room else 0
-        text = shown[start : start + room]
+        start, end = _window(shown, cursor, room)
+        text = shown[start:end]
         view = text
         position = cursor - start
         source = text

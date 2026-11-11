@@ -160,6 +160,10 @@ Validation errors use the shared envelope with `fields` keyed by `messages[0].su
 or `followups.bump-1`. Every error names the source it belongs to. Unknown schema versions return
 `unsupported_schema` and are never partially imported.
 
+Preview, validate, and submit report `overlap`: the recipient count and batch ids that already
+appear in recent batches. Submit warns before writing and requires confirmation or
+`--allow-overlap`; the `manual` sentinel is excluded from the query.
+
 ### Jobs
 
 | Method | Path | Purpose |

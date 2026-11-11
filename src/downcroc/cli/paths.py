@@ -9,7 +9,10 @@ from downcroc.cli.errors import CliError
 
 
 def expand(path: str | Path) -> Path:
-    return Path(path).expanduser().absolute()
+    text = str(path)
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+        text = text[1:-1]
+    return Path(text).expanduser().absolute()
 
 
 def resolve_input(path: str | Path, *, field: str = "path") -> Path:
