@@ -39,7 +39,6 @@ class FollowUpRequest(BaseModel):
 
     path: str = Field(min_length=1, max_length=4096)
     template: str | None = Field(default=None, max_length=64)
-    account: str | None = Field(default=None, max_length=64)
     step: str = Field(min_length=1, max_length=64)
     require_approval: bool = False
 

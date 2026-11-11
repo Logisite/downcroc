@@ -5,11 +5,22 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from downcroc.domain.errors import DomainError
+from downcroc.runtime.logging import correlation
 
 
 def install(app: FastAPI) -> None:
+    log = app.state.log
+
     @app.exception_handler(DomainError)
-    async def on_domain_error(_: Request, error: DomainError) -> JSONResponse:
+    async def on_domain_error(request: Request, error: DomainError) -> JSONResponse:
+        log.warning(
+            "api.domain_error",
+            method=request.method,
+            path=request.url.path,
+            status=error.status,
+            code=error.code,
+            correlation_id=correlation.current(),
+        )
         body: dict[str, object] = {
             "error": error.code,
             "message": error.message,

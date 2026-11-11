@@ -19,6 +19,7 @@ from downcroc.api.routes import (
     doctor,
     events,
     failed,
+    followups,
     health,
     jobs,
     messages,
@@ -112,6 +113,7 @@ def create_app(
     app.include_router(messages.router)
     app.include_router(jobs.router)
     app.include_router(batches.router)
+    app.include_router(followups.router)
     app.include_router(failed.router)
     app.include_router(failed.aliases)
     app.include_router(stats.router)

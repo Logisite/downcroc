@@ -67,6 +67,10 @@ def run(args: object) -> int:
             return _delete(client, args, ui)
         if action == "followup":
             return _followup(client, args, ui)
+        if action == "followups":
+            from downcroc.cli.commands import batch_followups
+
+            return batch_followups.run(client, args, ui)
         if action == "suppression":
             return _suppression(client, args, ui)
         batch = get(client, f"/api/batches/{args.batch_id}")
@@ -326,7 +330,6 @@ def _followup(client, args: object, ui: Ui) -> int:
         {
             "path": str(source),
             "template": args.template,
-            "account": args.account,
             "step": args.step,
             "require_approval": bool(args.require_approval),
         },

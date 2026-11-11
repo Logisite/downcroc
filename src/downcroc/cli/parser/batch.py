@@ -8,6 +8,7 @@ from downcroc.cli.parser.common import (
     common,
     limit,
     non_negative,
+    positive,
 )
 
 KINDS = ["json", "followups", "csv", "template"]
@@ -159,9 +160,44 @@ def batch(commands: argparse._SubParsersAction) -> None:
     followup.add_argument("path")
     followup.add_argument("--step", required=True)
     followup.add_argument("--template")
-    followup.add_argument("--account")
     followup.add_argument("--require-approval", action="store_true")
     common(followup)
+
+    followups = actions.add_parser(
+        "followups",
+        help="declare, inspect, remove, or retire follow-up steps",
+        epilog=(
+            "examples:\n"
+            "  downcroc batch followups status bat_...\n"
+            "  downcroc batch followups declare bat_... fu1.json --step fu1\n"
+            "  downcroc batch followups remove bat_... --step fu1 --yes\n"
+            "  downcroc batch followups retire bat_... --step fu1 --yes"
+        ),
+    )
+    followup_actions = followups.add_subparsers(dest="followup_action", required=True)
+    status = followup_actions.add_parser("status", help="show every step")
+    status.add_argument("batch_id")
+    common(status)
+    declare = followup_actions.add_parser("declare", help="declare a step")
+    declare.add_argument("batch_id")
+    declare.add_argument("path", help="shared patch or payload-backed JSON")
+    declare.add_argument("--step", required=True)
+    declare.add_argument("--kind", choices=["shared", "payload"])
+    declare.add_argument("--version", type=positive)
+    declare.add_argument("--dry-run", action="store_true")
+    common(declare)
+    remove = followup_actions.add_parser("remove", help="remove a step before send")
+    remove.add_argument("batch_id")
+    remove.add_argument("--step", required=True)
+    remove.add_argument("--version", type=positive)
+    remove.add_argument("--dry-run", action="store_true")
+    common(remove, yes=True)
+    retire = followup_actions.add_parser("retire", help="retire a step after send")
+    retire.add_argument("batch_id")
+    retire.add_argument("--step", required=True)
+    retire.add_argument("--version", type=positive)
+    retire.add_argument("--dry-run", action="store_true")
+    common(retire, yes=True)
 
     suppression = actions.add_parser("suppression", help="show suppressed recipients")
     suppression.add_argument("batch_id")

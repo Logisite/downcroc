@@ -29,6 +29,7 @@ from downcroc.store.repositories.attempts import AttemptRepo
 from downcroc.store.repositories.batch_counters import BatchCounterRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.events import EventRepo
+from downcroc.store.repositories.followup_declarations import FollowUpDeclarationRepo
 from downcroc.store.repositories.jobs import JobRepo
 from downcroc.store.repositories.messages import MessageRepo
 from downcroc.store.repositories.oauth_clients import OAuthClientRepo
@@ -61,6 +62,7 @@ class Foundation:
     messages: MessageRepo
     jobs: JobRepo
     batches: BatchRepo
+    followup_declarations: FollowUpDeclarationRepo
     quota: QuotaRepo
     send_attempts: SendAttemptRepo
     runtime: RuntimeStateRepo
@@ -94,6 +96,7 @@ def open_foundation(settings: Settings, paths: Paths, log: EventLogger) -> Found
     messages = MessageRepo(sessions)
     jobs = JobRepo(sessions)
     batches = BatchRepo(sessions)
+    followup_declarations = FollowUpDeclarationRepo(sessions)
     quota = QuotaRepo(sessions)
     send_attempts = SendAttemptRepo(sessions)
     for attempt in send_attempts.reserved_accepted():
@@ -158,6 +161,7 @@ def open_foundation(settings: Settings, paths: Paths, log: EventLogger) -> Found
         messages=messages,
         jobs=jobs,
         batches=batches,
+        followup_declarations=followup_declarations,
         quota=quota,
         send_attempts=send_attempts,
         runtime=runtime,

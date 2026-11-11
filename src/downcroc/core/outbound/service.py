@@ -28,6 +28,7 @@ from downcroc.domain.errors import (
     AccountNeedsReauth,
     ContentCorrupt,
     ContentMissing,
+    JobNotFound,
     JobNotSendable,
 )
 from downcroc.domain.jobs import Job, JobState, SenderPolicy
@@ -373,7 +374,7 @@ class OutboundService(JobFacade):
             job=job.id,
             account=account.id,
             code=outcome.code or "send_failed",
-            message=(outcome.message or "")[:300],
+            detail=(outcome.message or "")[:300],
         )
         return self._jobs.mark_failed(
             job.id,
@@ -437,6 +438,7 @@ class OutboundService(JobFacade):
     def _sent(self, job: Job, account: Account, started: float, binding) -> None:
         self._stats.record_sent(job, account.id)
         transport = binding.kind.value if binding is not None else "pending"
+        thread = self._thread_fields(job)
         self._bus.publish(
             "job.sent",
             {
@@ -446,6 +448,7 @@ class OutboundService(JobFacade):
                 "account": account.id,
                 "transport": transport,
                 "binding": binding.id if binding is not None else None,
+                **thread,
             },
         )
         self._log.info(
@@ -456,7 +459,30 @@ class OutboundService(JobFacade):
             transport=transport,
             binding=binding.id if binding is not None else None,
             duration_ms=round((time.monotonic() - started) * 1000),
+            **thread,
         )
+
+    def _thread_fields(self, job: Job) -> dict[str, object]:
+        in_reply_to = None
+        references = 0
+        current = job.parent_job_id
+        seen: set[str] = set()
+        while current is not None and current not in seen and references < 1000:
+            seen.add(current)
+            try:
+                parent = self._jobs.get(current)
+            except JobNotFound:
+                break
+            if in_reply_to is None:
+                in_reply_to = parent.message_id
+            references += 1
+            current = parent.parent_job_id
+        return {
+            "thread_root": job.thread_root_job_id,
+            "parent_job": job.parent_job_id,
+            "in_reply_to": in_reply_to,
+            "references_count": references,
+        }
 
     async def reconcile(self) -> None:
         await self._reconciler.run()

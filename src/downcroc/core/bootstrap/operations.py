@@ -72,6 +72,8 @@ def build_operations(
         foundation.stats,
         foundation.bus,
         foundation.log,
+        foundation.followup_declarations,
+        foundation.send_attempts,
     )
     retention = RetentionService(
         settings.retention,

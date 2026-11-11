@@ -24,6 +24,8 @@ def parse_message(
     limits: IntakeLimits,
     issues: Issues,
     ignored: list[IgnoredField],
+    *,
+    allow_empty_subject: bool = False,
 ) -> Message:
     where = f"messages[{index}]"
     body = mapping(raw, where, issues)
@@ -68,7 +70,13 @@ def parse_message(
     if isinstance(subject_raw, str):
         subject = subject_raw
         if not subject.strip():
-            issues.add("empty_subject", "subject is empty", f"{where}.subject", key=key)
+            if not allow_empty_subject:
+                issues.add(
+                    "empty_subject",
+                    "subject is empty",
+                    f"{where}.subject",
+                    key=key,
+                )
         elif len(subject) > MAX_SUBJECT:
             issues.add(
                 "invalid_field",
@@ -79,9 +87,10 @@ def parse_message(
             subject = subject[:MAX_SUBJECT]
     else:
         subject = ""
-        issues.add(
-            "missing_subject", "subject is required", f"{where}.subject", key=key
-        )
+        if not allow_empty_subject:
+            issues.add(
+                "missing_subject", "subject is required", f"{where}.subject", key=key
+            )
     text = optional_text(
         body.get("text"), f"{where}.text", issues, limit=limits.max_body_bytes
     )

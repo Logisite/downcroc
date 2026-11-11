@@ -73,6 +73,86 @@ class FollowUpSyncFailed(DomainError):
     status = 502
 
 
+class FollowUpInvalid(DomainError):
+    code = "followup_invalid"
+    status = 422
+
+
+class FollowUpStepExists(DomainError):
+    code = "followup_step_exists"
+    status = 409
+
+
+class FollowUpStepUsed(DomainError):
+    code = "followup_step_used"
+    status = 409
+
+
+class FollowUpNotFound(DomainError):
+    code = "followup_not_found"
+    status = 404
+
+
+class FollowUpParentInvalid(DomainError):
+    code = "followup_parent_invalid"
+    status = 422
+
+
+class FollowUpOverrideUnknown(DomainError):
+    code = "followup_override_unknown"
+    status = 422
+
+
+class FollowUpPayloadGap(DomainError):
+    code = "followup_payload_gap"
+    status = 422
+
+
+class FollowUpPayloadExtra(DomainError):
+    code = "followup_payload_extra"
+    status = 422
+
+
+class FollowUpPayloadMissing(DomainError):
+    code = "followup_payload_missing"
+    status = 422
+
+
+class FollowUpVersionConflict(DomainError):
+    code = "followup_version_conflict"
+    status = 409
+
+
+class FollowUpVersionRequired(DomainError):
+    code = "followup_version_required"
+    status = 409
+
+
+class FollowUpConfirmRequired(DomainError):
+    code = "followup_confirm_required"
+    status = 409
+
+
+class FollowUpInFlight(DomainError):
+    code = "followup_in_flight"
+    status = 409
+
+
+class FollowUpSenderUnavailable(DomainError):
+    code = "followup_sender_unavailable"
+    status = 409
+
+
+class FollowUpSenderUnresolved(DomainError):
+    code = "followup_sender_unresolved"
+    status = 409
+
+
+class FollowUpThreadBroken(DomainError):
+    code = "followup_thread_broken"
+    status = 409
+
+
 class SampleAlreadySent(DomainError):
     code = "sample_already_sent"
     status = 409

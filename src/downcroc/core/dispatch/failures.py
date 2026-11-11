@@ -128,7 +128,7 @@ class FailureService:
             job=job.id,
             account=attribution,
             code=failure.code,
-            message=failure.message[:300],
+            detail=failure.message[:300],
             attempts=job.attempts,
         )
         self._bus.publish(

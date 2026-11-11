@@ -70,6 +70,18 @@ class ContentStore:
         digest = hashlib.sha256(payload).hexdigest()
         return StoredContent(path=relative.as_posix(), hash=digest, size=len(payload))
 
+    def put_followup_payload(
+        self, batch_id: str, step_key: str, payload: bytes
+    ) -> StoredContent:
+        name = safe_filename(step_key, "step")
+        relative = PurePosixPath("batches", batch_id, "followups", f"{name}.json")
+        target = self._root / Path(*relative.parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        restrict(target.parent, 0o700)
+        self._write(target, payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        return StoredContent(path=relative.as_posix(), hash=digest, size=len(payload))
+
     def put_job_message(self, job_id: str, payload: bytes) -> StoredContent:
         relative = PurePosixPath("jobs", job_id, "message.eml")
         target = self._root / Path(*relative.parts)

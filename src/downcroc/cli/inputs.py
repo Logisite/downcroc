@@ -180,7 +180,30 @@ EXAMPLES = {
                     "text": "Hi again,\n",
                 }
             ],
-        }
+        },
+        "shared.json": {
+            "after_days": 3,
+            "when": "no_reply",
+            "subject": "",
+            "text": "Just following up on my note.",
+            "require_approval": True,
+            "overrides": {"m1": {"skip": True}},
+        },
+        "payload.json": {
+            "followup": {
+                "after_days": 3,
+                "when": "no_reply",
+                "require_approval": True,
+            },
+            "messages": [
+                {
+                    "key": "m1",
+                    "to": {"email": "ana@example.com"},
+                    "subject": "A different note for Ana",
+                    "text": "Hi Ana, one more thought.\n",
+                }
+            ],
+        },
     },
     "csv": {
         "rows.csv": "email,name,company\nana@example.com,Ana,Acme\nbo@example.com,Bo,Globex\n",

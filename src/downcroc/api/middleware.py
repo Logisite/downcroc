@@ -6,6 +6,7 @@ import uuid
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from downcroc.runtime.logging import correlation
 from downcroc.runtime.logging.setup import EventLogger
 
 
@@ -21,6 +22,7 @@ class RequestLogMiddleware:
             await self.app(scope, receive, send)
             return
         request_id = uuid.uuid4().hex[:16]
+        token = correlation.set_current(request_id)
         started = time.monotonic()
         status = 500
         code: str | None = None
@@ -54,13 +56,16 @@ class RequestLogMiddleware:
                 traceback=traceback.format_exc()[-4000:],
             )
             raise
-        if status >= 400:
-            self.log.warning(
-                "api.request_failed",
-                method=scope.get("method", ""),
-                path=scope.get("path", ""),
-                status=status,
-                code=code,
-                duration_ms=round((time.monotonic() - started) * 1000),
-                request_id=request_id,
-            )
+        else:
+            if status >= 400:
+                self.log.warning(
+                    "api.request_failed",
+                    method=scope.get("method", ""),
+                    path=scope.get("path", ""),
+                    status=status,
+                    code=code,
+                    duration_ms=round((time.monotonic() - started) * 1000),
+                    request_id=request_id,
+                )
+        finally:
+            correlation.reset(token)

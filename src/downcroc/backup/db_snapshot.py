@@ -11,6 +11,7 @@ CONTENT_REFS = (
     ("batches", "source_ref"),
     ("jobs", "body_ref"),
     ("attachments", "path"),
+    ("batch_followup_declarations", "content_ref"),
 )
 
 

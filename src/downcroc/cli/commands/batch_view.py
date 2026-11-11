@@ -115,19 +115,22 @@ def show_batch(batch: dict, all_rows: bool, ui: Ui) -> None:
 def recipients(rows: list[dict], all_rows: bool) -> None:
     shown = rows if all_rows else rows[:20]
     if shown:
-        table(
-            ["job", "recipient", "state", "attempts", "sent"],
+        headers = ["job", "recipient", "state", "attempts", "sent"]
+        cells = [
             [
-                [
-                    item["id"],
-                    item["recipient"],
-                    item["state"],
-                    item["attempts"],
-                    item["sent_at"],
-                ]
-                for item in shown
-            ],
-        )
+                item["id"],
+                item["recipient"],
+                item["state"],
+                item["attempts"],
+                item["sent_at"],
+            ]
+            for item in shown
+        ]
+        if all_rows:
+            headers.insert(1, "key")
+            for cell, item in zip(cells, shown, strict=True):
+                cell.insert(1, item.get("source_key") or "-")
+        table(headers, cells)
     if not all_rows and len(rows) > len(shown):
         print(f"{len(rows) - len(shown)} more recipients, use --all to show them")
 

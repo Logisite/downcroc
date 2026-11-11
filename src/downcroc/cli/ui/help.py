@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from downcroc.cli.ui.help_followups import TOPIC as FOLLOW_UPS
 from downcroc.cli.ui.session import Ui
 
 TOPICS: dict[str, str] = {
@@ -289,6 +290,8 @@ TOPICS: dict[str, str] = {
   Related: ui, vault, accounts
 """,
 }
+
+TOPICS["followups"] = FOLLOW_UPS
 
 TOPICS["start"] = """start
 

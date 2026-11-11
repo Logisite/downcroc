@@ -29,6 +29,7 @@ def parse_campaign(
     source_dir: Path,
     name: str,
     limits: IntakeLimits,
+    allow_empty_subject: bool = False,
 ) -> Campaign:
     issues = Issues()
     if isinstance(raw, list):
@@ -65,7 +66,15 @@ def parse_campaign(
             hint="split the campaign or raise intake.max_messages",
         )
     messages = [
-        parse_message(item, index, source_dir, limits, issues, ignored)
+        parse_message(
+            item,
+            index,
+            source_dir,
+            limits,
+            issues,
+            ignored,
+            allow_empty_subject=allow_empty_subject,
+        )
         for index, item in enumerate(messages_raw)
     ]
     if not messages:

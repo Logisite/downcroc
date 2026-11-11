@@ -31,6 +31,7 @@ class Skip:
     job_id: str
     step_key: str
     reason: str
+    detail: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,3 +44,4 @@ class StepEvaluation:
     suppressed: int = 0
     pending: int = 0
     not_due: int = 0
+    broken: int = 0

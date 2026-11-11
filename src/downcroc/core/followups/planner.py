@@ -9,9 +9,12 @@ from downcroc.core.followups.model import (
     Skip,
     StepEvaluation,
 )
+from downcroc.core.followups.payload import PayloadDocument, reply_subject
 from downcroc.core.followups.snapshot import ParentDeclaration
+from downcroc.core.followups.threading import ThreadBroken, build_chain
 from downcroc.domain.campaign import FollowUpOverride, FollowUpStep
 from downcroc.domain.errors import BatchInvalid
+from downcroc.domain.followups import FollowUpDeclaration
 from downcroc.domain.jobs import Job, JobState
 from downcroc.runtime.clock import parse_utc
 from downcroc.store.repositories.jobs import JobRepo
@@ -44,6 +47,15 @@ class AnchorResult:
     bounced: int = 0
     suppressed: int = 0
     pending: int = 0
+    broken: int = 0
+
+
+@dataclass(frozen=True)
+class PlannedStep:
+    step: FollowUpStep
+    overrides: dict[str, FollowUpOverride]
+    payload: PayloadDocument | None = None
+    declaration: FollowUpDeclaration | None = None
 
 
 class Context:
@@ -123,15 +135,17 @@ class Planner:
     def plan_step(
         self,
         declaration: ParentDeclaration,
-        step: FollowUpStep,
+        planned: PlannedStep,
+        earlier: tuple[PlannedStep, ...],
         initial_jobs: list[Job],
         context: Context,
     ) -> StepEvaluation:
+        step = planned.step
         candidates: list[Candidate] = []
         skipped: list[Skip] = []
-        replied = bounced = suppressed = pending = not_due = 0
+        replied = bounced = suppressed = pending = not_due = broken = 0
         for parent in initial_jobs:
-            reason = self._stopped_reason(declaration, step, parent, context)
+            reason = self._stopped_reason(declaration, step.when, parent, context)
             if reason is not None:
                 skipped.append(Skip(parent.id, step.key, reason))
                 if reason == "replied":
@@ -141,7 +155,7 @@ class Planner:
                 else:
                     suppressed += 1
                 continue
-            if self._earlier_pending(declaration, step, parent, context):
+            if self._earlier_pending(earlier, parent, context):
                 pending += 1
                 continue
             existing = context.step_job(parent.id, step.key)
@@ -149,7 +163,7 @@ class Planner:
                 if existing.state in PENDING:
                     pending += 1
                 continue
-            override = _override(declaration, parent, step.key)
+            override = _override(planned, parent)
             if override is not None and override.skip:
                 skipped.append(Skip(parent.id, step.key, "override"))
                 continue
@@ -160,7 +174,13 @@ class Planner:
             if not _due(anchor, step):
                 not_due += 1
                 continue
-            content = _content(step, parent, override)
+            try:
+                chain = build_chain(parent, anchor, context.chain(parent.id))
+            except ThreadBroken as error:
+                skipped.append(Skip(parent.id, step.key, "thread_broken", error.reason))
+                broken += 1
+                continue
+            content = _content_for(planned, parent, override)
             candidates.append(
                 Candidate(
                     parent=parent,
@@ -170,7 +190,7 @@ class Planner:
                     source_kind="json",
                     source_key=parent.source_key,
                     source_index=parent.source_index,
-                    references=_references(context, parent.id, anchor),
+                    references=chain.references,
                 )
             )
         return StepEvaluation(
@@ -182,6 +202,7 @@ class Planner:
             suppressed=suppressed,
             pending=pending,
             not_due=not_due,
+            broken=broken,
         )
 
     def immediate(
@@ -194,9 +215,9 @@ class Planner:
     ) -> AnchorResult:
         anchors: list[Anchor] = []
         skipped: list[Skip] = []
-        replied = bounced = suppressed = pending = 0
+        replied = bounced = suppressed = pending = broken = 0
         for parent in initial_jobs:
-            reason = self._stopped_reason(declaration, None, parent, context)
+            reason = self._stopped_reason(declaration, "no_reply", parent, context)
             if reason is not None:
                 skipped.append(Skip(parent.id, step_key, reason))
                 if reason == "replied":
@@ -217,12 +238,14 @@ class Planner:
             if anchor is None:
                 skipped.append(Skip(parent.id, step_key, "parent_not_sent"))
                 continue
+            try:
+                chain = build_chain(parent, anchor, context.chain(parent.id))
+            except ThreadBroken as error:
+                skipped.append(Skip(parent.id, step_key, "thread_broken", error.reason))
+                broken += 1
+                continue
             anchors.append(
-                Anchor(
-                    parent=parent,
-                    sent=anchor,
-                    references=_references(context, parent.id, anchor),
-                )
+                Anchor(parent=parent, sent=anchor, references=chain.references)
             )
         return AnchorResult(
             anchors=tuple(anchors),
@@ -231,16 +254,16 @@ class Planner:
             bounced=bounced,
             suppressed=suppressed,
             pending=pending,
+            broken=broken,
         )
 
     def _stopped_reason(
         self,
         declaration: ParentDeclaration,
-        step: FollowUpStep | None,
+        when: str,
         parent: Job,
         context: Context,
     ) -> str | None:
-        when = step.when if step is not None else "no_reply"
         signals = context.signals(parent.id)
         if when != "always":
             if "reply" in declaration.options.stop_on and signals.reply:
@@ -250,24 +273,22 @@ class Planner:
         if (
             declaration.options.suppress_replies
             and parent.recipient in context.suppressed(parent.account_id)
+            and not (when == "always" and signals.reply)
         ):
             return "suppressed"
         return None
 
     def _earlier_pending(
         self,
-        declaration: ParentDeclaration,
-        step: FollowUpStep,
+        earlier: tuple[PlannedStep, ...],
         parent: Job,
         context: Context,
     ) -> bool:
-        for earlier in declaration.followups:
-            if earlier.key == step.key:
-                return False
-            override = _override(declaration, parent, earlier.key)
+        for step in earlier:
+            override = _override(step, parent)
             if override is not None and override.skip:
                 continue
-            job = context.step_job(parent.id, earlier.key)
+            job = context.step_job(parent.id, step.step.key)
             if job is None:
                 return True
             if job.state in PENDING:
@@ -275,14 +296,31 @@ class Planner:
         return False
 
 
-def _override(
-    declaration: ParentDeclaration,
-    parent: Job,
-    step_key: str,
-) -> FollowUpOverride | None:
+def _override(planned: PlannedStep, parent: Job) -> FollowUpOverride | None:
     if parent.source_key is None:
         return None
-    return declaration.overrides.get(parent.source_key, {}).get(step_key)
+    return planned.overrides.get(parent.source_key)
+
+
+def _content_for(
+    planned: PlannedStep,
+    parent: Job,
+    override: FollowUpOverride | None,
+) -> Content:
+    if planned.payload is not None:
+        message = planned.payload.message_for(parent.source_key, parent.recipient)
+        if message is None:
+            raise BatchInvalid(
+                "the stored payload has no message for a parent recipient",
+                fields={"step": planned.step.key, "recipient": parent.recipient},
+            )
+        subject = message.subject.strip() or reply_subject(parent.subject)
+        return Content(
+            subject=subject,
+            text=message.text,
+            html=message.html,
+        )
+    return _content(planned.step, parent, override)
 
 
 def _content(
@@ -302,32 +340,13 @@ def _content(
         elif override.html is not None:
             html = override.html
     if not subject:
-        subject = (
-            f"Re: {parent.subject}" if not _is_reply(parent.subject) else parent.subject
-        )
+        subject = reply_subject(parent.subject)
     if not text.strip() and not (html or "").strip():
         raise BatchInvalid(
             "the follow-up has no content",
             fields={"step": step.key},
         )
     return Content(subject=subject, text=text, html=html)
-
-
-def _is_reply(subject: str) -> bool:
-    return subject.strip().casefold().startswith("re:")
-
-
-def _references(context: Context, root_id: str, anchor: Job) -> tuple[str, ...]:
-    by_id = {job.id: job for job in context.chain(root_id)}
-    chain: list[str] = []
-    current: Job | None = anchor
-    seen: set[str] = set()
-    while current is not None and current.id not in seen:
-        seen.add(current.id)
-        chain.append(current.message_id)
-        current = by_id.get(current.parent_job_id or "")
-    chain.reverse()
-    return tuple(chain)
 
 
 def _due(anchor: Job, step: FollowUpStep) -> bool:

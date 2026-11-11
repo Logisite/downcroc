@@ -9,6 +9,7 @@ from downcroc.store.db.models.base import Base
 from downcroc.store.db.models.batches import BatchRow
 from downcroc.store.db.models.dispatch import FailedJobRow, QuotaBucketRow
 from downcroc.store.db.models.events import EventRow
+from downcroc.store.db.models.followups import FollowUpDeclarationRow
 from downcroc.store.db.models.jobs import JobRow
 from downcroc.store.db.models.messages import (
     AttachmentRow,
@@ -34,6 +35,7 @@ __all__ = [
     "BatchRow",
     "EventRow",
     "FailedJobRow",
+    "FollowUpDeclarationRow",
     "JobRow",
     "MessageRow",
     "OAuthClientRow",

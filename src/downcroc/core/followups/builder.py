@@ -3,13 +3,12 @@ from __future__ import annotations
 import json
 import mimetypes
 from dataclasses import dataclass
-from email.parser import BytesParser
-from email.policy import SMTP
-from email.utils import parseaddr
 from pathlib import Path
 
 from downcroc.core.batches import samples, snapshot
 from downcroc.core.followups.model import Candidate
+from downcroc.core.followups.sender import ResolvedSender, SenderResolver
+from downcroc.core.followups.threading import subject_has_re
 from downcroc.domain.batches import Batch, BatchKind, BatchState, NewBatch
 from downcroc.domain.campaign import (
     SCHEMA,
@@ -20,8 +19,8 @@ from downcroc.domain.campaign import (
     Recipient,
     RoutingPolicy,
 )
-from downcroc.domain.errors import BatchInvalid
-from downcroc.domain.jobs import Job, JobState, NewJob, SenderPolicy
+from downcroc.domain.errors import BatchInvalid, FollowUpThreadBroken
+from downcroc.domain.jobs import Job, JobState, NewJob
 from downcroc.mail.mime.builder import (
     OutgoingAttachment,
     build_message,
@@ -30,18 +29,12 @@ from downcroc.mail.mime.builder import (
 from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.ids import new_id
+from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
 from downcroc.store.repositories.jobs import JobRepo
-
-
-@dataclass(frozen=True)
-class _Sender:
-    address: str
-    name: str
-    account_id: str | None
-    policy: SenderPolicy
+from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 
 @dataclass(frozen=True)
@@ -57,6 +50,8 @@ class DerivedInput:
     producer: dict[str, object]
     warnings: tuple[str, ...] = ()
     ignored: tuple[IgnoredField, ...] = ()
+    declaration_id: str | None = None
+    kind: str = "automatic"
 
 
 class DerivedBuilder:
@@ -67,12 +62,16 @@ class DerivedBuilder:
         jobs: JobRepo,
         batches: BatchRepo,
         content: ContentStore,
+        attempts: SendAttemptRepo,
+        log: EventLogger,
     ) -> None:
         self._settings = settings
         self._accounts = accounts
         self._jobs = jobs
         self._batches = batches
         self._content = content
+        self._log = log
+        self._senders = SenderResolver(accounts, attempts, log)
 
     def create(self, source: DerivedInput) -> Batch:
         if not source.candidates:
@@ -94,7 +93,11 @@ class DerivedBuilder:
         batch = self._batches.create(
             self._new_batch(source, batch_id, stored.path, stored.hash, chosen)
         )
-        self._jobs.create_many(built)
+        try:
+            self._jobs.create_many(built)
+        except Exception:
+            self._batches.delete(batch_id)
+            raise
         return batch
 
     def _jobs_for(
@@ -106,6 +109,12 @@ class DerivedBuilder:
         built: list[NewJob] = []
         for item in source.candidates:
             sender = self._sender(item.parent)
+            if not item.references or item.references[-1] != item.anchor.message_id:
+                raise FollowUpThreadBroken(
+                    "the follow-up chain cannot produce a reply",
+                    hint="restore the parent job and its message id",
+                    fields={"job": item.parent.id, "step": source.step_key},
+                )
             job_id = new_id("job")
             message_id = mint_message_id(sender.address, self._jobs.message_id_exists)
             payload = build_message(
@@ -122,6 +131,22 @@ class DerivedBuilder:
                 attachments=self._attachments(item),
             )
             stored = self._content.put_job_message(job_id, payload)
+            self._log.info(
+                "thread.linked",
+                direction="outbound",
+                source="followup",
+                batch=batch_id,
+                step=source.step_key,
+                parent=item.anchor.id,
+                child=job_id,
+                root=item.parent.id,
+                account=sender.account_id,
+                in_reply_to=item.references[-1],
+                references_count=len(item.references),
+                references_head=item.references[0],
+                subject_has_re=subject_has_re(item.content.subject),
+                message_id=message_id,
+            )
             built.append(
                 NewJob(
                     id=job_id,
@@ -154,28 +179,8 @@ class DerivedBuilder:
             )
         return built
 
-    def _sender(self, parent: Job) -> _Sender:
-        if parent.account_id is not None:
-            account = self._accounts.get(parent.account_id)
-            return _Sender(
-                account.address,
-                account.label,
-                account.id,
-                SenderPolicy.PINNED,
-            )
-        address, name = self._parent_sender(parent)
-        return _Sender(address, name, None, SenderPolicy.AUTO)
-
-    def _parent_sender(self, parent: Job) -> tuple[str, str]:
-        payload = self._content.read_bytes(parent.body_ref)
-        message = BytesParser(policy=SMTP).parsebytes(payload)
-        name, address = parseaddr(str(message.get("From", "")))
-        if not address:
-            raise BatchInvalid(
-                f"parent job {parent.id} has no sender address",
-                hint="a follow-up needs a From address to build its thread",
-            )
-        return address, name
+    def _sender(self, parent: Job) -> ResolvedSender:
+        return self._senders.resolve(parent)
 
     def _campaign(self, source: DerivedInput, batch_id: str) -> Campaign:
         messages = tuple(
@@ -277,6 +282,8 @@ class DerivedBuilder:
                     "stop_on": list(options.get("stop_on", ("reply", "bounce"))),
                     "allow_duplicates": False,
                     "step": source.step_key,
+                    "kind": source.kind,
+                    "declaration": source.declaration_id,
                 },
                 sort_keys=True,
             ),
