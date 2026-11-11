@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from downcroc.runtime.logging import context
+from downcroc.runtime.logging.redaction import scrub_entry
 
 RESERVED = frozenset(
     {
@@ -67,7 +68,7 @@ def entry_from(record: logging.LogRecord) -> dict[str, Any]:
         entry[field] = value
     if record.exc_info:
         entry["error"] = "".join(traceback.format_exception(*record.exc_info)).strip()
-    return entry
+    return scrub_entry(entry)
 
 
 class JsonFormatter(logging.Formatter):

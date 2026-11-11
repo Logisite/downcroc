@@ -60,9 +60,17 @@ def _reject(
 
 
 class ApiAuthMiddleware:
-    def __init__(self, app: ASGIApp, *, token: str, settings: Settings) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        token: str,
+        settings: Settings,
+        log,
+    ) -> None:
         self.app = app
         self.token = token
+        self.log = log
         hosts = _allowed_hosts(settings)
         self.hosts = hosts
         self.origins = _allowed_origins(hosts)
@@ -74,6 +82,7 @@ class ApiAuthMiddleware:
         headers = Headers(scope=scope)
         host = (headers.get("host") or "").lower()
         if host not in self.hosts:
+            self._log_reject(scope, "forbidden_host")
             response = _reject(
                 403,
                 "forbidden_host",
@@ -83,6 +92,7 @@ class ApiAuthMiddleware:
             return
         origin = headers.get("origin")
         if origin is not None and origin.lower() not in self.origins:
+            self._log_reject(scope, "forbidden_origin")
             response = _reject(
                 403,
                 "forbidden_origin",
@@ -95,6 +105,7 @@ class ApiAuthMiddleware:
             await self.app(scope, receive, send)
             return
         if not _bearer(headers, self.token):
+            self._log_reject(scope, "unauthorized")
             response = _reject(
                 401,
                 "unauthorized",
@@ -104,3 +115,12 @@ class ApiAuthMiddleware:
             await response(scope, receive, send)
             return
         await self.app(scope, receive, send)
+
+    def _log_reject(self, scope: Scope, reason: str) -> None:
+        client = scope.get("client")
+        self.log.warning(
+            "api.auth_rejected",
+            reason=reason,
+            client=f"{client[0]}:{client[1]}" if client else "unknown",
+            path=scope.get("path", ""),
+        )

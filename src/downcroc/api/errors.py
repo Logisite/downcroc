@@ -23,7 +23,11 @@ def install(app: FastAPI) -> None:
             body["details"] = error.details
         if error.extra:
             body.update(error.extra)
-        return JSONResponse(body, status_code=error.status)
+        return JSONResponse(
+            body,
+            status_code=error.status,
+            headers={"X-Downcroc-Error": error.code},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def on_validation_error(
@@ -41,4 +45,5 @@ def install(app: FastAPI) -> None:
                 "fields": fields,
             },
             status_code=422,
+            headers={"X-Downcroc-Error": "invalid_request"},
         )

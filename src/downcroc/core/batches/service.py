@@ -148,16 +148,21 @@ class BatchesService:
             duplicates=campaign.duplicates,
             duration_ms=elapsed_ms,
         )
+        counts: dict[str, int] = {}
+        for account_id in plan.assignments.values():
+            counts[account_id] = counts.get(account_id, 0) + 1
         self._log.info(
             "routing.resolved",
             batch=batch.id,
-            accounts=len(set(plan.assignments.values())),
+            accounts=len(counts),
             messages=len(plan.assignments),
+            counts=counts,
         )
         self._log.info("snapshot.stored", hash=stored.hash, bytes=stored.size)
         self._log.info(
             "batch.created",
             batch=batch.id,
+            source=path,
             jobs=len(built),
             followups=len(campaign.followups),
         )

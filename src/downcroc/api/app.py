@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from downcroc.api import errors
 from downcroc.api.auth import ApiAuthMiddleware
+from downcroc.api.middleware import RequestLogMiddleware
 from downcroc.api.routes import (
     accounts,
     attempts,
@@ -85,7 +86,9 @@ def create_app(
         ApiAuthMiddleware,
         token=token,
         settings=settings,
+        log=log,
     )
+    app.add_middleware(RequestLogMiddleware, log=log)
     app.state.settings = settings
     app.state.paths = paths
     app.state.log = log

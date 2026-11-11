@@ -39,7 +39,7 @@ from downcroc.runtime.service.process import (
 )
 from downcroc.runtime.service.registry import ServiceInfo, read, remove, write
 from downcroc.runtime.service.units import launcher
-from downcroc.version import API_VERSION, __version__
+from downcroc.version import API_VERSION, COMMIT, __version__
 
 
 class PortInUse(RuntimeError):
@@ -178,12 +178,25 @@ def _now() -> str:
     return datetime.now(tz=UTC).isoformat(timespec="seconds")
 
 
+def _lock_pid_hint(path: Path) -> int | None:
+    try:
+        text = path.read_text(encoding="ascii").strip()
+    except OSError:
+        return None
+    if not text.isdigit():
+        return None
+    pid = int(text)
+    return pid if pid != os.getpid() else None
+
+
 def _cleanup(paths: Paths) -> None:
     remove(paths.service_file)
     service_token.clear(paths.token_file)
 
 
 def run_foreground(paths: Paths) -> None:
+    previous = read(paths.service_file)
+    stale_pid = _lock_pid_hint(paths.lock_file)
     lock = InstanceLock(paths.lock_file)
     try:
         lock.acquire()
@@ -212,6 +225,19 @@ def run_foreground(paths: Paths) -> None:
         ensure(paths)
         early = setup_logging(paths, Settings(), stream=sys.stderr)
         early.info("lock.acquired", path=str(paths.lock_file))
+        if stale_pid is not None:
+            early.warning(
+                "service.stale_lock",
+                pid=stale_pid,
+                port=previous.port if previous else None,
+            )
+        if previous is not None and not is_alive(previous.pid):
+            early.warning(
+                "daemon.recovered",
+                previous_pid=previous.pid,
+                previous_started_at=previous.started_at,
+                clean=False,
+            )
         if outcome is not None:
             log_outcome(early, outcome)
 
@@ -252,6 +278,7 @@ def run_foreground(paths: Paths) -> None:
             host=info.host,
             port=info.port,
             version=info.version,
+            commit=COMMIT,
             config=str(paths.config_file),
         )
         app = create_app(settings, paths, log, token=token)
