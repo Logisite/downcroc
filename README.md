@@ -146,8 +146,8 @@ downcroc docs --search seat
 downcroc docs --open
 ```
 
-`downcroc docs` opens the terminal browser. The same Markdown book is packaged in the wheel and
-renders in a browser with `--open`.
+`downcroc docs` opens the terminal browser. The same Markdown book is packaged in the wheel.
+`--open` opens the current page file in your browser.
 
 ## Sending
 
