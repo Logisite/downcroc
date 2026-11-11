@@ -276,6 +276,15 @@ uv run python scripts/build_binary.py pyinstaller
 
 Design notes and implementation tickets live in `plan/` and `.scratch/`.
 
+## Project
+
+- [Documentation book](docs/)
+- [Changelog](CHANGELOG.md)
+- [Release notes](release-notes/)
+- [Security policy](SECURITY.md)
+- [Design notes](plan/)
+- [License](LICENSE)
+
 ## Release notes
 
 See [`release-notes/`](release-notes/) for the full history. The current release is
