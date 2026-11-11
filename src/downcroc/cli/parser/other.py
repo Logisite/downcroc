@@ -129,10 +129,26 @@ def top(commands: argparse._SubParsersAction) -> None:
 
     docs = commands.add_parser(
         "docs",
-        help="print the installed documentation paths",
-        epilog="example:\n  downcroc docs --open",
+        help="read the documentation book",
+        epilog=(
+            "examples:\n"
+            "  downcroc docs\n"
+            "  downcroc docs smtp-seats\n"
+            "  downcroc docs --list\n"
+            "  downcroc docs --search seat\n"
+            "  downcroc docs smtp-seats --open"
+        ),
     )
-    docs.add_argument("--open", action="store_true", help="open the docs index")
+    docs.add_argument("topic", nargs="?", help="page path, slug, or title")
+    docs.add_argument("--list", action="store_true", help="list every page")
+    docs.add_argument("--search", metavar="QUERY", help="search titles, tags, and body")
+    docs.add_argument("--raw", action="store_true", help="print exact Markdown")
+    docs.add_argument("--open", action="store_true", help="open the page in a browser")
+    docs.add_argument(
+        "--width",
+        type=int,
+        help="wrap the page at this many terminal columns",
+    )
     common(docs)
 
     help_parser = commands.add_parser(

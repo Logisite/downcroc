@@ -33,6 +33,7 @@ dependencies = [
     "pydantic>=2.14.1",
     "rich>=15.0.0",
     "sqlalchemy>=2.1.6",
+    "textual>=8.2.8",
     "tomli-w>=1.2.0",
     "uvicorn>=0.54.0",
     "zstandard>=0.25.0",
