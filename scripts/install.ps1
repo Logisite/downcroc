@@ -6,10 +6,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 if ($Version -eq "" -and $Wheel -eq "" -and -not $env:DOWNCROC_WHEEL_URL) {
     try {
-        $latest = Invoke-RestMethod -Uri "https://api.github.com/repos/Logisite/downcroc/releases/latest"
+        $latest = Invoke-RestMethod -Uri "https://api.github.com/repos/Logisite/downcroc/releases/latest" -Headers @{ "User-Agent" = "downcroc-installer" }
         $Version = $latest.tag_name.TrimStart("v")
     } catch {
         Write-Error "could not resolve the latest release"
@@ -70,7 +71,8 @@ function Install-LatestPython {
         Select-Object -First 1
     if (-not $version) { throw "could not resolve the latest Python release" }
 
-    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } elseif ($env:PROCESSOR_ARCHITECTURE -eq "x86") { "" } else { "amd64" }
+    $machine = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+    $arch = if ($machine -eq "ARM64") { "arm64" } elseif ($machine -eq "x86") { "" } else { "amd64" }
     $name = if ($arch) { "python-$version-$arch.exe" } else { "python-$version.exe" }
     $url = "https://www.python.org/ftp/python/$version/$name"
     $installer = Join-Path $env:TEMP $name
@@ -112,7 +114,8 @@ $Bin = Join-Path $Prefix "bin"
 New-Item -ItemType Directory -Force -Path $Bin | Out-Null
 
 Write-Host "creating the virtual environment..."
-& $python.Command @($python.Args) -m venv $Venv
+$venvArgs = @($python.Args) + @("-m", "venv", $Venv)
+& $python.Command @venvArgs
 if ($LASTEXITCODE -ne 0) { throw "could not create the virtual environment at $Venv" }
 $VenvPython = Join-Path $Venv "Scripts\python.exe"
 $VenvDowncroc = Join-Path $Venv "Scripts\downcroc.exe"
