@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.bootstrap.accounts import build_accounts
 from downcroc.core.bootstrap.dispatch import build_dispatcher
 from downcroc.core.bootstrap.failures import build_failures
@@ -22,14 +23,15 @@ from downcroc.runtime.paths import Paths
 
 def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     foundation = open_foundation(settings, paths, log)
+    eligibility = AccountEligibility(foundation.policy, foundation.presence)
     inbound = build_inbound(foundation)
-    transports, credentials = build_transports(foundation)
+    transports, credentials = build_transports(foundation, eligibility)
     accounts, vault_maintenance = build_accounts(foundation, inbound, transports)
-    outbound = build_outbound(foundation, transports)
+    outbound = build_outbound(foundation, transports, eligibility)
     inbound.open()
     capacity = build_capacity(foundation, transports)
     holds = build_holds(foundation, transports, capacity)
-    batches = build_batches(foundation, outbound, capacity)
+    batches = build_batches(foundation, outbound, capacity, eligibility)
     failures = build_failures(foundation)
     operations = build_operations(
         foundation,
@@ -45,6 +47,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         failures,
         operations.followups,
         outbound,
+        eligibility,
     )
     support = build_support(foundation, operations.followups)
     return Services(

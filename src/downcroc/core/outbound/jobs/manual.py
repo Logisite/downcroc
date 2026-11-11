@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import re
 
-from downcroc.core.outbound.jobs.create import is_usable, require_batch, require_usable
+from downcroc.core.accounts import AccountEligibility
+from downcroc.core.outbound.jobs.create import require_batch, require_usable
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.transports import TransportService
 from downcroc.core.transports.seats import SlotPlan
 from downcroc.domain.accounts import Account
-from downcroc.domain.errors import AccountNeedsReauth, InvalidJob
+from downcroc.domain.errors import AccountNeedsReauth, CredentialMissing, InvalidJob
 from downcroc.domain.jobs import Job, NewJob
 from downcroc.mail.mime.builder import build_message, mint_message_id
 from downcroc.runtime.clock import utc_now
@@ -31,6 +32,7 @@ class ManualJobs:
         transports: TransportService,
         policy: PolicyResolver,
         batches: BatchRepo,
+        eligibility: AccountEligibility,
     ) -> None:
         self._accounts = accounts
         self._jobs = jobs
@@ -38,6 +40,7 @@ class ManualJobs:
         self._transports = transports
         self._policy = policy
         self._batches = batches
+        self._eligibility = eligibility
 
     def create(
         self,
@@ -52,6 +55,11 @@ class ManualJobs:
     ) -> Job:
         account = self._accounts.get(account_id)
         require_usable(account)
+        if not self._eligibility.credential_present(account):
+            raise CredentialMissing(
+                "the send credential is missing from the vault",
+                hint="connect the account again",
+            )
         recipient = recipient.strip().lower()
         subject = subject.strip()
         fields: dict[str, str] = {}
@@ -114,8 +122,6 @@ class ManualJobs:
         )
 
     def _can_carry(self, account: Account, plan: SlotPlan) -> bool:
-        if not is_usable(account):
-            return False
-        if not self._policy.effective(account).enabled:
+        if not self._eligibility.sendable(account):
             return False
         return bool(self._transports.allowed_kinds(account, plan))

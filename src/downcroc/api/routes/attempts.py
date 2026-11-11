@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from downcroc.api.schemas.accounts import AttemptOut
-from downcroc.core.accounts_service import AccountsService
+from downcroc.core.accounts import AccountsService
 
 router = APIRouter(prefix="/api/attempts", tags=["accounts"])
 

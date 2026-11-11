@@ -10,7 +10,7 @@ from downcroc.api.schemas.oauth_clients import (
     OAuthClientImport,
     OAuthClientOut,
 )
-from downcroc.core.accounts_service import AccountsService
+from downcroc.core.accounts import AccountsService
 from downcroc.core.oauth_clients import OAuthClientService
 
 router = APIRouter(prefix="/api/oauth-clients", tags=["oauth-clients"])

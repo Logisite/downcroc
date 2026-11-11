@@ -18,9 +18,13 @@ def _service(request: Request) -> VaultService:
 
 
 def _out(request: Request) -> VaultOut:
+    services = request.app.state.services
     accounts = [
-        VaultAccount(id=account.id, credential_present=account.credential_present)
-        for account in request.app.state.services.accounts.list()
+        VaultAccount(
+            id=account.id,
+            credential_present=services.presence.present(account),
+        )
+        for account in services.accounts.list()
     ]
     return VaultOut.of(_service(request).status(), accounts)
 

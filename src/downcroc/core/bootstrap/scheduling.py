@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.batches import BatchesService
 from downcroc.core.bootstrap.foundation import Foundation
 from downcroc.core.capacity import CapacityService
@@ -45,6 +46,7 @@ def build_batches(
     foundation: Foundation,
     outbound: OutboundService,
     capacity: CapacityService,
+    eligibility: AccountEligibility,
 ) -> BatchesService:
     return BatchesService(
         foundation.settings,
@@ -60,4 +62,5 @@ def build_batches(
         foundation.bus,
         foundation.log,
         capacity,
+        eligibility,
     )

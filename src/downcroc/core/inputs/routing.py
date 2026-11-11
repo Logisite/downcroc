@@ -5,8 +5,9 @@ import random
 from dataclasses import dataclass
 from json import dumps
 
+from downcroc.core.accounts.eligibility import AccountEligibility
 from downcroc.core.policy import PolicyResolver
-from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.domain.accounts import Account
 from downcroc.domain.campaign import Campaign, RoutingPolicy
 from downcroc.domain.errors import AccountUnavailable
 
@@ -38,10 +39,13 @@ class RoutingPlan:
 
 
 def resolve(
-    campaign: Campaign, accounts: list[Account], policy: PolicyResolver
+    campaign: Campaign,
+    accounts: list[Account],
+    policy: PolicyResolver,
+    eligibility: AccountEligibility,
 ) -> RoutingPlan:
     routing = campaign.routing
-    eligible = _eligible(routing, accounts, policy)
+    eligible = _eligible(routing, accounts, eligibility)
     if not eligible:
         raise AccountUnavailable(
             "no connected account matches the routing policy",
@@ -75,15 +79,13 @@ def resolve(
 
 
 def _eligible(
-    policy: RoutingPolicy, accounts: list[Account], resolver: PolicyResolver
+    policy: RoutingPolicy,
+    accounts: list[Account],
+    eligibility: AccountEligibility,
 ) -> list[Account]:
     result = []
     for account in accounts:
-        if account.archived_at is not None:
-            continue
-        if account.status is not AccountStatus.CONNECTED:
-            continue
-        if not resolver.effective(account).enabled:
+        if not eligibility.routable(account):
             continue
         if policy.include and not _matches(policy.include, account):
             continue

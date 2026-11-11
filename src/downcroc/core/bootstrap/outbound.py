@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.bootstrap.foundation import Foundation
 from downcroc.core.outbound import OutboundService
 from downcroc.core.transports import TransportService
 
 
 def build_outbound(
-    foundation: Foundation, transports: TransportService
+    foundation: Foundation,
+    transports: TransportService,
+    eligibility: AccountEligibility,
 ) -> OutboundService:
     settings = foundation.settings
     return OutboundService(
@@ -26,6 +29,7 @@ def build_outbound(
         foundation.send_attempts,
         transports,
         foundation.policy,
+        eligibility,
         foundation.quota,
         foundation.connectivity_state,
     )

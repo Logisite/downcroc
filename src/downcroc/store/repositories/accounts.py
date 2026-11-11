@@ -32,7 +32,6 @@ def _to_account(row: AccountRow, state: AccountStateRow | None) -> Account:
         address=row.address,
         label=row.label,
         status=AccountStatus(row.status),
-        credential_present=row.credential_key is not None,
         created_at=row.created_at,
         last_verified_at=row.last_verified_at,
         archived_at=row.archived_at,

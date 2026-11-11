@@ -21,7 +21,6 @@ class Account:
     address: str
     label: str
     status: AccountStatus
-    credential_present: bool
     created_at: str
     last_verified_at: str | None
     policy: PolicyOverride

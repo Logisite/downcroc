@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
@@ -48,6 +49,7 @@ class TransportService:
         dispatch: DispatchSettings,
         policy: PolicyResolver,
         quota: QuotaRepo,
+        eligibility: AccountEligibility,
     ) -> None:
         self._transports = transports
         self._accounts = accounts
@@ -61,6 +63,7 @@ class TransportService:
         self._dispatch = dispatch
         self._policy = policy
         self._quota = quota
+        self._eligibility = eligibility
         self._health = BindingHealth(transports, bus, log, dispatch)
         self._limiter = TransportLimiter(dispatch)
         self._slots = SlotResolver(
@@ -71,6 +74,7 @@ class TransportService:
             dispatch,
             self._health,
             self._limiter,
+            eligibility,
         )
         self._provision = Provisioner(transports, registry, clients, dispatch, self.add)
 

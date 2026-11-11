@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
     from downcroc.backup import BackupService, RestoreService
-    from downcroc.core.accounts_service import AccountsService
+    from downcroc.core.accounts import AccountsService
     from downcroc.core.batches import BatchesService
     from downcroc.core.capacity import CapacityService
     from downcroc.core.config_service import ConfigService

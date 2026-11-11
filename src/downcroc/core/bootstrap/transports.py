@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.bootstrap.foundation import Foundation
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.transports import TransportService
@@ -7,6 +8,7 @@ from downcroc.core.transports import TransportService
 
 def build_transports(
     foundation: Foundation,
+    eligibility: AccountEligibility,
 ) -> tuple[TransportService, CredentialResolver]:
     credentials = CredentialResolver(
         foundation.accounts,
@@ -27,6 +29,7 @@ def build_transports(
         foundation.settings.dispatch,
         foundation.policy,
         foundation.quota,
+        eligibility,
     )
     for account in foundation.accounts.list(include_archived=True):
         transports.ensure_defaults(account)

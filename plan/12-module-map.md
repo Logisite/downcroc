@@ -136,7 +136,11 @@ downcroc/
       prune.py          orphan pruning and unlock credential checks
       ports.py          the narrow account directory the vault slice needs
       credentials/presence.py  vault-backed credential presence
-    accounts_service.py connect, verify, disable, reauth handling
+    accounts/
+      __init__.py       the account facade
+      service.py        connect, verify, disable, reauth handling
+      login.py          IMAP login, OAuth exchange, health transitions
+      eligibility.py    one routing, dispatch, and seat eligibility rule
     outbound/
       service.py        send one job through the selected transport
       jobs/
@@ -327,7 +331,7 @@ token-leak coverage lives in `tests/test_api_auth.py` and `tests/test_auth_leaks
 | Phase | Modules |
 |---|---|
 | P0 | `runtime`, `store/db`, `api/app`, `api/routes/health`, `cli`, a TUI shell |
-| P1 | `vault`, `store/repositories/accounts`, `core/events`, `core/accounts_service`, `api/routes/accounts`, `api/routes/events`, `providers/registry`, `providers/declarations`, `providers/oauth`, `providers/token`, `mail/imap/connection`, `api/routes/providers`, `api/routes/attempts` |
+| P1 | `vault`, `store/repositories/accounts`, `core/events`, `core/accounts`, `api/routes/accounts`, `api/routes/events`, `providers/registry`, `providers/declarations`, `providers/oauth`, `providers/token`, `mail/imap/connection`, `api/routes/providers`, `api/routes/attempts` |
 | P2 | `core/inbound`, `store/repositories/messages`, `store/content`, `mail/imap`, `tui/screens/mailbox` |
 | P3 | `mail/mime`, `mail/smtp` |
 | P4 | `core/inputs`, `core/rendering`, `core/batches`, `core/dispatch`, `core/retry`, `core/failures_service` |

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from downcroc.core.accounts_login import AccountLoginMixin
+from downcroc.core.accounts.login import AccountLoginMixin
 from downcroc.core.events import EventBus
 from downcroc.core.inbound import InboundService
 from downcroc.core.oauth_clients import OAuthClientService
@@ -80,7 +80,6 @@ class AccountsService(AccountLoginMixin):
             address=address,
             label=label,
             status=AccountStatus.PENDING,
-            credential_present=False,
             created_at=utc_now(),
             last_verified_at=None,
             policy=PolicyOverride(),

@@ -72,7 +72,8 @@ returns the same shape; lock takes no body and returns it. Neither echoes the pa
 
 Unlock removes account secrets whose account row is gone, keeps secrets for archived accounts,
 and checks every stored credential key against the vault. A missing credential marks the account
-`needs_reauth` and emits `account.credential_missing`.
+`needs_reauth` and emits `account.credential_missing`. `credential_present` is read from the live
+vault, not from a stored flag, so it reports `false` while the vault is locked.
 
 Vault errors: `vault_bad_password` (401), `vault_locked` (423), `vault_throttled` (429),
 `vault_corrupt` and `vault_already_unlocked` (409), `vault_unavailable` and
@@ -103,7 +104,7 @@ client can tell whether a provider can start an OAuth attempt.
 An account carries `id`, `provider`, `address`, `label`, `status`, `credential_present`,
 `created_at`, `last_verified_at`, `last_error`, `watcher_enabled`, a `sync` object
 (`last_uid`, `uidvalidity`, `last_sync_at`, `last_error`, `consecutive_failures`), and the
-stored send policy as `quota`. Status is
+stored send policy as `quota`. `credential_present` is derived from the live vault. Status is
 one of `pending`, `connected`, `needs_reauth`, `disabled`, `unverified`. `last_error` carries the
 last stable reason code, such as `invalid_grant` or `imap_auth_failed`, and never carries
 credential material.

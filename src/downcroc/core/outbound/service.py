@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import uuid
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.credentials import CredentialResolver
 from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
@@ -66,6 +67,7 @@ class OutboundService(JobFacade):
         send_attempts: SendAttemptRepo,
         transports: TransportService,
         policy: PolicyResolver,
+        eligibility: AccountEligibility,
         quota: QuotaRepo,
         connectivity: object | None = None,
     ) -> None:
@@ -115,6 +117,7 @@ class OutboundService(JobFacade):
             transports,
             policy,
             batches,
+            eligibility,
         )
 
     async def send(self, job_id: str) -> Job:

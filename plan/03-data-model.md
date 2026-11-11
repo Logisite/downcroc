@@ -47,6 +47,7 @@ counters; there is no surrogate integer key anywhere except the event sequence.
 
 The policy columns are copied from the `[sending]` config section when the account is created.
 They live on the row because accounts differ and the account API edits one account at a time.
+`credential_present` is not a stored column. The API derives it from the live vault on every read.
 
 ### `account_state`
 

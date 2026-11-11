@@ -4,6 +4,7 @@ import hashlib
 import time
 from dataclasses import replace
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.batches import planning, samples, snapshot
 from downcroc.core.batches.builder import JobBuilder
 from downcroc.core.batches.source import CampaignReader
@@ -59,6 +60,7 @@ class BatchesService:
         bus: EventBus,
         log: EventLogger,
         capacity: CapacityService,
+        eligibility: AccountEligibility,
     ) -> None:
         self._settings = settings
         self._capacity = capacity
@@ -72,6 +74,7 @@ class BatchesService:
         self._policy = policy
         self._bus = bus
         self._log = log
+        self._eligibility = eligibility
         self._reader = CampaignReader(settings, paths, log)
         self._builder = JobBuilder(settings, accounts, jobs, content)
 
@@ -108,7 +111,9 @@ class BatchesService:
             )
             return replace(self.detail(existing.id), reused=True)
 
-        plan = routing.resolve(campaign, self._accounts.list(), self._policy)
+        plan = routing.resolve(
+            campaign, self._accounts.list(), self._policy, self._eligibility
+        )
         batch_id = new_id("bat")
         approval = campaign.options.approval
         job_state = (
@@ -190,7 +195,9 @@ class BatchesService:
             campaign = fixed_account(campaign, account)
         plan: RoutingPlan | None = None
         try:
-            plan = routing.resolve(campaign, self._accounts.list(), self._policy)
+            plan = routing.resolve(
+                campaign, self._accounts.list(), self._policy, self._eligibility
+            )
         except AccountUnavailable:
             plan = None
         assignments = plan.assignments if plan else {}

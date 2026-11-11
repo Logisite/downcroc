@@ -9,6 +9,7 @@ import uuid
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.dispatch import eligibility, retry
 from downcroc.core.dispatch.failures import FailureService
 from downcroc.core.dispatch.helpers import Candidate, DispatchHelpers
@@ -48,6 +49,7 @@ class Dispatcher(DispatchHelpers):
         outbound: OutboundService,
         vault: VaultService,
         policy: PolicyResolver,
+        account_eligibility: AccountEligibility,
         bus: EventBus,
         log: EventLogger,
         connectivity: object | None = None,
@@ -66,6 +68,7 @@ class Dispatcher(DispatchHelpers):
         self._outbound = outbound
         self._vault = vault
         self._policy = policy
+        self._eligibility = account_eligibility
         self._bus = bus
         self._log = log
         self._owner = f"dispatch-{uuid.uuid4().hex[:12]}"

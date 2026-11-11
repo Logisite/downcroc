@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.bootstrap.foundation import Foundation
 from downcroc.core.dispatch import Dispatcher, FailureService
 from downcroc.core.followups import FollowUpService
@@ -13,6 +14,7 @@ def build_dispatcher(
     failures: FailureService,
     followups: FollowUpService,
     outbound: OutboundService,
+    eligibility: AccountEligibility,
 ) -> Dispatcher:
     return Dispatcher(
         foundation.settings,
@@ -27,6 +29,7 @@ def build_dispatcher(
         outbound,
         foundation.vault,
         foundation.policy,
+        eligibility,
         foundation.bus,
         foundation.log,
         foundation.connectivity_state,

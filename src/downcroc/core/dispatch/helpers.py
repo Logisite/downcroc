@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from downcroc.core.transports.seats import SlotPlan
-from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.domain.accounts import Account
 from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.errors import BatchNotFound
 from downcroc.domain.jobs import Job
@@ -31,13 +31,7 @@ class DispatchHelpers:
     """Candidate eligibility, leasing, spacing, and cycle diagnostics."""
 
     def _can_send(self, account: Account) -> bool:
-        return (
-            account.status is AccountStatus.CONNECTED
-            and self._policy.effective(account).enabled
-            and account.credential_present
-            and account.archived_at is None
-            and account.paused_at is None
-        )
+        return self._eligibility.sendable(account)
 
     def _batch_ready(
         self, job: Job, now: datetime, cache: dict[str, Batch | None]

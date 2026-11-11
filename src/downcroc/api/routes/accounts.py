@@ -14,7 +14,7 @@ from downcroc.api.schemas.accounts import (
     WatcherToggle,
 )
 from downcroc.api.schemas.holds import PauseRequest, ResumeRequest
-from downcroc.core.accounts_service import AccountsService
+from downcroc.core.accounts import AccountsService
 from downcroc.core.policy import PolicyResolver
 from downcroc.domain.accounts import Account
 
@@ -47,6 +47,7 @@ def _out(
     return AccountOut.of(
         account,
         _policy(request).effective(account),
+        credential_present=request.app.state.services.presence.present(account),
         mode=mode,
         used=quota.used if quota else 0,
         reserved=quota.reserved if quota else 0,

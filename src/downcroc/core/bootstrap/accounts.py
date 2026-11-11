@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from downcroc.core.accounts_service import AccountsService
+from downcroc.core.accounts import AccountsService
 from downcroc.core.bootstrap.foundation import Foundation
 from downcroc.core.inbound import InboundService
 from downcroc.core.transports import TransportService

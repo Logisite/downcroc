@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import random
 
+from downcroc.core.accounts import AccountEligibility
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.transports.health import BindingHealth
 from downcroc.core.transports.limiter import TransportLimiter
 from downcroc.core.transports.seats import SlotEntry, SlotPlan, choose_slots
-from downcroc.domain.accounts import Account, AccountStatus
+from downcroc.domain.accounts import Account
 from downcroc.domain.providers import AuthKind
 from downcroc.domain.transports import TransportKind
 from downcroc.providers.registry import ProviderRegistry
@@ -32,6 +33,7 @@ class SlotResolver:
         dispatch: DispatchSettings,
         health: BindingHealth,
         limiter: TransportLimiter,
+        eligibility: AccountEligibility,
     ) -> None:
         self._accounts = accounts
         self._registry = registry
@@ -40,6 +42,7 @@ class SlotResolver:
         self._dispatch = dispatch
         self._health = health
         self._limiter = limiter
+        self._eligibility = eligibility
 
     def pick(
         self,
@@ -56,13 +59,9 @@ class SlotResolver:
         for account in self._accounts.list():
             if chosen is not None and account.id not in chosen:
                 continue
-            if account.status is not AccountStatus.CONNECTED:
-                continue
-            if account.archived_at is not None or account.paused_at is not None:
+            if not self._eligibility.sendable(account):
                 continue
             policy = self._policy.effective(account)
-            if not policy.enabled:
-                continue
             bindings = self._health.usable(account)
             has_smtp = any(binding.kind is TransportKind.SMTP for binding in bindings)
             has_api = any(
