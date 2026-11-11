@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from downcroc.core.oauth_clients import OAuthClientService
     from downcroc.core.outbound import OutboundService
     from downcroc.core.policy import PolicyResolver
-    from downcroc.core.policy_service import PolicyService
+    from downcroc.core.policy.service import PolicyService
     from downcroc.core.portability import PortabilityService
     from downcroc.core.retention import RetentionService
     from downcroc.core.stats import StatsService

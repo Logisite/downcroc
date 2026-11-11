@@ -164,7 +164,12 @@ class VaultFile:
                 hint="check free disk space and directory permissions",
             ) from error
         duration = round((time.monotonic() - started) * 1000)
-        self._log.info("vault.sealed", bytes=len(data), duration_ms=duration)
+        self._log.info(
+            "vault.saved",
+            bytes=len(data),
+            duration_ms=duration,
+            state="unlocked",
+        )
         return candidate
 
     def fix_permissions(self) -> None:

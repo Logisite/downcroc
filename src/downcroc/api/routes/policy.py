@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from downcroc.api.schemas.policy import PolicyOut, PolicyOverrideIn
-from downcroc.core.policy_service import PolicyService
+from downcroc.core.policy.service import PolicyService
 
 router = APIRouter(tags=["policy"])
 

@@ -10,7 +10,7 @@ from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound.attempts.reconcile import reconcile_interrupted
 from downcroc.core.policy import PolicyResolver
-from downcroc.core.policy_service import PolicyService
+from downcroc.core.policy.service import PolicyService
 from downcroc.core.stats import StatsService
 from downcroc.core.vault import VaultService
 from downcroc.core.vault.credentials import CredentialPresence
@@ -126,6 +126,7 @@ def open_foundation(settings: Settings, paths: Paths, log: EventLogger) -> Found
         quota,
         policy,
         log,
+        send_attempts,
     )
     clients = OAuthClientService(
         oauth_clients,

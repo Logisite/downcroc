@@ -96,10 +96,12 @@ class HoldsService:
                     "reason": after.sending_paused_reason,
                     "until": after.sending_paused_until,
                     "source": "manual",
+                    "actor": "api",
                 },
             )
             self._log.info(
                 "service.paused",
+                actor="api",
                 reason=after.sending_paused_reason,
                 until=after.sending_paused_until,
             )

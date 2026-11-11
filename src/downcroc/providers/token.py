@@ -94,6 +94,7 @@ class TokenManager:
                 account=account.id,
                 duration_ms=duration,
                 expires_in=tokens.expires_in,
+                refresh_rotated=tokens.refresh_token is not None,
             )
             return tokens.access_token
 
