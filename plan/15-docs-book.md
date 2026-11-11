@@ -3,9 +3,10 @@
 The product has one documentation book. The browser and the terminal are two renderers over the
 same Markdown. Neither renderer owns content that the other cannot express.
 
-`rich`, `markdown-it-py`, and `pygments` are already runtime dependencies. The terminal renderer
-uses them. The browser renderer uses MkDocs Material with pymdown extensions and a small custom
-theme.
+`rich`, `markdown-it-py`, `pygments`, and `textual` are runtime dependencies. Rich renders
+every content block. Textual provides the browser-like shell, mouse, focus, scrolling, themes,
+and command palette. The browser renderer uses MkDocs Material with pymdown extensions and a
+small custom theme.
 
 ## Goals
 

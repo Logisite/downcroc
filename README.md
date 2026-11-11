@@ -136,6 +136,19 @@ downcroc serve
 The daemon binds `127.0.0.1:8765` by default and starts locked. Unlock it through
 `downcroc vault unlock`.
 
+## Documentation
+
+```sh
+downcroc docs
+downcroc docs smtp-seats
+downcroc docs --list
+downcroc docs --search seat
+downcroc docs --open
+```
+
+`downcroc docs` opens the terminal browser. The same Markdown book is packaged in the wheel and
+renders in a browser with `--open`.
+
 ## Sending
 
 ```sh
