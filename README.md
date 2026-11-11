@@ -278,7 +278,8 @@ Design notes and implementation tickets live in `plan/` and `.scratch/`.
 
 ## Project
 
-- [Documentation book](docs/)
+- [Documentation book schema](plan/15-docs-book.md)
+- [Page frontmatter schema](docs/schema.json)
 - [Changelog](CHANGELOG.md)
 - [Release notes](release-notes/)
 - [Security policy](SECURITY.md)
