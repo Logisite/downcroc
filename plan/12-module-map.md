@@ -18,7 +18,7 @@ cli / tui / api            entry points, one per client surface
 ```
 
 `core` imports `ports` and `domain` and nothing else. Concrete adapters are wired at a single
-composition root, `core/bootstrap.py`, so a script or a workstation can substitute a stub IMAP
+composition root, `core/bootstrap/`, so a script or a workstation can substitute a stub IMAP
 without importing `imap-tools` at all.
 
 ## Top level
@@ -121,10 +121,21 @@ downcroc/
     inline.py           css-inline, for sending
 
   core/
-    bootstrap.py        composition root, wires adapters into services
+    bootstrap/
+      __init__.py       build and the Services facade
+      build.py          composition order
+      foundation.py     storage, repos, vault, policy, providers, stats
+      services.py       the wired service set
+      inbound.py transports.py accounts.py outbound.py scheduling.py
+      failures.py operations.py dispatch.py support.py
     events.py           event bus, sequence, ring buffer writer
-    vault_service.py    unlock, lock, throttle, secret access, token cache
-    vault_file.py       sealed envelope, atomic writes, permissions
+    vault/
+      __init__.py       the vault facade
+      service.py        unlock, lock, throttle, secret access, token cache
+      file.py           sealed envelope, atomic writes, permissions
+      prune.py          orphan pruning and unlock credential checks
+      ports.py          the narrow account directory the vault slice needs
+      credentials/presence.py  vault-backed credential presence
     accounts_service.py connect, verify, disable, reauth handling
     outbound/
       service.py        build a job and send it
@@ -253,7 +264,7 @@ has exactly one definition.
 |---|---|---|
 | `Sender` | `mail/smtp/sender.py` | records messages, returns scripted codes |
 | `Receiver` | `mail/imap/client.py` | scripted mailbox with UIDVALIDITY changes |
-| `SecretStore` | `core/vault_service.py` | in-memory dict |
+| `SecretStore` | `core/vault/service.py` | in-memory dict |
 | `ContentStore` | `store/content/files.py` | temp directory |
 | `ProviderResolver` | `providers/registry.py` | fixed specs |
 | `EventSink` | `store/repositories/events.py` | list collector |

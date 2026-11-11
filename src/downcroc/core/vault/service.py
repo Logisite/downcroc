@@ -9,7 +9,7 @@ from typing import Literal
 from sqlalchemy.exc import SQLAlchemyError
 
 from downcroc.core.events import EventBus
-from downcroc.core.vault_file import VaultFile
+from downcroc.core.vault.file import VaultFile
 from downcroc.domain.errors import (
     VaultBadPassword,
     VaultExists,
@@ -179,23 +179,13 @@ class VaultService:
     def delete_account_secrets(self, account_id: str) -> int:
         with self._lock:
             payload = self._require_payload()
-            stale = [key for key in payload if _belongs_to_account(key, account_id)]
-            if not stale:
-                return 0
-            remaining = {
-                key: value for key, value in payload.items() if key not in stale
-            }
-            self._write(remaining)
-            return len(stale)
+            stale = {key for key in payload if _belongs_to_account(key, account_id)}
+            return self.delete_secrets(stale)
 
-    def prune_account_secrets(self, known_ids: set[str]) -> int:
+    def delete_secrets(self, keys: set[str]) -> int:
         with self._lock:
             payload = self._require_payload()
-            stale = [
-                key
-                for key in payload
-                if _is_account_secret(key) and key.partition(":")[0] not in known_ids
-            ]
+            stale = {key for key in keys if key in payload}
             if not stale:
                 return 0
             remaining = {
@@ -205,15 +195,7 @@ class VaultService:
             return len(stale)
 
     def delete_secret(self, key: str) -> bool:
-        with self._lock:
-            payload = self._require_payload()
-            if key not in payload:
-                return False
-            remaining = {
-                name: record for name, record in payload.items() if name != key
-            }
-            self._write(remaining)
-            return True
+        return self.delete_secrets({key}) > 0
 
     def _install(
         self,
@@ -261,11 +243,6 @@ class VaultService:
                 event=event,
                 reason=str(error),
             )
-
-
-def _is_account_secret(key: str) -> bool:
-    _, separator, kind = key.partition(":")
-    return bool(separator) and kind in KINDS
 
 
 def _belongs_to_account(key: str, account_id: str) -> bool:

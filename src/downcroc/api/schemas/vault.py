@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from downcroc.core.vault_service import VaultStatus
+from downcroc.core.vault import VaultStatus
 
 
 class VaultInit(BaseModel):

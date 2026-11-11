@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from downcroc.core.oauth_clients import OAuthClientService
-from downcroc.core.vault_service import VaultService
+from downcroc.core.vault import VaultService
 from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (
     AccountNeedsReauth,

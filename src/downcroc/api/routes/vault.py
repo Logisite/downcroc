@@ -8,7 +8,7 @@ from downcroc.api.schemas.vault import (
     VaultOut,
     VaultUnlock,
 )
-from downcroc.core.vault_service import VaultService
+from downcroc.core.vault import VaultService
 
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
@@ -41,7 +41,7 @@ async def init(body: VaultInit, request: Request) -> VaultOut:
 @router.post("/unlock", response_model=VaultOut)
 async def unlock(body: VaultUnlock, request: Request) -> VaultOut:
     _service(request).unlock(body.password)
-    request.app.state.services.accounts.prune_orphans()
+    request.app.state.services.vault_maintenance.on_unlock()
     request.app.state.services.inbound.start_all()
     await request.app.state.services.outbound.reconcile()
     return _out(request)

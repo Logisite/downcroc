@@ -6,7 +6,7 @@ from downcroc.core.inbound import InboundService
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.stats import StatsService
 from downcroc.core.transports import TransportService
-from downcroc.core.vault_service import VaultService
+from downcroc.core.vault import VaultService
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.attempts import ConnectAttempt
 from downcroc.domain.errors import (
@@ -304,12 +304,9 @@ class AccountsService(AccountLoginMixin):
     def close_flows(self, reason: str) -> None:
         self._flow.close_all(reason)
 
-    def prune_orphans(self) -> int:
-        try:
-            known = {account.id for account in self._accounts.list()}
-            removed = self._vault.prune_account_secrets(known)
-        except VaultLocked:
-            return 0
-        if removed:
-            self._log.info("vault.secrets_pruned", count=removed)
-        return removed
+    def credential_accounts(self) -> list[Account]:
+        return self._accounts.list(include_archived=True)
+
+    def mark_credential_missing(self, account_id: str, kind: str) -> None:
+        account = self._accounts.get(account_id)
+        self._needs_reauth(account, "credential_missing")

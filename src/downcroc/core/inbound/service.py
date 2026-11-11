@@ -20,7 +20,7 @@ from downcroc.core.inbound.watcher import WatcherRunner
 from downcroc.core.inbound.worker import QueueWorker
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.stats import StatsService
-from downcroc.core.vault_service import VaultService
+from downcroc.core.vault import VaultService
 from downcroc.domain.accounts import AccountStatus
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.providers.token import TokenManager

@@ -17,7 +17,7 @@ from downcroc.core.followups import FollowUpService
 from downcroc.core.outbound import OutboundService
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.transports import TransportService
-from downcroc.core.vault_service import VaultService
+from downcroc.core.vault import VaultService
 from downcroc.domain.accounts import Account
 from downcroc.domain.batches import Batch, BatchState
 from downcroc.domain.errors import BatchNotFound, DomainError

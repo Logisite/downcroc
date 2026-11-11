@@ -70,6 +70,10 @@ cross-user local API exposure described in `04-security.md`.
 returns the same shape; lock takes no body and returns it. Neither echoes the password.
 `GET /api/status` carries a `vault` object with the state and attempt fields.
 
+Unlock removes account secrets whose account row is gone, keeps secrets for archived accounts,
+and checks every stored credential key against the vault. A missing credential marks the account
+`needs_reauth` and emits `account.credential_missing`.
+
 Vault errors: `vault_bad_password` (401), `vault_locked` (423), `vault_throttled` (429),
 `vault_corrupt` and `vault_already_unlocked` (409), `vault_unavailable` and
 `vault_write_failed` (500).

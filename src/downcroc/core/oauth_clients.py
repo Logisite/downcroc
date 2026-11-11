@@ -6,7 +6,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from downcroc.core.events import EventBus
-from downcroc.core.vault_service import VaultService
+from downcroc.core.vault import VaultService
 from downcroc.domain.accounts import Account
 from downcroc.domain.errors import (
     AccountNotFound,

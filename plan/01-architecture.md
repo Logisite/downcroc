@@ -252,7 +252,7 @@ src/downcroc/
 ```
 
 Dependencies point inward. `core` knows nothing about FastAPI, Textual, or imap-tools; it talks
-to protocols in `ports/`. Concrete adapters are wired once in `core/bootstrap.py`. That is the
+to protocols in `ports/`. Concrete adapters are wired once in `core/bootstrap/`. That is the
 modularity the project requires, and it is what makes a provider, a transport, or a client
 replaceable without touching the queue.
 

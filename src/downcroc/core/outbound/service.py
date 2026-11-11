@@ -20,7 +20,7 @@ from downcroc.core.outbound.transport_delivery import (
 from downcroc.core.policy import PolicyResolver
 from downcroc.core.stats import StatsService
 from downcroc.core.transports import TransportService
-from downcroc.core.vault_service import VaultService
+from downcroc.core.vault import VaultService
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.errors import (
     AccountNeedsReauth,

@@ -238,7 +238,7 @@ Authentication and leak tests check the boundary: a missing, malformed, or wrong
 rejected, an untrusted Host or Origin is rejected, a restart invalidates the previous token,
 and logs, API errors, and backup bundles are searched for the daemon token. Inside the daemon
 the provider-secret invariant is still structural: secrets live in a single object owned by
-`core/vault_service.py`, and nothing outside the provider and mail layers can obtain one.
+`core/vault/service.py`, and nothing outside the provider and mail layers can obtain one.
 `VaultService.get_secret` is the only accessor; it requires an unlocked vault, raises
 `vault_locked` otherwise, and no HTTP route imports it.
 
