@@ -213,11 +213,11 @@ def _blank() -> dict[str, int]:
 
 
 def _earliest_day(
-    job_rows: list[tuple[str, str | None, str | None, str]],
+    job_rows: list[tuple[str, str | None, str | None, str | None, str]],
     message_rows: list[tuple[str, str, bool, str, str | None]],
 ) -> str | None:
     days: list[str] = []
-    for _, sent_at, updated_at, state in job_rows:
+    for _, _, sent_at, updated_at, state in job_rows:
         if state in SENT_STATES:
             stamp = sent_at
         elif state == "failed":
@@ -243,12 +243,12 @@ def _day(stamp: str) -> str | None:
 
 
 def _count_sent(
-    job_rows: list[tuple[str, str | None, str | None, str]],
+    job_rows: list[tuple[str, str | None, str | None, str | None, str]],
     since_day: str | None,
     end_day: str,
 ) -> int:
     total = 0
-    for _, sent_at, _, state in job_rows:
+    for _, _, sent_at, _, state in job_rows:
         if state not in SENT_STATES or not sent_at:
             continue
         try:
