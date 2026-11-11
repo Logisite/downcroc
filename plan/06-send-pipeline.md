@@ -30,6 +30,22 @@ Batch, job, and pending estimates carry `as_of` and `basis`. They are computed o
 live policy, quota, holds, and transport state, so a policy or config change is visible on the
 next request without a background refresh.
 
+## Follow-up declarations
+
+A campaign file can declare automatic follow-ups in its immutable snapshot. A batch can also gain a
+retroactive declaration after submission. A declaration is a `batch_followup_declarations` row,
+never an edit to `source.json`.
+
+Two kinds exist:
+
+- `shared`: one body with per-recipient overrides.
+- `payload`: one message per parent recipient, stored in the content store.
+
+The planner merges snapshot steps and active declarations by step key. Child jobs are threaded to
+the parent message that actually reached the recipient. The child is pinned to the account that
+sent the parent. Remove works before a child exists. Retire keeps child history. Every declaration
+update carries a version, and a stale version is rejected.
+
 ## SMTP seats
 
 The SMTP seat is a transport reservation, not an account status. At most `dispatch.smtp_seats`

@@ -166,7 +166,19 @@ downcroc/
     templates_service.py list, read, preview, edit through $EDITOR
     stats_service.py    counter increments, rollups, rebuild
     retention.py        every pruning policy
-    followups.py        sequence planning, due steps, eligibility, thread headers
+    followups/
+      service.py        facade for planning, declarations, and status
+      catalog.py        snapshot and declaration catalog
+      declaration.py    shared and payload declaration model
+      declaration_builder.py  validation and row construction
+      declaration_service.py  declare, remove, retire, versioning
+      immediate.py      immediate payload follow-up path
+      payload.py        payload matching and content storage
+      planning.py       per-parent and per-step planning
+      sender.py         actual parent sender resolution
+      status.py         derived step status
+      status_service.py status API and CLI view
+      threading.py      parent chain and child headers
     routing.py          fixed and weighted account assignment, recorded once
     inputs/
       detector.py       which format a file is

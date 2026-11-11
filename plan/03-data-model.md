@@ -88,6 +88,32 @@ They live on the row because accounts differ and the account API edits one accou
 | created_at | text | |
 | approved_at | text | null until approval |
 
+### `batch_followup_declarations`
+
+A retroactive follow-up step is a row, not an edit to the parent snapshot.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | text pk | `fup_...` |
+| batch_id | text | parent batch, cascade on delete |
+| step_key | text | unique per parent |
+| kind | text | `shared` or `payload` |
+| after_days | int | 1 to 365 |
+| when | text | `no_reply` or `always` |
+| subject | text | null falls back to `Re: <parent subject>` |
+| text | text | shared body |
+| html | text | optional shared body |
+| require_approval | int | boolean |
+| overrides_json | text | per-recipient shared overrides |
+| content_ref | text | payload content store path |
+| content_hash | text | payload integrity |
+| state | text | `active`, `removing`, `retired` |
+| version | int | optimistic update guard |
+| created_at | text | |
+| updated_at | text | |
+
+Indexes: unique `(batch_id, step_key)`, `(batch_id, state)`, `(state, after_days)`.
+
 ### `jobs`
 
 | Field | Type | Notes |
