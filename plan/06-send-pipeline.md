@@ -30,6 +30,16 @@ Batch, job, and pending estimates carry `as_of` and `basis`. They are computed o
 live policy, quota, holds, and transport state, so a policy or config change is visible on the
 next request without a background refresh.
 
+## Provider response classification
+
+The provider response is the source of truth. SMTP classification reads the enhanced status code
+and the response text, not the numeric reply alone. A daily limit or rate limit marks the binding
+`quota_exhausted` and leaves the job in `retry_wait`; an unknown recipient fails the job; a policy
+or reputation block fails the job and cools the binding; authentication marks the account
+`needs_reauth`. Gmail classification reads the error reason and both the `Retry-After` header and
+the JSON message. A provider retry time wins over the configured minimum cooldown, and the
+original provider text is stored on the attempt and in the failed queue.
+
 ## Inputs
 
 You draft elsewhere. downcroc takes a file path, reads it once, and never reads it again.

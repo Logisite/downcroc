@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -22,11 +23,14 @@ RATE_REASONS = frozenset(
     {
         "rateLimitExceeded",
         "userRateLimitExceeded",
+        "dailyLimitExceeded",
         "RATE_LIMIT_EXCEEDED",
         "QUOTA_EXCEEDED",
+        "RESOURCE_EXHAUSTED",
     }
 )
 DISABLED_REASONS = frozenset({"accessNotConfigured", "SERVICE_DISABLED"})
+_RETRY_BODY = re.compile(r"retry(?:-|\s+)after[:\s]+([^\s,;]+)", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -246,7 +250,7 @@ def _failure(
             "gmail_api_quota",
             message,
             quota=True,
-            retry_after_s=_retry_after(response),
+            retry_after_s=_retry_after(response, message),
             project_id=project_id,
         )
     if status == 429:
@@ -254,7 +258,7 @@ def _failure(
             "gmail_api_quota",
             message,
             quota=True,
-            retry_after_s=_retry_after(response),
+            retry_after_s=_retry_after(response, message),
             project_id=project_id,
         )
     if status >= 500:
@@ -344,8 +348,24 @@ def _project(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _retry_after(response: httpx.Response) -> int | None:
-    value = response.headers.get("Retry-After")
+def _retry_after(response: httpx.Response, message: str) -> int | None:
+    candidates = [
+        item
+        for item in (
+            _retry_seconds(response.headers.get("Retry-After")),
+            _retry_seconds(_body_retry(message)),
+        )
+        if item is not None
+    ]
+    return max(candidates) if candidates else None
+
+
+def _body_retry(message: str) -> str | None:
+    match = _RETRY_BODY.search(message or "")
+    return match.group(1).strip().rstrip(".") if match else None
+
+
+def _retry_seconds(value: str | None) -> int | None:
     if not value:
         return None
     try:
@@ -355,9 +375,12 @@ def _retry_after(response: httpx.Response) -> int | None:
     try:
         when = parsedate_to_datetime(value)
     except TypeError, ValueError:
-        return None
+        when = None
     if when is None:
-        return None
+        try:
+            when = parse_utc(value)
+        except ValueError:
+            return None
     if when.tzinfo is None:
         when = when.replace(tzinfo=UTC)
     return max(0, int((when - parse_utc(utc_now())).total_seconds()))

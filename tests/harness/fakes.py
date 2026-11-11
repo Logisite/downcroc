@@ -230,6 +230,7 @@ class FakeMailServers:
     _rcpt_counts: dict[str, int] = field(default_factory=dict)
     _inboxes: dict[str, _Mailbox] = field(default_factory=dict)
     _rejected: set[str] = field(default_factory=set)
+    _smtp_responses: dict[str, str] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _smtp: _Threaded | None = None
     _imap: _Threaded | None = None
@@ -290,10 +291,17 @@ class FakeMailServers:
         with self._lock:
             self._rejected.add(address.strip().lower())
 
+    def smtp_response(self, address: str, response: str) -> None:
+        with self._lock:
+            self._smtp_responses[address.strip().lower()] = response
+
     def rcpt_failure(self, line: str) -> str | None:
         address = line.split(":", 1)[-1].strip().strip("<>")
         local = address.split("@", 1)[0].lower()
         with self._lock:
+            mapped = self._smtp_responses.get(address.lower())
+            if mapped is not None:
+                return mapped
             count = self._rcpt_counts.get(local, 0) + 1
             self._rcpt_counts[local] = count
         if "permanent" in local:
@@ -324,6 +332,7 @@ class FakeMailServers:
             self._rcpt_counts.clear()
             self._inboxes.clear()
             self._rejected.clear()
+            self._smtp_responses.clear()
 
     @property
     def providers_toml(self) -> str:

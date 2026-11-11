@@ -126,12 +126,20 @@ class FailureService:
         self._log.warning(
             "job.failed",
             job=job.id,
+            account=attribution,
             code=failure.code,
+            message=failure.message[:300],
             attempts=job.attempts,
         )
         self._bus.publish(
             "job.failed",
-            {"id": job.id, "batch": job.batch_id, "code": failure.code},
+            {
+                "id": job.id,
+                "batch": job.batch_id,
+                "account": attribution,
+                "code": failure.code,
+                "message": failure.message[:300],
+            },
         )
         return failure
 

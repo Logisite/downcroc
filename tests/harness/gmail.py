@@ -34,6 +34,7 @@ class FakeGmail:
     _messages: list[FakeMessage] = field(default_factory=list)
     _history: int = 100
     _expired_before: int | None = None
+    _send_failure: tuple[int, dict[str, object], dict[str, str]] | None = None
     _server: ThreadingHTTPServer | None = None
     _thread: threading.Thread | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -100,6 +101,15 @@ class FakeGmail:
     def history_id(self) -> int:
         with self._lock:
             return self._history
+
+    def fail_send(
+        self,
+        status: int,
+        payload: dict[str, object],
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        with self._lock:
+            self._send_failure = (status, payload, headers or {})
 
     def _get(self, handler: BaseHTTPRequestHandler) -> None:
         parsed = urlparse(handler.path)
@@ -241,6 +251,18 @@ class FakeGmail:
                 },
             )
             return
+        if parsed.path == f"{API}/messages/send":
+            with self._lock:
+                failure, self._send_failure = self._send_failure, None
+            if failure is not None:
+                status, payload, headers = failure
+                self._json(handler, status, payload, headers)
+                return
+            with self._lock:
+                self._history += 1
+                message_id = f"gm-sent-{self._history}"
+            self._json(handler, 200, {"id": message_id})
+            return
         self._json(handler, 404, {"error": {"message": "not found"}})
 
     @staticmethod
@@ -248,11 +270,14 @@ class FakeGmail:
         handler: BaseHTTPRequestHandler,
         status: int,
         payload: dict[str, object],
+        headers: dict[str, str] | None = None,
     ) -> None:
         body = json.dumps(payload).encode()
         handler.send_response(status)
         handler.send_header("Content-Type", "application/json")
         handler.send_header("Content-Length", str(len(body)))
+        for name, value in (headers or {}).items():
+            handler.send_header(name, value)
         handler.end_headers()
         handler.wfile.write(body)
 

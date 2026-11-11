@@ -125,7 +125,7 @@ class GmailDelivery:
     ) -> AttemptResult:
         if error.uncertain:
             return self._uncertain(job, account, binding, started_at, attempt_id, error)
-        deferred = error.transient or error.quota or error.code == "gmail_api_disabled"
+        deferred = error.transient or error.quota
         outcome = "deferred" if deferred else "failed"
         self._recorder.record(
             job,
@@ -146,6 +146,7 @@ class GmailDelivery:
             transient=error.transient,
             auth=error.auth,
             quota=error.quota,
+            policy=error.code == "gmail_api_forbidden",
             retry_after_s=error.retry_after_s,
         )
         self._bus.publish(
@@ -168,16 +169,23 @@ class GmailDelivery:
                     "project_id": error.project_id or project_id,
                 },
             )
+            self._transports.update(account.id, binding.id, enabled=False)
         self._log.warning(
             "gmail.rejected",
             job=job.id,
             account=account.id,
+            binding=binding.id,
             code=error.code,
-            transient=error.transient,
+            quota=error.quota,
+            retryable=deferred,
+            retry_after_s=error.retry_after_s,
+            detail=error.message[:500],
             project_id=error.project_id or project_id,
         )
         if deferred:
-            return AttemptResult.deferred(error.code, error.message)
+            return AttemptResult.deferred(
+                error.code, error.message, error.retry_after_s
+            )
         return AttemptResult.failed(error.code, error.message, auth=error.auth)
 
     def _uncertain(

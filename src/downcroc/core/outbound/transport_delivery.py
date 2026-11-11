@@ -222,6 +222,7 @@ class TransportDelivery:
                 binding,
                 result.code or "send_deferred",
                 result.message or "",
+                result.retry_after_s,
             )
         return DeliveryOutcome.failed(
             binding,

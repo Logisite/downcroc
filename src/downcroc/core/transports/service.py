@@ -223,12 +223,16 @@ class TransportService:
             return binding
         changes["updated_at"] = utc_now()
         updated = self._transports.update(binding.id, changes)
+        old = {key: _plain(getattr(binding, key)) for key in changes}
+        new = {key: _plain(getattr(updated, key)) for key in changes}
         self._bus.publish(
             "transport.binding_updated",
             {
                 "account": account_id,
                 "binding": binding.id,
                 "changed": sorted(changes),
+                "old": old,
+                "new": new,
             },
         )
         self._log.info(
@@ -236,6 +240,8 @@ class TransportService:
             account=account_id,
             binding=binding.id,
             changed=sorted(changes),
+            old=old,
+            new=new,
         )
         return updated
 
@@ -315,6 +321,7 @@ class TransportService:
         transient: bool,
         auth: bool = False,
         quota: bool = False,
+        policy: bool = False,
         retry_after_s: int | None = None,
     ) -> AccountTransport:
         return self._health.mark_failure(
@@ -324,6 +331,7 @@ class TransportService:
             transient=transient,
             auth=auth,
             quota=quota,
+            policy=policy,
             retry_after_s=retry_after_s,
         )
 
@@ -362,3 +370,7 @@ class TransportService:
             self._outbound,
         )
         return await probe.test(account_id, binding_id)
+
+
+def _plain(value: object) -> object:
+    return getattr(value, "value", value)

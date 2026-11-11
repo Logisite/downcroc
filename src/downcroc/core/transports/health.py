@@ -69,12 +69,15 @@ class BindingHealth:
         transient: bool,
         auth: bool = False,
         quota: bool = False,
+        policy: bool = False,
         retry_after_s: int | None = None,
     ) -> AccountTransport:
         if auth:
             return self._reauth(binding, code, message)
         if quota:
             return self._quota(binding, code, message, retry_after_s)
+        if policy:
+            return self._policy(binding, code, message, retry_after_s)
         if not transient:
             return self._record(binding, binding.health, code, message, None)
         failures = self._failures.get(binding.id, 0) + 1
@@ -117,10 +120,9 @@ class BindingHealth:
         message: str,
         retry_after_s: int | None,
     ) -> AccountTransport:
-        retry_s = (
-            retry_after_s
-            if retry_after_s is not None
-            else self._dispatch.quota_cooldown_s
+        retry_s = max(
+            retry_after_s or 0,
+            self._dispatch.quota_cooldown_s,
         )
         updated = self._record(
             binding,
@@ -132,6 +134,32 @@ class BindingHealth:
         self._publish("transport.quota", binding, retry_s=retry_s)
         return updated
 
+    def _policy(
+        self,
+        binding: AccountTransport,
+        code: str,
+        message: str,
+        retry_after_s: int | None,
+    ) -> AccountTransport:
+        retry_s = max(
+            retry_after_s or 0,
+            self._dispatch.network_cooldown_s,
+        )
+        updated = self._record(
+            binding,
+            TransportHealth.COOLING_DOWN,
+            code,
+            message,
+            utc_after(retry_s),
+        )
+        self._publish(
+            "transport.cooldown",
+            binding,
+            reason=code,
+            retry_s=retry_s,
+        )
+        return updated
+
     def _record(
         self,
         binding: AccountTransport,
@@ -140,7 +168,7 @@ class BindingHealth:
         message: str,
         cooldown_until: str | None,
     ) -> AccountTransport:
-        return self._transports.record_failure(
+        updated = self._transports.record_failure(
             binding.id,
             health=health,
             code=code,
@@ -148,6 +176,37 @@ class BindingHealth:
             cooldown_until=cooldown_until,
             at=utc_now(),
         )
+        old = {
+            "health": binding.health.value,
+            "cooldown_until": binding.cooldown_until,
+            "last_error_code": binding.last_error_code,
+        }
+        new = {
+            "health": updated.health.value,
+            "cooldown_until": updated.cooldown_until,
+            "last_error_code": updated.last_error_code,
+        }
+        self._bus.publish(
+            "transport.binding_updated",
+            {
+                "account": updated.account_id,
+                "binding": updated.id,
+                "transport": updated.kind.value,
+                "changed": ["health", "cooldown_until", "last_error_code"],
+                "old": old,
+                "new": new,
+            },
+        )
+        self._log.info(
+            "transport.binding_updated",
+            account=updated.account_id,
+            binding=updated.id,
+            transport=updated.kind.value,
+            changed=["health", "cooldown_until", "last_error_code"],
+            old=old,
+            new=new,
+        )
+        return updated
 
     def _publish(
         self,

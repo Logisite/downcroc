@@ -76,7 +76,9 @@ class SmtpDelivery:
                 )
             self._failed(job, account, binding, started_at, attempt_id, error)
             if error.transient:
-                return AttemptResult.deferred(error.code, error.message)
+                return AttemptResult.deferred(
+                    error.code, error.message, error.retry_after_s
+                )
             return AttemptResult.failed(error.code, error.message)
         self._recorder.record(
             job,
@@ -181,6 +183,9 @@ class SmtpDelivery:
             message=error.message,
             transient=error.transient,
             auth=auth,
+            quota=error.quota,
+            policy=error.policy,
+            retry_after_s=error.retry_after_s,
         )
         self._bus.publish(
             "transport.failed",
@@ -195,7 +200,12 @@ class SmtpDelivery:
         )
         self._log.warning(
             "smtp.rejected",
+            account=account.id,
+            binding=binding.id,
             code=error.code,
-            transient=error.transient,
-            job=job.id,
+            enhanced=error.enhanced,
+            quota=error.quota,
+            retryable=error.transient,
+            retry_after_s=error.retry_after_s,
+            detail=error.detail,
         )

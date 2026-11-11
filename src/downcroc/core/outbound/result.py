@@ -11,6 +11,7 @@ class AttemptResult:
     transient: bool = False
     auth: bool = False
     provider_message_id: str | None = None
+    retry_after_s: int | None = None
 
     @classmethod
     def sent(cls, provider_message_id: str | None = None) -> AttemptResult:
@@ -27,8 +28,19 @@ class AttemptResult:
         return cls("failed", code=code, message=message, auth=auth)
 
     @classmethod
-    def deferred(cls, code: str, message: str) -> AttemptResult:
-        return cls("deferred", code=code, message=message, transient=True)
+    def deferred(
+        cls,
+        code: str,
+        message: str,
+        retry_after_s: int | None = None,
+    ) -> AttemptResult:
+        return cls(
+            "deferred",
+            code=code,
+            message=message,
+            transient=True,
+            retry_after_s=retry_after_s,
+        )
 
     @classmethod
     def uncertain(cls, code: str, message: str) -> AttemptResult:
