@@ -26,6 +26,10 @@ runs the same SMTP send and Sent-folder reconciliation described here. It is a p
 not a second scheduler; normal batches will use the dispatcher. Manual creation and sending share
 the batch transport selection and reject archived, paused, or disconnected senders.
 
+Batch, job, and pending estimates carry `as_of` and `basis`. They are computed on every read from
+live policy, quota, holds, and transport state, so a policy or config change is visible on the
+next request without a background refresh.
+
 ## Inputs
 
 You draft elsewhere. downcroc takes a file path, reads it once, and never reads it again.

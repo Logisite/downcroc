@@ -30,4 +30,8 @@ def _detail(row: dict, archived: bool) -> str:
     parts = [text(row.get("status"))]
     if row.get("paused_at"):
         parts.append("paused")
+    if row.get("auth_action") == "reconnect":
+        parts.append("reconnect")
+        if row.get("auth_error"):
+            parts.append(text(row.get("auth_error")))
     return "  ".join(part for part in parts if part)

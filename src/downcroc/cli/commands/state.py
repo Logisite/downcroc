@@ -10,6 +10,7 @@ from downcroc.cli.commands.doctor_transports import transports as doctor_transpo
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, record
+from downcroc.cli.ui import auth as auth_summary
 from downcroc.cli.ui import prompts, splash
 from downcroc.cli.ui.menu import run_args
 from downcroc.cli.ui.session import Ui, build
@@ -124,13 +125,34 @@ def _remote(args: object, ui: Ui) -> list[dict]:
             "fix": "downcroc vault unlock",
         }
     )
-    broken = [item for item in accounts if item["status"] == "needs_reauth"]
+    broken = [
+        item
+        for item in accounts
+        if item["status"] == "needs_reauth" or item.get("auth_action") == "reconnect"
+    ]
     checks.append(
         {
             "check": "accounts",
             "ok": not broken,
             "detail": f"{len(accounts)} total, {len(broken)} need re-auth",
             "fix": "downcroc account",
+        }
+    )
+    checked = [item for item in accounts if item.get("auth_checked_at")]
+    checks.append(
+        {
+            "check": "auth preflight",
+            "ok": not broken,
+            "detail": (
+                f"{len(checked)} checked, "
+                f"{len(broken)} need reconnect"
+                + (
+                    f" ({broken[0].get('auth_error')})"
+                    if broken and broken[0].get("auth_error")
+                    else ""
+                )
+            ),
+            "fix": "downcroc account connect",
         }
     )
     unready = [item for item in providers if not item["ready"]]
@@ -270,11 +292,18 @@ def _print_body(args: object, report: dict, running: bool) -> None:
             lines["sending"] = detail
         else:
             lines["sending"] = "running"
-        broken = [item for item in accounts if item["status"] == "needs_reauth"]
+        broken = [
+            item
+            for item in accounts
+            if item["status"] == "needs_reauth"
+            or item.get("auth_action") == "reconnect"
+        ]
         pending = [item for item in accounts if item["status"] == "pending"]
         detail = f"{len(accounts)} total"
         if broken:
             detail += f", {len(broken)} needs re-auth, run: downcroc account connect"
+            if broken[0].get("auth_error"):
+                detail += f" ({broken[0]['auth_error']})"
         if pending:
             detail += f", {len(pending)} pending"
         lines["accounts"] = detail
@@ -356,8 +385,18 @@ def _home_header(ui: Ui, info: dict) -> None:
     total = summary.get("total", {})
     tone = "good" if vault and vault["state"] == "unlocked" else "warn"
     pending = [item for item in accounts if item["status"] == "pending"]
+    reconnect = [
+        item
+        for item in accounts
+        if item["status"] == "needs_reauth" or item.get("auth_action") == "reconnect"
+    ]
     queue = f"{total.get('sent', 0):,} sent, {total.get('failed', 0):,} failed"
     detail = f"{len(accounts):,} accounts"
+    if reconnect:
+        detail += (
+            f", {len(reconnect):,} need reconnect"
+            f" (downcroc account connect {reconnect[0]['id']})"
+        )
     if pending:
         detail += f", {len(pending):,} pending"
     state = "vault " + (vault["state"] if vault else "unknown")
@@ -397,6 +436,8 @@ def home(args: object, ui: Ui) -> int:
     while True:
         info = _state(args, paths)
         _home_header(ui, info)
+        if info["running"] and not ui.quiet:
+            auth_summary.show(ui, info.get("accounts") or [])
         step = _prompt_step(ui, info)
         if step is None:
             break

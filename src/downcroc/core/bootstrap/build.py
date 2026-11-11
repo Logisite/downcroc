@@ -26,7 +26,9 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     eligibility = AccountEligibility(foundation.policy, foundation.presence)
     inbound = build_inbound(foundation)
     transports, credentials = build_transports(foundation, eligibility)
-    accounts, vault_maintenance = build_accounts(foundation, inbound, transports)
+    accounts, vault_maintenance, auth_preflight = build_accounts(
+        foundation, inbound, transports, credentials
+    )
     outbound = build_outbound(foundation, transports, eligibility)
     inbound.open()
     capacity = build_capacity(foundation, transports)
@@ -59,6 +61,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         vault=foundation.vault,
         vault_maintenance=vault_maintenance,
         presence=foundation.presence,
+        auth_preflight=auth_preflight,
         providers=foundation.providers,
         messages=foundation.messages,
         content=foundation.content,

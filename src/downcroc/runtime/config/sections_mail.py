@@ -132,6 +132,12 @@ class ConnectSettings(BaseModel):
         le=30,
         description="Seconds to wait for OAuth flows to stop.",
     )
+    auth_check_concurrency: int = Field(
+        default=4,
+        ge=1,
+        le=16,
+        description="Accounts checked in parallel after vault unlock.",
+    )
 
 
 class InboundSettings(BaseModel):

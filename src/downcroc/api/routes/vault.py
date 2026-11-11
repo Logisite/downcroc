@@ -23,6 +23,10 @@ def _out(request: Request) -> VaultOut:
         VaultAccount(
             id=account.id,
             credential_present=services.presence.present(account),
+            auth_checked_at=account.auth_checked_at,
+            auth_status=account.auth_status,
+            auth_error=account.auth_error,
+            auth_action=account.auth_action,
         )
         for account in services.accounts.list()
     ]
@@ -37,6 +41,7 @@ def read_vault(request: Request) -> VaultOut:
 @router.post("/init", response_model=VaultOut, status_code=201)
 async def init(body: VaultInit, request: Request) -> VaultOut:
     _service(request).initialize(body.password)
+    request.app.state.services.auth_preflight.start()
     request.app.state.services.inbound.start_all()
     await request.app.state.services.outbound.reconcile()
     return _out(request)
@@ -46,6 +51,7 @@ async def init(body: VaultInit, request: Request) -> VaultOut:
 async def unlock(body: VaultUnlock, request: Request) -> VaultOut:
     _service(request).unlock(body.password)
     request.app.state.services.vault_maintenance.on_unlock()
+    request.app.state.services.auth_preflight.start()
     request.app.state.services.inbound.start_all()
     await request.app.state.services.outbound.reconcile()
     return _out(request)
@@ -53,6 +59,7 @@ async def unlock(body: VaultUnlock, request: Request) -> VaultOut:
 
 @router.post("/lock", response_model=VaultOut)
 async def lock(request: Request) -> VaultOut:
+    request.app.state.services.auth_preflight.cancel("vault_locked")
     request.app.state.services.inbound.stop_all("vault_locked")
     await request.app.state.services.outbound.close_sessions("vault_locked")
     _service(request).lock("api")

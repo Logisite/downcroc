@@ -65,6 +65,7 @@ def create_app(
             await services.config.stop()
             await services.retention.stop()
             await services.dispatcher.stop()
+            await services.auth_preflight.stop()
             await services.outbound.close_sessions("shutdown")
             services.inbound.stop_all("shutdown")
             services.accounts.close_flows("daemon_stopped")

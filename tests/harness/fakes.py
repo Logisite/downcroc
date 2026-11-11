@@ -154,10 +154,16 @@ class _ImapHandler(socketserver.StreamRequestHandler):
             elif command == "LOGIN":
                 arguments = shlex.split(argument)
                 self.user = arguments[0].lower() if arguments else ""
+                if self.server.owner.login_rejected(self.user):  # type: ignore[attr-defined]
+                    self._send(f"{tag} NO [AUTHENTICATIONFAILED] invalid credentials")
+                    continue
                 self._send(f"{tag} OK LOGIN completed")
             elif command == "AUTHENTICATE":
                 self._send("+ ")
                 self.rfile.readline()
+                if self.server.owner.login_rejected(self.user):  # type: ignore[attr-defined]
+                    self._send(f"{tag} NO [AUTHENTICATIONFAILED] invalid credentials")
+                    continue
                 self._send(f"{tag} OK AUTHENTICATE completed")
             elif command == "NAMESPACE":
                 self._send('* NAMESPACE (("" "/")) NIL NIL')
@@ -223,6 +229,7 @@ class FakeMailServers:
     _sent_ids: set[str] = field(default_factory=set)
     _rcpt_counts: dict[str, int] = field(default_factory=dict)
     _inboxes: dict[str, _Mailbox] = field(default_factory=dict)
+    _rejected: set[str] = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _smtp: _Threaded | None = None
     _imap: _Threaded | None = None
@@ -275,6 +282,14 @@ class FakeMailServers:
         with self._lock:
             return key in self._sent_ids
 
+    def login_rejected(self, address: str) -> bool:
+        with self._lock:
+            return address.strip().lower() in self._rejected
+
+    def reject_login(self, address: str) -> None:
+        with self._lock:
+            self._rejected.add(address.strip().lower())
+
     def rcpt_failure(self, line: str) -> str | None:
         address = line.split(":", 1)[-1].strip().strip("<>")
         local = address.split("@", 1)[0].lower()
@@ -308,6 +323,7 @@ class FakeMailServers:
             self._sent_ids.clear()
             self._rcpt_counts.clear()
             self._inboxes.clear()
+            self._rejected.clear()
 
     @property
     def providers_toml(self) -> str:

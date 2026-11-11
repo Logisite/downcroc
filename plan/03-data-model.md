@@ -44,6 +44,10 @@ counters; there is no surrogate integer key anywhere except the event sequence.
 | jitter_max | int | maximum seconds between sends on this account |
 | max_in_flight | int | concurrent sends allowed on this account |
 | enabled | int | participates in dispatch |
+| auth_checked_at | text | last credential preflight |
+| auth_status | text | `ok`, `needs_reauth`, or `unavailable` |
+| auth_error | text | stable reason code, never a credential |
+| auth_action | text | `reconnect`, `retry`, `unlock`, or null |
 
 The policy columns are copied from the `[sending]` config section when the account is created.
 They live on the row because accounts differ and the account API edits one account at a time.

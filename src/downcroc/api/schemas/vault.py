@@ -20,6 +20,10 @@ class VaultUnlock(BaseModel):
 class VaultAccount(BaseModel):
     id: str
     credential_present: bool
+    auth_checked_at: str | None = None
+    auth_status: str | None = None
+    auth_error: str | None = None
+    auth_action: str | None = None
 
 
 class VaultOut(BaseModel):

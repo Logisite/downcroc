@@ -62,7 +62,36 @@ def frame(
     return out
 
 
-def _row(ui: Ui, glyphs: dict[str, str], text: str, content: int) -> str:
+def status_line(ui: Ui, title: str, text: str, tone: str = "accent") -> list[str]:
+    """One-row panel whose border carries the overall status colour."""
+    glyphs = UNICODE
+    width = width_for(ui)
+    inner = width - 2
+    content = inner - PAD * 2
+    title = ansi.clip(title, max(1, inner - 8))
+    head = inner - ansi.cells(title) - 4
+    top = (
+        f"{glyphs['tl']}{glyphs['h'] * 2} {title} "
+        f"{glyphs['h'] * max(0, head)}{glyphs['tr']}"
+    )
+    edge = " " * MARGIN
+    middle = _row(ui, glyphs, ansi.fit(text, content), content, tone=tone)
+    bottom = glyphs["bl"] + glyphs["h"] * inner + glyphs["br"]
+    return [
+        edge + ui.paint(top, tone),
+        edge + middle,
+        edge + ui.paint(bottom, tone),
+    ]
+
+
+def _row(
+    ui: Ui,
+    glyphs: dict[str, str],
+    text: str,
+    content: int,
+    *,
+    tone: str = "accent",
+) -> str:
     body = " " * PAD + ansi.pad(text, content) + " " * PAD
-    wall = ui.paint(glyphs["v"], "accent")
+    wall = ui.paint(glyphs["v"], tone)
     return wall + body + wall

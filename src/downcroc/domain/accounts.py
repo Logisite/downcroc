@@ -40,3 +40,7 @@ class Account:
     last_source_switch_at: str | None = None
     paused_at: str | None = None
     paused_reason: str | None = None
+    auth_checked_at: str | None = None
+    auth_status: str | None = None
+    auth_error: str | None = None
+    auth_action: str | None = None

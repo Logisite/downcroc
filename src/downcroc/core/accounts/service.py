@@ -309,3 +309,31 @@ class AccountsService(AccountLoginMixin):
     def mark_credential_missing(self, account_id: str, kind: str) -> None:
         account = self._accounts.get(account_id)
         self._needs_reauth(account, "credential_missing")
+
+    def auth_candidates(self) -> list[Account]:
+        return [
+            account
+            for account in self._accounts.list()
+            if account.status not in (AccountStatus.PENDING, AccountStatus.DISABLED)
+        ]
+
+    def record_auth_check(
+        self,
+        account_id: str,
+        *,
+        checked_at: str,
+        status: str,
+        error: str | None,
+        action: str | None,
+    ) -> Account:
+        updated = self._accounts.record_auth_check(
+            account_id,
+            checked_at=checked_at,
+            status=status,
+            error=error,
+            action=action,
+        )
+        if status == "needs_reauth" and error is not None:
+            self._needs_reauth(updated, error)
+            updated = self._accounts.get(account_id)
+        return updated

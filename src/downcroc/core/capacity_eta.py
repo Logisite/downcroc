@@ -57,6 +57,7 @@ class CapacityEtaMixin:
         return {
             "state": state,
             "as_of": utc_now(),
+            "basis": capacity["basis"],
             "remaining": remaining,
             "sendable": max(0, remaining - held),
             "held": held,
@@ -105,6 +106,7 @@ class CapacityEtaMixin:
             "blocked_by": holds[0]["level"] if holds else None,
             "holds": holds,
             "as_of": utc_now(),
+            "basis": capacity["basis"],
             "next_attempt_at": job.next_attempt_at,
             "queue_position": 1,
             "queue_lanes": capacity["lanes"],
@@ -137,6 +139,8 @@ class CapacityEtaMixin:
         )
         return {
             "state": state,
+            "as_of": utc_now(),
+            "basis": capacity["basis"],
             "remaining": total,
             "lanes": capacity["lanes"],
             "seats": capacity["seats"],

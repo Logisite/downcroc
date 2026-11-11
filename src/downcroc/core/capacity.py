@@ -10,6 +10,7 @@ from downcroc.core.transports import TransportService
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.jobs import JobState
 from downcroc.domain.policy import SendPolicy
+from downcroc.runtime.clock import utc_now
 from downcroc.runtime.config.schema import Settings
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.batches import BatchRepo
@@ -165,6 +166,8 @@ class CapacityService(CapacityEtaMixin):
                 "add a Gmail API binding to run API lanes in parallel"
             )
         return {
+            "as_of": utc_now(),
+            "basis": "live policy, quota, holds, and transport state",
             "lanes": lanes,
             "seats": seats,
             "serial": serial,

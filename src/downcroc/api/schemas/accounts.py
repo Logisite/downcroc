@@ -87,6 +87,10 @@ class AccountOut(BaseModel):
     watcher_enabled: bool
     paused_at: str | None = None
     paused_reason: str | None = None
+    auth_checked_at: str | None = None
+    auth_status: str | None = None
+    auth_error: str | None = None
+    auth_action: str | None = None
     sync: SyncOut
     inbound: InboundOut
     quota: QuotaOut
@@ -118,6 +122,10 @@ class AccountOut(BaseModel):
             watcher_enabled=account.watcher_enabled,
             paused_at=account.paused_at,
             paused_reason=account.paused_reason,
+            auth_checked_at=account.auth_checked_at,
+            auth_status=account.auth_status,
+            auth_error=account.auth_error,
+            auth_action=account.auth_action,
             sync=SyncOut(
                 last_uid=account.last_uid,
                 uidvalidity=account.uidvalidity,

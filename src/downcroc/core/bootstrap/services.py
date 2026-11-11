@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
     from downcroc.backup import BackupService, RestoreService
     from downcroc.core.accounts import AccountsService
+    from downcroc.core.accounts.preflight import AuthPreflight
     from downcroc.core.batches import BatchesService
     from downcroc.core.capacity import CapacityService
     from downcroc.core.config_service import ConfigService
@@ -47,6 +48,7 @@ class Services:
     vault: VaultService
     vault_maintenance: VaultMaintenance
     presence: CredentialPresence
+    auth_preflight: AuthPreflight
     providers: ProviderRegistry
     messages: MessageRepo
     content: ContentStore

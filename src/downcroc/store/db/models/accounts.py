@@ -30,6 +30,10 @@ class AccountRow(Base):
     enabled: Mapped[bool | None] = mapped_column(Boolean)
     paused_at: Mapped[str | None] = mapped_column(Text)
     paused_reason: Mapped[str | None] = mapped_column(Text)
+    auth_checked_at: Mapped[str | None] = mapped_column(Text)
+    auth_status: Mapped[str | None] = mapped_column(Text)
+    auth_error: Mapped[str | None] = mapped_column(Text)
+    auth_action: Mapped[str | None] = mapped_column(Text)
 
 
 class AccountStateRow(Base):

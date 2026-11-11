@@ -141,6 +141,7 @@ downcroc/
       service.py        connect, verify, disable, reauth handling
       login.py          IMAP login, OAuth exchange, health transitions
       eligibility.py    one routing, dispatch, and seat eligibility rule
+      preflight.py      background credential check after unlock
     outbound/
       service.py        send one job through the selected transport
       jobs/

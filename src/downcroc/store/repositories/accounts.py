@@ -61,6 +61,10 @@ def _to_account(row: AccountRow, state: AccountStateRow | None) -> Account:
         ),
         paused_at=row.paused_at,
         paused_reason=row.paused_reason,
+        auth_checked_at=row.auth_checked_at,
+        auth_status=row.auth_status,
+        auth_error=row.auth_error,
+        auth_action=row.auth_action,
     )
 
 
@@ -158,6 +162,23 @@ class AccountRepo(AccountDeletionRepo):
             state = self._state(session, account_id)
             row.status = AccountStatus.NEEDS_REAUTH.value
             state.last_error = reason
+        return self.get(account_id)
+
+    def record_auth_check(
+        self,
+        account_id: str,
+        *,
+        checked_at: str,
+        status: str,
+        error: str | None,
+        action: str | None,
+    ) -> Account:
+        with self._sessions.begin() as session:
+            row = self._row(session, account_id)
+            row.auth_checked_at = checked_at
+            row.auth_status = status
+            row.auth_error = error
+            row.auth_action = action
         return self.get(account_id)
 
     def mark_unverified(self, account_id: str, reason: str) -> Account:

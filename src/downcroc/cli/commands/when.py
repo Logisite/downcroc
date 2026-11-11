@@ -59,6 +59,14 @@ def window(value: object) -> str:
     return f"{earliest} to {latest}"
 
 
+def age(value: object) -> str:
+    at = _parsed(value)
+    if at is None:
+        return "-"
+    seconds = max(0, int((datetime.now(UTC) - at).total_seconds()))
+    return f"{duration(seconds)} ago" if seconds else "now"
+
+
 def cell(eta: dict | None) -> str:
     """One column: a compact ETA or the reason it has none."""
     if not eta:
@@ -82,6 +90,9 @@ def show_eta(eta: dict | None, ui: Ui) -> None:
     record(
         {
             "eta_state": eta.get("state"),
+            "as_of": eta.get("as_of"),
+            "eta_age": age(eta.get("as_of")),
+            "basis": eta.get("basis"),
             "remaining": eta.get("remaining"),
             "sendable": eta.get("sendable"),
             "held": eta.get("held"),
@@ -109,6 +120,9 @@ def show_capacity(capacity: dict | None, ui: Ui) -> None:
     record(
         {
             "messages": capacity.get("messages"),
+            "as_of": capacity.get("as_of"),
+            "eta_age": age(capacity.get("as_of")),
+            "basis": capacity.get("basis"),
             "lanes": capacity.get("lanes"),
             "seats": capacity.get("seats"),
             "serial": capacity.get("serial"),

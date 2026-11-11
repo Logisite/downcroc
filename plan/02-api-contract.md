@@ -66,7 +66,8 @@ cross-user local API exposure described in `04-security.md`.
 | POST | `/api/vault/lock` | drops the key. Running sends finish or are abandoned per `03` |
 
 `GET /api/vault` returns `state`, `path`, `unlocked_at`, `attempts_left`, `retry_after_s`, and
-`accounts` (each with `id` and `credential_present`). Unlock takes `{"password": "..."}` and
+`accounts` (each with `id`, `credential_present`, `auth_checked_at`, `auth_status`, `auth_error`,
+and `auth_action`). Unlock takes `{"password": "..."}` and
 returns the same shape; lock takes no body and returns it. Neither echoes the password.
 `GET /api/status` carries a `vault` object with the state and attempt fields.
 
@@ -103,8 +104,9 @@ client can tell whether a provider can start an OAuth attempt.
 
 An account carries `id`, `provider`, `address`, `label`, `status`, `credential_present`,
 `created_at`, `last_verified_at`, `last_error`, `watcher_enabled`, a `sync` object
-(`last_uid`, `uidvalidity`, `last_sync_at`, `last_error`, `consecutive_failures`), and the
-stored send policy as `quota`. `credential_present` is derived from the live vault. Status is
+(`last_uid`, `uidvalidity`, `last_sync_at`, `last_error`, `consecutive_failures`), the
+stored send policy as `quota`, and the preflight state `auth_checked_at`, `auth_status`,
+`auth_error`, and `auth_action`. `credential_present` is derived from the live vault. Status is
 one of `pending`, `connected`, `needs_reauth`, `disabled`, `unverified`. `last_error` carries the
 last stable reason code, such as `invalid_grant` or `imap_auth_failed`, and never carries
 credential material.
@@ -174,6 +176,10 @@ batches and the dispatcher arrive. They are thin calls into the outbound service
 scheduler. A one-off job uses `batch_id = "manual"` until it is attached to a real batch. Any
 other batch id must name an existing batch. Creation and sending reject an archived, paused, or
 disconnected account, and the `manual` sentinel is resolved before the hold check.
+
+Batch, job, and pending capacity responses carry `as_of` and `basis` on every read. The estimate
+is recomputed from live policy, quota, holds, and transport state; a paused or blocked batch
+returns a null finish time with a reason.
 
 ### Mail, threads, replies
 
