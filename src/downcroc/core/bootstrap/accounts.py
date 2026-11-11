@@ -17,6 +17,7 @@ def build_accounts(
 ) -> tuple[AccountsService, VaultMaintenance, AuthPreflight]:
     accounts = AccountsService(
         foundation.accounts,
+        foundation.jobs,
         foundation.bus,
         foundation.log,
         foundation.providers,

@@ -140,10 +140,16 @@ downcroc/
       __init__.py       the account facade
       service.py        connect, verify, disable, reauth handling
       login.py          IMAP login, OAuth exchange, health transitions
+      lifecycle.py      archive and unarchive state transitions
+      watcher.py        watcher enable and disable port
       eligibility.py    one routing, dispatch, and seat eligibility rule
       preflight.py      background credential check after unlock
     outbound/
       service.py        send one job through the selected transport
+      attempts/
+        recorder.py     one attempt per delivery try, idempotent finalize
+        quota.py        reserve, commit, and release quota
+        reconcile.py    close stale attempts at startup
       jobs/
         create.py       manual field validation, batch sentinel, sender checks
         manual.py       create one ad-hoc job, choose the mailbox

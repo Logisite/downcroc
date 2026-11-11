@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from downcroc.core.accounts.lifecycle import AccountLifecycle
 from downcroc.core.accounts.login import AccountLoginMixin
 from downcroc.core.events import EventBus
 from downcroc.core.inbound import InboundService
@@ -32,12 +33,14 @@ from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.content import ContentStore
 from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.attempts import AttemptRepo
+from downcroc.store.repositories.jobs import JobRepo
 
 
 class AccountsService(AccountLoginMixin):
     def __init__(
         self,
         accounts: AccountRepo,
+        jobs: JobRepo,
         bus: EventBus,
         log: EventLogger,
         registry: ProviderRegistry,
@@ -52,6 +55,7 @@ class AccountsService(AccountLoginMixin):
         clients: OAuthClientService,
     ) -> None:
         self._accounts = accounts
+        self._jobs = jobs
         self._bus = bus
         self._log = log
         self._registry = registry
@@ -65,6 +69,14 @@ class AccountsService(AccountLoginMixin):
         self._clients = clients
         self._attempt_transports: dict[str, TransportKind] = {}
         self._flow = OAuthFlow(attempts, settings, log, self._complete_oauth)
+        self._lifecycle = AccountLifecycle(
+            accounts,
+            jobs,
+            vault,
+            inbound,
+            bus,
+            log,
+        )
 
     def create(self, provider: str, address: str, label: str) -> Account:
         provider, address, label = validate_account(provider, address, label)
@@ -136,24 +148,11 @@ class AccountsService(AccountLoginMixin):
         }
 
     def archive(self, account_id: str) -> Account:
-        account = self._accounts.get(account_id)
-        if account.archived_at is not None:
-            return account
-        updated = self._accounts.archive(account_id, utc_now())
         self._flow.stop_for_account(account_id)
-        self._inbound.account_changed(account_id, False)
-        self._bus.publish("account.archived", {"id": account_id})
-        self._log.info("account.archived", account=account_id)
-        return updated
+        return self._lifecycle.archive(account_id)
 
     def unarchive(self, account_id: str) -> Account:
-        account = self._accounts.get(account_id)
-        if account.archived_at is None:
-            return account
-        updated = self._accounts.unarchive(account_id)
-        self._bus.publish("account.unarchived", {"id": account_id})
-        self._log.info("account.unarchived", account=account_id)
-        return updated
+        return self._lifecycle.unarchive(account_id)
 
     def deletion_preview(self, account_id: str) -> dict:
         counts = self._accounts.deletion_counts(account_id)
