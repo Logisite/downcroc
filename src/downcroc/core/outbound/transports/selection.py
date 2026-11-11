@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from downcroc.core.credentials import CredentialResolver
-from downcroc.core.outbound.gmail_delivery import GmailDelivery
-from downcroc.core.outbound.smtp_delivery import SmtpDelivery
+from downcroc.core.events import EventBus
+from downcroc.core.outbound.transports.gmail import GmailDelivery
+from downcroc.core.outbound.transports.outcome import DeliveryOutcome
+from downcroc.core.outbound.transports.smtp import SmtpDelivery
 from downcroc.core.transports import TransportService
 from downcroc.core.transports.limiter import TransportLimiter
 from downcroc.domain.accounts import Account
@@ -23,58 +23,6 @@ from downcroc.mail.smtp import sender
 from downcroc.runtime.logging.setup import EventLogger
 
 
-@dataclass(frozen=True)
-class DeliveryOutcome:
-    status: str
-    binding: AccountTransport | None = None
-    code: str | None = None
-    message: str | None = None
-    provider_message_id: str | None = None
-    retry_after_s: int | None = None
-
-    @classmethod
-    def sent(
-        cls, binding: AccountTransport, provider_message_id: str | None
-    ) -> DeliveryOutcome:
-        return cls(
-            "sent",
-            binding=binding,
-            provider_message_id=provider_message_id,
-        )
-
-    @classmethod
-    def uncertain(
-        cls, binding: AccountTransport, code: str, message: str
-    ) -> DeliveryOutcome:
-        return cls("uncertain", binding=binding, code=code, message=message)
-
-    @classmethod
-    def deferred(
-        cls,
-        binding: AccountTransport | None,
-        code: str,
-        message: str,
-        retry_after_s: int | None = None,
-    ) -> DeliveryOutcome:
-        return cls(
-            "deferred",
-            binding=binding,
-            code=code,
-            message=message,
-            retry_after_s=retry_after_s,
-        )
-
-    @classmethod
-    def failed(
-        cls, binding: AccountTransport, code: str, message: str
-    ) -> DeliveryOutcome:
-        return cls("failed", binding=binding, code=code, message=message)
-
-    @classmethod
-    def reauth(cls, code: str, message: str) -> DeliveryOutcome:
-        return cls("reauth", code=code, message=message)
-
-
 class TransportDelivery:
     """Tries each healthy binding in order, never after a possible accept."""
 
@@ -85,6 +33,7 @@ class TransportDelivery:
         smtp: SmtpDelivery,
         gmail: GmailDelivery,
         limiter: TransportLimiter,
+        bus: EventBus,
         log: EventLogger,
     ) -> None:
         self._transports = transports
@@ -92,6 +41,7 @@ class TransportDelivery:
         self._smtp = smtp
         self._gmail = gmail
         self._limiter = limiter
+        self._bus = bus
         self._log = log
 
     async def deliver(
@@ -129,6 +79,24 @@ class TransportDelivery:
         busy = False
         last: DeliveryOutcome | None = None
         for binding in bindings:
+            self._log.info(
+                "transport.attempt",
+                job=job.id,
+                account=account.id,
+                binding=binding.id,
+                transport=binding.kind.value,
+                attempt=attempt_id,
+            )
+            self._bus.publish(
+                "transport.attempt",
+                {
+                    "job": job.id,
+                    "account": account.id,
+                    "binding": binding.id,
+                    "transport": binding.kind.value,
+                    "attempt": attempt_id,
+                },
+            )
             if not self._limiter.acquire(binding):
                 busy = True
                 continue

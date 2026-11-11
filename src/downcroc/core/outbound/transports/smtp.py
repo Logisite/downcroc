@@ -104,6 +104,9 @@ class SmtpDelivery:
         self._log.info(
             "smtp.accepted",
             job=job.id,
+            account=account.id,
+            binding=binding.id,
+            transport=binding.kind.value,
             message_id=job.message_id,
             duration_ms=result.accepted_ms,
         )

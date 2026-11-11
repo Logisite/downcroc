@@ -108,6 +108,7 @@ class GmailDelivery:
             job=job.id,
             account=account.id,
             binding=binding.id,
+            transport=binding.kind.value,
             provider_message_id=result.provider_message_id,
             duration_ms=result.accepted_ms,
         )

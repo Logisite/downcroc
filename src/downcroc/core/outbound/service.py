@@ -9,14 +9,14 @@ from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound.attempts import AttemptRecorder
 from downcroc.core.outbound.attempts.quota import QuotaAccountant
-from downcroc.core.outbound.gmail_delivery import GmailDelivery
 from downcroc.core.outbound.jobs.create import require_usable
 from downcroc.core.outbound.jobs.facade import JobFacade
 from downcroc.core.outbound.jobs.manual import ManualJobs
 from downcroc.core.outbound.reconcile import SentReconciler
-from downcroc.core.outbound.smtp_delivery import SmtpDelivery
-from downcroc.core.outbound.transport_delivery import (
+from downcroc.core.outbound.transports import (
     DeliveryOutcome,
+    GmailDelivery,
+    SmtpDelivery,
     TransportDelivery,
 )
 from downcroc.core.policy import PolicyResolver
@@ -96,6 +96,7 @@ class OutboundService(JobFacade):
             smtp,
             gmail,
             transports.limiter,
+            self._bus,
             log,
         )
         self._reconciler = SentReconciler(
@@ -276,7 +277,7 @@ class OutboundService(JobFacade):
             )
         if outcome.status == "sent":
             sent = self._jobs.mark_sent(job.id, utc_now())
-            self._sent(sent, account, started)
+            self._sent(sent, account, started, outcome.binding)
             self._accountant.commit(account.id, day, attempt_id, limit)
             return sent
         if outcome.status == "uncertain":
@@ -433,16 +434,27 @@ class OutboundService(JobFacade):
             job=job.id,
         )
 
-    def _sent(self, job: Job, account: Account, started: float) -> None:
+    def _sent(self, job: Job, account: Account, started: float, binding) -> None:
         self._stats.record_sent(job, account.id)
+        transport = binding.kind.value if binding is not None else "pending"
         self._bus.publish(
             "job.sent",
-            {"id": job.id, "batch": job.batch_id, "message_id": job.message_id},
+            {
+                "id": job.id,
+                "batch": job.batch_id,
+                "message_id": job.message_id,
+                "account": account.id,
+                "transport": transport,
+                "binding": binding.id if binding is not None else None,
+            },
         )
         self._log.info(
             "job.sent",
             job=job.id,
+            account=account.id,
             message_id=job.message_id,
+            transport=transport,
+            binding=binding.id if binding is not None else None,
             duration_ms=round((time.monotonic() - started) * 1000),
         )
 
