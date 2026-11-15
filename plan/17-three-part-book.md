@@ -32,19 +32,26 @@ command and must cover every flag and positional that render shows.
 
 ```text
 10-service.md            16-logs.md
-11-vault.md              17-stats.md
-12-account.md            18-config.md
-13-providers.md          19-backup.md
-14a submit/preview       20-template.md
-14b approve              21-messages.md
-14c show/list            22-doctor.md
-14d jobs                 23-auth.md
-14e reassign/pin         24-failed.md
-14f followups            25-docs.md
-14g cancel/holds         26-init.md
-14h failed               27-mail.md
-15-sending.md            28-openapi.md
+10a-status.md            17-stats.md
+11-vault.md              18-config.md
+12-account.md            19-backup.md
+13-providers.md          20-template.md
+14a submit/preview       21-messages.md
+14b approve              22-doctor.md
+14c show/list            23-auth.md
+14d jobs                 24-failed.md
+14e reassign/pin         25-docs.md
+14f followups            26-init.md
+14g cancel/holds         27-mail.md
+14h failed               28-openapi.md
+15-sending.md
 ```
+
+`status` gets its own chapter next to `service`, because status is a read of
+the whole system while service is control of the process; one chapter that
+mixed both would fail the read-through test. The `help` command has no
+chapter of its own: it is a resolver over the same tree, and its contract is
+documented in `25-docs.md`.
 
 Slots exist as stubs from the moment Part I names them; Part II is written to
 fill named slots, never invented separately.

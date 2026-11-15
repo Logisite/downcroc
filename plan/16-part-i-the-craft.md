@@ -33,6 +33,24 @@ that make it so:
 - Sentences stay short. Paragraphs are two to four lines. A page is 60 to 120
   lines of source. If a page grows past that, it becomes two pages.
 
+## Voice samples
+
+The prose voice is calibrated against a full chapter of The Rust Programming
+Language, kept verbatim as `samples/rust-book-ch06-01-defining-an-enum.md`.
+When a page sounds manual-like or wall-of-bullets, reread that chapter and
+find where the draft lost the conversation. The moves to copy from it:
+
+- opens from a situation ("Say we need to work with IP addresses"), never
+  from a definition;
+- shows the real thing, then reads it back line by line in prose;
+- teaches the next idea by *redoing the previous one better* (struct-then-
+  enum), so the reader sees the reason, not just the rule;
+- plain-words sidebars that admit what is confusing ("Intense! In effect…").
+
+Part I differs from the Rust Book in one way, on purpose: the reader runs a
+finished product, not code they write, so every screen shown must come from
+`ui_map.py` or a probe capture, never from imagination.
+
 ## What it sounds like
 
 Docs-speak (forbidden):
