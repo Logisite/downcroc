@@ -34,13 +34,13 @@ def job_list(rows: list[dict]) -> None:
     )
 
 
-def job_show(job: dict, ui: Ui) -> None:
+def job_show(job: dict, ui: Ui, sender: str | None = None) -> None:
     error = job.get("last_error") or {}
     record(
         {
             "id": job["id"],
             "batch": job["batch_id"],
-            "sender": sender_label(job),
+            "sender": sender or sender_label(job),
             "recipient": job["recipient"],
             "name": job["recipient_name"],
             "subject": job["subject"],

@@ -269,6 +269,9 @@ def job(commands: argparse._SubParsersAction) -> None:
 
     show = actions.add_parser("show", help="show one job")
     show.add_argument("job_id")
+    show.add_argument(
+        "--addresses", action="store_true", help="show account addresses instead of ids"
+    )
     common(show)
 
     send = actions.add_parser("send", help="send one job now")
@@ -353,6 +356,9 @@ def job(commands: argparse._SubParsersAction) -> None:
 
     attempts = actions.add_parser("attempts", help="show the send attempts for a job")
     attempts.add_argument("job_id")
+    attempts.add_argument(
+        "--addresses", action="store_true", help="show account addresses instead of ids"
+    )
     common(attempts)
 
     create = actions.add_parser("create", help="create a manual job")

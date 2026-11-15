@@ -31,6 +31,11 @@ class AddressBook:
             return
         self._map = found
 
+    def address(self, account_id: str | None) -> str | None:
+        if account_id is None:
+            return None
+        return self._map.get(str(account_id))
+
     def filter(self, wanted: str | None) -> str | None:
         if not wanted:
             return None

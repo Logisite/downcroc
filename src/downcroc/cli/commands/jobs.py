@@ -10,6 +10,8 @@ from downcroc.cli.commands.job_view import (
 )
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
+from downcroc.cli.job_sender import sender_text
+from downcroc.cli.logs_addresses import load_book
 from downcroc.cli.output import json_out, page_footer
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.menu import open_menu
@@ -229,6 +231,12 @@ def _attempts(client, args: object, ui: Ui) -> int:
     if not rows:
         print("no send attempts yet")
         return 0
+    if getattr(args, "addresses", False):
+        book = load_book()
+        rows = [
+            {**row, "account_id": book.address(row["account_id"]) or row["account_id"]}
+            for row in rows
+        ]
     attempts_table(rows)
     return 0
 
@@ -260,5 +268,7 @@ def run(args: object) -> int:
         if ui.json_mode:
             json_out(job)
         else:
-            job_show(job, ui)
+            addresses = bool(getattr(args, "addresses", False))
+            book = load_book() if addresses else None
+            job_show(job, ui, sender=sender_text(client, job, book, addresses))
         return 0
