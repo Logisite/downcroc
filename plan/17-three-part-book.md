@@ -49,6 +49,33 @@ command and must cover every flag and positional that render shows.
 Slots exist as stubs from the moment Part I names them; Part II is written to
 fill named slots, never invented separately.
 
+### Part II is written to be read through
+
+"Looked up" is how Part II gets used; it is not how it gets written. Each
+chapter is composed so a person can read it start to finish like any other
+part of the book, and separately land on it from search or a deep link.
+
+- The chapter opens with a short narrative section in the book's voice: what
+  this command is for, when you reach for it, the one idea behind it. Tables
+  never open a chapter; prose does.
+- Every flag and subcommand entry leads with one plain sentence before any
+  exact detail: `--include-failed: also move failed jobs, not just queued
+  ones. Use it when a mailbox died with work still waiting.`
+- Subcommand sections read as small stories (purpose, the move, the reading,
+  what goes wrong), not as fragments. Tables appear inside them as summary,
+  never as the whole content.
+- Cross-references are written into the flow ("this pairs with X, because
+  Y"), so a linear reader builds one connected model instead of visiting
+  islands.
+- The state, error, and edge material follows the same plain rules as Part I:
+  means/do-this pairs, cause and consequence, the reader's next move.
+- The lookup aids are layered on top, not instead: the `cli_tree.py` render
+  at the top, a short anchor per subcommand and flag, and the complete table
+  of error codes at the end.
+
+The test: reading `14d-jobs.md` straight through leaves a person fluent in
+jobs; searching it answers one question without reading anything else.
+
 ### Part III
 
 ```text
