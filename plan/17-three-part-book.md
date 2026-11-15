@@ -27,34 +27,52 @@ mailboxes, follow ups, personalise. Full page list and voice in
 ### Part II
 
 One chapter per top-level command group; only `batch` splits, by workflow,
-never alphabetically. Every chapter opens with the `cli_tree.py` render of its
-command and must cover every flag and positional that render shows.
+never alphabetically. Part II is nested like Part I: `part-ii/NN-group/`
+folders per top-level group, with descriptive page names inside. Every
+chapter opens with the `cli_tree.py` render of its command and must cover
+every flag and positional that render shows. Structure tracks top-level CLI
+groups and batch workflows (grounded in `cli_tree.py`), not the full
+subcommand tree.
 
 ```text
-10-service.md            16-logs.md
-10a-status.md            17-stats.md
-11-vault.md              18-config.md
-12-account.md            19-backup.md
-13-providers.md          20-template.md
-14a submit/preview       21-messages.md
-14b approve              22-doctor.md
-14c show/list            23-auth.md
-14d jobs                 24-failed.md
-14e reassign/pin         25-docs.md
-14f followups            26-init.md
-14g cancel/holds         27-mail.md
-14h failed               28-openapi.md
-15-sending.md
+part-ii/
+  01-service/   service.md, serve.md
+  02-status/    status.md
+  03-init/      init.md
+  04-vault/     vault.md
+  05-auth/      auth.md
+  06-provider/  provider.md
+  07-account/   account.md
+  08-batch/     prepare.md, submit.md, inspect.md, approve.md,
+                holds.md, reassign.md, followups.md
+  09-job/       job.md
+  10-failed/    failed.md
+  11-sending/   sending.md
+  12-send/      send.md
+  13-review/    review.md
+  14-template/  template.md
+  15-mail/      mail.md
+  16-doctor/    doctor.md
+  17-config/    config.md
+  18-stats/     stats.md
+  19-logs/      logs.md
+  20-backup/    backup.md
+  21-restore/   restore.md
+  22-docs-help/ docs-help.md
+  23-openapi/   openapi.md
+  24-update/    update.md
+  25-uninstall/ uninstall.md
 ```
 
-`status` gets its own chapter next to `service`, because status is a read of
-the whole system while service is control of the process; one chapter that
-mixed both would fail the read-through test. The `help` command has no
-chapter of its own: it is a resolver over the same tree, and its contract is
-documented in `25-docs.md`.
+`status` is its own chapter (a read of the whole system) separate from
+`service` (process control) and `serve` (foreground run). `failed` and `job`
+are top-level command groups, not batch subsections. `help` is covered with
+`docs` in `22-docs-help/docs-help.md` as a resolver over the same tree and
+docs. `batch` is the only split, by workflow against its real subcommands.
 
-Slots exist as stubs from the moment Part I names them; Part II is written to
-fill named slots, never invented separately.
+Slots/chapters exist as declared paths from the moment Part I names them;
+Part II fills named slots, never invented separately. Legacy numeric slot ids
+remain aliased in `part-ii/_stubs.txt` for pointer compatibility.
 
 ### Part II is written to be read through
 
@@ -80,8 +98,20 @@ part of the book, and separately land on it from search or a deep link.
   at the top, a short anchor per subcommand and flag, and the complete table
   of error codes at the end.
 
-The test: reading `14d-jobs.md` straight through leaves a person fluent in
+The test: reading `09-job/job.md` straight through leaves a person fluent in
 jobs; searching it answers one question without reading anything else.
+
+### Part II formatting
+
+- Do not use tables for branching or conditional surfaces. Describe
+  subcommands/actions and any flags whose meaning or availability depends on
+  the action or context in prose and sections (per action or subcommand), so
+  each can carry its purpose, behavior, effects, prerequisites, output, and
+  notes in full.
+- Use tables only for simple, flat lists of leaf items: end flags, or end
+  commands that take no further flags or subcommands. Prefer prose and lists
+  elsewhere so the contract stays readable and rich enough to scrape detail
+  from.
 
 ### Part III
 

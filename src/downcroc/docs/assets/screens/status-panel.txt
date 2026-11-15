@@ -1,0 +1,5 @@
+daemon    running
+vault     unlocked
+sending   running
+accounts  0 total
+queue     0 sent, 0 failed

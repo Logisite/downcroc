@@ -1,38 +1,38 @@
 ---
-title: Downcroc documentation
-description: The local mail daemon for personalised mail from your own mailboxes.
-tags: [docs, overview]
-audience: user
-status: stable
-since: 1.3.1
-order: 0
-terminal:
-  summary: Start here for install, send, follow-up, and operations.
-  toc: false
+title: The downcroc book
+description: A guide to running downcroc, from first start to daily mail.
+part: front
+commands: []
+concepts: [daemon, vault]
 ---
 
-# Downcroc documentation
+# The downcroc book
 
-Downcroc is an always-on local mail daemon for personalised mail merged from your own Gmail or
-IMAP accounts. It keeps config, data, content, logs, and credentials on your machine.
+downcroc is a small program that lives on your machine and sends mail for you
+from mailboxes you already own. You tell it what to send, and it takes care of
+the rest: when to send, from which mailbox, and what happened after. It keeps
+everything it knows on your machine, not somewhere else.
 
-## Start here
+This book is here to sit with you while you learn it.
 
-- Install downcroc
-- Connect a mailbox
-- Send your first campaign
-- Read the logs when something stalls
+## How to read this
 
-## What stays local
+The book is in three parts. You only need the first one to start.
 
-- the encrypted vault
-- the SQLite database
-- message bodies and attachments
-- the JSONL log
-- backups
+**Part I, The Craft**, is the path. It begins with turning the daemon on and
+sending one email, and it ends with a daily routine you can run in a minute.
+Read it in order the first time. Each page starts from a moment you might
+actually be in, shows you the screen you will see, and walks it in plain
+words.
 
-## The three surfaces
+**Part II, The Commands**, is the place you look things up. When you want to
+know every option a command takes, or exactly what an error code means, that
+is where the complete answer lives. The pages in Part I point there whenever
+they lean on a detail they do not explain.
 
-1. `downcroc` is the interactive command surface.
-2. `downcroc docs` is this book in the terminal.
-3. `downcroc docs --open` opens the same book in a browser.
+**Part III, The Machine**, explains why downcroc behaves the way it does: how
+jobs move, what the states mean, and where problems tend to hide. It is there
+for the day you want the model behind the screens.
+
+If you have never used downcroc before, start at the beginning of Part I:
+[What is downcroc?](part-i/01-starting/what-is-downcroc.md).

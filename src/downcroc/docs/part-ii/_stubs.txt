@@ -1,0 +1,67 @@
+# Part II chapter slots (hierarchical layout). Pointers to these paths or to
+# legacy slot aliases below are valid. Format: "alias.md -> canonical/path.md"
+# for legacy names, or "canonical/path.md" for current slots.
+
+01-service/service.md
+01-service/serve.md
+02-status/status.md
+03-init/init.md
+04-vault/vault.md
+05-auth/auth.md
+06-provider/provider.md
+07-account/account.md
+08-batch/prepare.md
+08-batch/submit.md
+08-batch/inspect.md
+08-batch/approve.md
+08-batch/holds.md
+08-batch/reassign.md
+08-batch/followups.md
+09-job/job.md
+10-failed/failed.md
+11-sending/sending.md
+12-send/send.md
+13-review/review.md
+14-template/template.md
+15-mail/mail.md
+16-doctor/doctor.md
+17-config/config.md
+18-stats/stats.md
+19-logs/logs.md
+20-backup/backup.md
+21-restore/restore.md
+22-docs-help/docs-help.md
+23-openapi/openapi.md
+24-update/update.md
+25-uninstall/uninstall.md
+
+# Legacy slot aliases
+10-service.md -> 01-service/service.md
+10a-status.md -> 02-status/status.md
+11-vault.md -> 04-vault/vault.md
+12-account.md -> 07-account/account.md
+13-providers.md -> 06-provider/provider.md
+14a-submit-preview.md -> 08-batch/submit.md
+14b-approve.md -> 08-batch/approve.md
+14c-show-list.md -> 08-batch/inspect.md
+14d-jobs.md -> 09-job/job.md
+14e-reassign-pin.md -> 08-batch/reassign.md
+14f-followups.md -> 08-batch/followups.md
+14g-cancel-holds.md -> 08-batch/holds.md
+14h-failed.md -> 10-failed/failed.md
+14h-reassign-delete.md -> 08-batch/reassign.md
+15-sending.md -> 11-sending/sending.md
+16-logs.md -> 19-logs/logs.md
+17-stats.md -> 18-stats/stats.md
+18-config.md -> 17-config/config.md
+19-backup.md -> 20-backup/backup.md
+19-followups.md -> 08-batch/followups.md
+20-template.md -> 14-template/template.md
+21-messages.md -> 15-mail/mail.md
+22-doctor.md -> 16-doctor/doctor.md
+23-auth.md -> 05-auth/auth.md
+24-failed.md -> 10-failed/failed.md
+25-docs.md -> 22-docs-help/docs-help.md
+26-init.md -> 03-init/init.md
+27-mail.md -> 15-mail/mail.md
+28-openapi.md -> 23-openapi/openapi.md

@@ -119,4 +119,4 @@ meet a real one it is already familiar.
   10a-status.md
 ⤷ the complete list of failure codes, what each means, and every option on
   the failed screen: 24-failed.md
-⤷ the whole story of a login that expired: gmail.md
+⤷ the whole story of a login that expired: [gmail.md](../01-starting/gmail.md)

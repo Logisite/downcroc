@@ -1,0 +1,2 @@
+job          recipient         code                   attempts  failed_at
+(no failed jobs)
