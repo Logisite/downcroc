@@ -51,6 +51,7 @@ class SlotResolver:
         self._held_since = 0.0
         self._held_picks = 0
         self._seat_reason = "boot"
+        self._hold_reason: str | None = None
 
     def pick(
         self,
@@ -58,6 +59,7 @@ class SlotResolver:
         day: str | None = None,
         pinned_ids: frozenset[str] = frozenset(),
         account_ids: list[str] | None = None,
+        work: set[str] | None = None,
         rng: random.Random | None = None,
     ) -> SlotPlan:
         chosen = set(account_ids) if account_ids else None
@@ -92,15 +94,21 @@ class SlotResolver:
                     smtp_ready=has_smtp,
                 )
             )
-        held = self._eligible_held(entries)
+        held = self._eligible_held(entries, work)
         if not held:
-            self._seat_reason = "rotation" if self._held else "boot"
+            self._seat_reason = self._hold_reason or (
+                "rotation" if self._held else "boot"
+            )
+            self._hold_reason = None
         plan = choose_slots(entries, self._dispatch.smtp_seats, held=held)
         self._remember(plan)
         return plan
 
-    def _eligible_held(self, entries: list[SlotEntry]) -> tuple[str, ...]:
+    def _eligible_held(
+        self, entries: list[SlotEntry], work: set[str] | None
+    ) -> tuple[str, ...]:
         if not self._dispatch.smtp_seat_sticky or not self._held:
+            self._hold_reason = None
             return ()
         ready = {
             entry.account_id
@@ -108,18 +116,22 @@ class SlotResolver:
             if entry.has_smtp and entry.smtp_ready and entry.remaining > 0
         }
         if any(item not in ready for item in self._held):
-            self._seat_reason = "failover"
+            self._hold_reason = "failover"
+            return ()
+        if work is not None and work and not (set(self._held) & work):
+            self._hold_reason = "idle"
             return ()
         if self._dispatch.smtp_seat_max_s and (
             time.monotonic() - self._held_since >= self._dispatch.smtp_seat_max_s
         ):
-            self._seat_reason = "max_s"
+            self._hold_reason = "max_s"
             return ()
         if self._dispatch.smtp_seat_max_sends and (
             self._held_picks >= self._dispatch.smtp_seat_max_sends
         ):
-            self._seat_reason = "max_sends"
+            self._hold_reason = "max_sends"
             return ()
+        self._hold_reason = None
         self._held_picks += 1
         return self._held
 

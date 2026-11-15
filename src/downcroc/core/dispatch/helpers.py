@@ -99,6 +99,7 @@ class DispatchHelpers:
             pinned_ids=frozenset(
                 candidate.account.id for candidate in candidates if candidate.pinned
             ),
+            work={candidate.account.id for candidate in candidates},
             rng=self._rng,
         )
         keep: list[Candidate] = []

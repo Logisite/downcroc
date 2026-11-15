@@ -287,12 +287,14 @@ class TransportService:
         day: str | None = None,
         pinned_ids: frozenset[str] = frozenset(),
         account_ids: list[str] | None = None,
+        work: set[str] | None = None,
         rng: random.Random | None = None,
     ) -> SlotPlan:
         return self._slots.pick(
             day=day,
             pinned_ids=pinned_ids,
             account_ids=account_ids,
+            work=work,
             rng=rng,
         )
 
