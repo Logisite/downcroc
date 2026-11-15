@@ -17,8 +17,8 @@ from downcroc.cli.docs.render import page_renderable
 from downcroc.cli.docs.theme import DOCS_THEME
 from downcroc.version import __version__
 
-WIDE = 140
-MEDIUM = 100
+WIDE = 120
+MEDIUM = 90
 NARROW = 60
 
 
@@ -53,12 +53,12 @@ class DocsApp(App[None]):
     Screen { layout: vertical; background: $surface; }
     #topbar { dock: top; height: 1; background: $accent; color: $text; padding: 0 1; }
     #workspace { height: 1fr; }
-    #sidebar { width: 32; border-right: solid $accent; padding: 0 1; }
+    #sidebar { width: 30; border-right: solid $accent; padding: 0 1; }
     OptionList { background: transparent; border: none; padding: 0; }
     OptionList > .option-list--option { padding: 0 1; }
     OptionList > .option-list--option-highlighted { background: $accent 30%; color: $text; }
     #content { width: 1fr; padding: 0 2; }
-    #toc { width: 30; border-left: solid $accent; padding: 0 1; }
+    #toc { width: 28; border-left: solid $accent; padding: 0 1; }
     #search { dock: bottom; height: 3; display: none; }
     #search.visible { display: block; }
     #footer { dock: bottom; height: 1; background: $boost; color: $text-muted; padding: 0 1; }
@@ -153,9 +153,9 @@ class DocsApp(App[None]):
     def _content_width(self) -> int:
         width = self.size.width
         if self._wide:
-            width -= 32 + 30 + 4
+            width -= 30 + 28 + 4
         elif self._medium:
-            width -= 32 + 4
+            width -= 30 + 4
         else:
             width -= 2
         return max(32, width)
