@@ -36,6 +36,7 @@ _RETRY_BODY = re.compile(r"retry(?:-|\s+)after[:\s]+([^\s,;]+)", re.IGNORECASE)
 @dataclass(frozen=True)
 class GmailSendResult:
     provider_message_id: str
+    provider_thread_id: str | None
     accepted_ms: int
 
 
@@ -79,6 +80,7 @@ def send(
     *,
     timeout_s: float,
     project_id: str | None = None,
+    thread_id: str | None = None,
 ) -> GmailSendResult:
     if not spec.api_configured:
         raise GmailApiFailure(
@@ -90,7 +92,9 @@ def send(
             "gmail_api_too_large",
             "the message exceeds the provider size limit",
         )
-    body = {"raw": base64.urlsafe_b64encode(wire).decode("ascii")}
+    body: dict[str, Any] = {"raw": base64.urlsafe_b64encode(wire).decode("ascii")}
+    if thread_id:
+        body["threadId"] = thread_id
     started = time.monotonic()
     response = _request(
         spec,
@@ -102,7 +106,8 @@ def send(
         project_id=project_id,
     )
     accepted_ms = round((time.monotonic() - started) * 1000)
-    message_id = _message_id(response)
+    payload = _safe_json(response)
+    message_id = _text(payload.get("id"))
     if message_id is None:
         raise GmailApiFailure(
             "gmail_api_bad_response",
@@ -110,7 +115,11 @@ def send(
             uncertain=True,
             project_id=project_id,
         )
-    return GmailSendResult(provider_message_id=message_id, accepted_ms=accepted_ms)
+    return GmailSendResult(
+        provider_message_id=message_id,
+        provider_thread_id=_text(payload.get("threadId")),
+        accepted_ms=accepted_ms,
+    )
 
 
 def profile(

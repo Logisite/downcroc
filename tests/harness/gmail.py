@@ -237,7 +237,7 @@ class FakeGmail:
     def _post(self, handler: BaseHTTPRequestHandler) -> None:
         parsed = urlparse(handler.path)
         length = int(handler.headers.get("Content-Length", "0"))
-        handler.rfile.read(length)
+        body = handler.rfile.read(length)
         if parsed.path == "/token":
             self._json(
                 handler,
@@ -258,10 +258,18 @@ class FakeGmail:
                 status, payload, headers = failure
                 self._json(handler, status, payload, headers)
                 return
+            payload = {}
+            if body:
+                try:
+                    payload = json.loads(body.decode())
+                except json.JSONDecodeError, UnicodeDecodeError:
+                    payload = {}
+            thread_id = payload.get("threadId") if isinstance(payload, dict) else None
             with self._lock:
                 self._history += 1
                 message_id = f"gm-sent-{self._history}"
-            self._json(handler, 200, {"id": message_id})
+                thread_id = thread_id or message_id
+            self._json(handler, 200, {"id": message_id, "threadId": thread_id})
             return
         self._json(handler, 404, {"error": {"message": "not found"}})
 

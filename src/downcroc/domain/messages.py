@@ -37,6 +37,7 @@ class IncomingMessage:
     dsn_recipient: str | None = None
     dsn_original_message_id: str | None = None
     provider_id: str | None = None
+    provider_thread_id: str | None = None
 
 
 @dataclass(frozen=True)

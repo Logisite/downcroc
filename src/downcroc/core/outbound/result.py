@@ -11,11 +11,20 @@ class AttemptResult:
     transient: bool = False
     auth: bool = False
     provider_message_id: str | None = None
+    provider_thread_id: str | None = None
     retry_after_s: int | None = None
 
     @classmethod
-    def sent(cls, provider_message_id: str | None = None) -> AttemptResult:
-        return cls("sent", provider_message_id=provider_message_id)
+    def sent(
+        cls,
+        provider_message_id: str | None = None,
+        provider_thread_id: str | None = None,
+    ) -> AttemptResult:
+        return cls(
+            "sent",
+            provider_message_id=provider_message_id,
+            provider_thread_id=provider_thread_id,
+        )
 
     @classmethod
     def failed(

@@ -90,7 +90,16 @@ class OutboundService(JobFacade):
         self._attempts = send_attempts
         self._recorder = AttemptRecorder(send_attempts)
         smtp = SmtpDelivery(transports, self._pool, self._recorder, bus, log, settings)
-        gmail = GmailDelivery(transports, self._recorder, clients, bus, log, settings)
+        gmail = GmailDelivery(
+            transports,
+            self._recorder,
+            clients,
+            bus,
+            log,
+            settings,
+            send_attempts,
+            jobs,
+        )
         self._delivery = TransportDelivery(
             transports,
             self._credentials,

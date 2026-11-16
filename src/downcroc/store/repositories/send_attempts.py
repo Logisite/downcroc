@@ -22,6 +22,7 @@ def _to_attempt(row: SendAttemptRow) -> SendAttempt:
         error_code=row.error_code,
         error_message=row.error_message,
         provider_message_id=row.provider_message_id,
+        provider_thread_id=getattr(row, "provider_thread_id", None),
         detail=row.detail,
         quota_day=row.quota_day,
         quota_state=row.quota_state,
@@ -46,6 +47,7 @@ class SendAttemptRepo:
             error_code=attempt.error_code,
             error_message=attempt.error_message,
             provider_message_id=attempt.provider_message_id,
+            provider_thread_id=attempt.provider_thread_id,
             detail=attempt.detail,
             quota_day=attempt.quota_day,
             quota_state=attempt.quota_state,
@@ -94,6 +96,7 @@ class SendAttemptRepo:
         code: str | None,
         message: str | None,
         provider_message_id: str | None,
+        provider_thread_id: str | None = None,
     ) -> None:
         with self._sessions.begin() as session:
             row = session.get(SendAttemptRow, attempt_id)
@@ -106,6 +109,7 @@ class SendAttemptRepo:
             row.error_code = code
             row.error_message = message
             row.provider_message_id = provider_message_id
+            row.provider_thread_id = provider_thread_id
             row.finished_at = utc_now()
 
     def reserved_accepted(self) -> list[SendAttempt]:
@@ -147,6 +151,28 @@ class SendAttemptRepo:
                 .limit(1)
             ).first()
             return None if row is None else _to_attempt(row)
+
+    def provider_thread_id_for_job(
+        self, job_id: str, *, account_id: str | None = None
+    ) -> str | None:
+        with self._sessions() as session:
+            stmt = (
+                select(SendAttemptRow.provider_thread_id)
+                .where(SendAttemptRow.job_id == job_id)
+                .where(SendAttemptRow.provider_thread_id.is_not(None))
+                .where(
+                    SendAttemptRow.outcome.in_(
+                        ("sent", "sent_unconfirmed", "uncertain")
+                    )
+                )
+            )
+            if account_id is not None:
+                stmt = stmt.where(SendAttemptRow.account_id == account_id)
+            stmt = stmt.order_by(
+                SendAttemptRow.started_at.desc(), SendAttemptRow.id.desc()
+            ).limit(1)
+            value = session.scalars(stmt).first()
+            return str(value) if value else None
 
     def quota_state(self, attempt_id: str) -> str | None:
         with self._sessions() as session:

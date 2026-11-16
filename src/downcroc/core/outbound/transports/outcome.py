@@ -12,16 +12,21 @@ class DeliveryOutcome:
     code: str | None = None
     message: str | None = None
     provider_message_id: str | None = None
+    provider_thread_id: str | None = None
     retry_after_s: int | None = None
 
     @classmethod
     def sent(
-        cls, binding: AccountTransport, provider_message_id: str | None
+        cls,
+        binding: AccountTransport,
+        provider_message_id: str | None,
+        provider_thread_id: str | None = None,
     ) -> DeliveryOutcome:
         return cls(
             "sent",
             binding=binding,
             provider_message_id=provider_message_id,
+            provider_thread_id=provider_thread_id,
         )
 
     @classmethod

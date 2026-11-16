@@ -4,13 +4,21 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.2.post1
+since: 1.3.2.post2
 order: 0
 terminal:
-  summary: Current release is 1.3.2.post1.
+  summary: Current release is 1.3.2.post2.
 ---
 
 # Release notes
+
+## 1.3.2.post2
+
+Fixes Gmail API follow-up threading so replies stay in the original conversation. Gmail API sends
+now pass and record provider thread ids, and inbound Gmail API sweeps can attribute replies by
+matching the Gmail thread id.
+
+See the full note in `release-notes/v1.3.2.post2.md` at the repository root.
 
 ## 1.3.2.post1
 
@@ -38,4 +46,4 @@ See the full note in `release-notes/v1.3.1.md` at the repository root.
 ## Upgrade
 
 The daemon runs new migrations at startup when a release includes them. Restart a user service
-after upgrading. `1.3.2.post1` requires no database migrations or configuration changes.
+after upgrading. `1.3.2.post2` includes a database migration.

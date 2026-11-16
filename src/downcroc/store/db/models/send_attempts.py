@@ -35,6 +35,7 @@ class SendAttemptRow(Base):
     error_code: Mapped[str | None] = mapped_column(Text)
     error_message: Mapped[str | None] = mapped_column(Text)
     provider_message_id: Mapped[str | None] = mapped_column(Text)
+    provider_thread_id: Mapped[str | None] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
     quota_day: Mapped[str | None] = mapped_column(Text)
     quota_state: Mapped[str | None] = mapped_column(Text)

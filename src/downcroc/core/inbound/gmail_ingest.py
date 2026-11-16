@@ -30,7 +30,12 @@ def fetch_incoming(
     )
     if message.raw is None:
         return None
-    return parse_raw(message.raw, provider_id, body_max_bytes)
+    incoming = parse_raw(message.raw, provider_id, body_max_bytes)
+    if incoming is None:
+        return None
+    return IncomingMessage(
+        **{**incoming.__dict__, "provider_thread_id": message.thread_id}
+    )
 
 
 def enqueue_ingest(

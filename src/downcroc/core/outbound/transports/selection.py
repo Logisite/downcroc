@@ -175,7 +175,9 @@ class TransportDelivery:
                 attempt_id,
             )
         if result.status == "sent":
-            return DeliveryOutcome.sent(binding, result.provider_message_id)
+            return DeliveryOutcome.sent(
+                binding, result.provider_message_id, result.provider_thread_id
+            )
         if result.status == "uncertain":
             return DeliveryOutcome.uncertain(
                 binding, result.code or "send_uncertain", result.message or ""

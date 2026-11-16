@@ -3,6 +3,16 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.2.post2
+
+Gmail API follow-up threading fix.
+
+- Follow-up replies sent via the Gmail API now pass the provider `threadId`, so they stay in the original Gmail conversation
+- Gmail API sends record provider thread ids for follow-up chain resolution
+- Gmail API inbound sweeps can attribute replies by matching Gmail `threadId` to sent attempts
+
+See [`release-notes/v1.3.2.post2.md`](release-notes/v1.3.2.post2.md).
+
 ## 1.3.2.post1
 
 Follow-up visibility fix.

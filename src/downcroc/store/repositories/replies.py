@@ -17,6 +17,7 @@ from downcroc.runtime.ids import new_id
 from downcroc.store.db.models.batches import BatchRow
 from downcroc.store.db.models.jobs import JobRow
 from downcroc.store.db.models.messages import MessageRow, ThreadRow
+from downcroc.store.db.models.send_attempts import SendAttemptRow
 
 DEFAULT_REPLY_WINDOW_DAYS = 60
 
@@ -52,6 +53,9 @@ def resolve(
     found = _resolve_headers(session, incoming)
     if found is not None:
         return found
+    provider = _resolve_provider_thread(session, account_id, incoming)
+    if provider is not None:
+        return provider
     subject = _resolve_subject(session, incoming)
     if subject is not None:
         thread, job = subject
@@ -254,6 +258,37 @@ def _resolve_participant(
             continue
         return _thread_for_job(session, job, incoming), job
     return None
+
+
+def _resolve_provider_thread(
+    session: Session, account_id: str, incoming: IncomingMessage
+) -> Attribution | None:
+    thread_id = incoming.provider_thread_id
+    if not thread_id:
+        return None
+    job_id = session.scalars(
+        select(SendAttemptRow.job_id)
+        .where(SendAttemptRow.account_id == account_id)
+        .where(SendAttemptRow.provider_thread_id == thread_id)
+        .where(SendAttemptRow.outcome.in_(("sent", "sent_unconfirmed", "uncertain")))
+        .order_by(SendAttemptRow.started_at.desc(), SendAttemptRow.id.desc())
+        .limit(1)
+    ).first()
+    if not job_id:
+        return None
+    job = session.get(JobRow, job_id)
+    if job is None:
+        return None
+    thread = _thread_for_job(session, job, incoming)
+    return Attribution(
+        thread=thread,
+        relation="reply",
+        method="provider_thread",
+        reply_state="confirmed",
+        job_id=job.id,
+        root_job_id=job.id,
+        batch_id=thread.batch_id,
+    )
 
 
 def _resolve_subject(

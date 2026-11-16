@@ -16,6 +16,8 @@ from downcroc.mail.gmail import api as gmail_api
 from downcroc.mail.smtp.sender import SmtpCredentials
 from downcroc.runtime.config.schema import OutboundSettings
 from downcroc.runtime.logging.setup import EventLogger
+from downcroc.store.repositories.jobs import JobRepo
+from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
 
 class GmailDelivery:
@@ -29,6 +31,8 @@ class GmailDelivery:
         bus: EventBus,
         log: EventLogger,
         settings: OutboundSettings,
+        attempts: SendAttemptRepo,
+        jobs: JobRepo,
     ) -> None:
         self._transports = transports
         self._recorder = recorder
@@ -36,6 +40,8 @@ class GmailDelivery:
         self._bus = bus
         self._log = log
         self._settings = settings
+        self._attempts = attempts
+        self._jobs = jobs
 
     async def attempt(
         self,
@@ -59,6 +65,7 @@ class GmailDelivery:
             },
         )
         project_id = self._project_id(binding)
+        thread_id = self._resolve_thread_id(job, account)
         try:
             result = await asyncio.to_thread(
                 gmail_api.send,
@@ -68,6 +75,7 @@ class GmailDelivery:
                 wire,
                 timeout_s=self._settings.api_timeout_s,
                 project_id=project_id,
+                thread_id=thread_id,
             )
         except gmail_api.GmailApiFailure as error:
             return self._failed(
@@ -83,6 +91,7 @@ class GmailDelivery:
             outcome="sent",
             accepted=True,
             provider_message_id=result.provider_message_id,
+            provider_thread_id=result.provider_thread_id,
         )
         self._transports.mark_success(binding)
         self._bus.publish(
@@ -93,6 +102,7 @@ class GmailDelivery:
                 "binding": binding.id,
                 "transport": binding.kind.value,
                 "provider_message_id": result.provider_message_id,
+                "provider_thread_id": result.provider_thread_id,
             },
         )
         self._bus.publish(
@@ -101,6 +111,7 @@ class GmailDelivery:
                 "account": account.id,
                 "binding": binding.id,
                 "provider_message_id": result.provider_message_id,
+                "provider_thread_id": result.provider_thread_id,
             },
         )
         self._log.info(
@@ -110,9 +121,10 @@ class GmailDelivery:
             binding=binding.id,
             transport=binding.kind.value,
             provider_message_id=result.provider_message_id,
+            provider_thread_id=result.provider_thread_id,
             duration_ms=result.accepted_ms,
         )
-        return AttemptResult.sent(result.provider_message_id)
+        return AttemptResult.sent(result.provider_message_id, result.provider_thread_id)
 
     def _failed(
         self,
@@ -242,3 +254,20 @@ class GmailDelivery:
             return self._clients.get(binding.oauth_client_id).project_id
         except OAuthClientNotFound:
             return None
+
+    def _resolve_thread_id(self, job: Job, account: Account) -> str | None:
+        candidates: list[str] = []
+        if job.parent_job_id:
+            candidates.append(job.parent_job_id)
+        if job.thread_root_job_id and job.thread_root_job_id not in candidates:
+            candidates.append(job.thread_root_job_id)
+        for job_id in candidates:
+            thread_id = self._attempts.provider_thread_id_for_job(
+                job_id, account_id=account.id
+            )
+            if thread_id:
+                return thread_id
+            thread_id = self._attempts.provider_thread_id_for_job(job_id)
+            if thread_id:
+                return thread_id
+        return None

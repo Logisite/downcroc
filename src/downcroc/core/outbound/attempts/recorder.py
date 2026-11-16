@@ -29,6 +29,7 @@ class AttemptRecorder:
         code: str | None = None,
         message: str | None = None,
         provider_message_id: str | None = None,
+        provider_thread_id: str | None = None,
     ) -> None:
         if attempt_id is not None:
             self._attempts.finish(
@@ -40,6 +41,7 @@ class AttemptRecorder:
                 code=code,
                 message=message,
                 provider_message_id=provider_message_id,
+                provider_thread_id=provider_thread_id,
             )
             return
         self._attempts.create(
@@ -56,6 +58,7 @@ class AttemptRecorder:
                 error_code=code,
                 error_message=message,
                 provider_message_id=provider_message_id,
+                provider_thread_id=provider_thread_id,
                 detail=None,
             )
         )
