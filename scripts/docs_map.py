@@ -48,6 +48,16 @@ class Page:
     def is_part_i(self) -> bool:
         return "/part-i/" in self.rel.replace("\\", "/")
 
+    @property
+    def is_holder(self) -> bool:
+        status = str(self.front.get("status") or "").strip().lower()
+        if status in {"stub", "holder", "placeholder", "todo", "wip"}:
+            return True
+        holder = self.front.get("holder")
+        if isinstance(holder, bool):
+            return holder
+        return str(holder).strip().lower() in {"true", "yes", "1"}
+
 
 def parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     if not text.startswith("---\n"):
@@ -132,19 +142,45 @@ def tree_inventory() -> tuple[set[str], dict[str, set[str]]]:
     return commands, flags
 
 
-def declared_stubs() -> set[str]:
-    stubs = set()
+def parse_stub_file() -> tuple[set[str], dict[str, str]]:
+    """Return (declared names/paths, alias basename -> canonical rel path)."""
+    declared: set[str] = set()
+    aliases: dict[str, str] = {}
     part_ii = DOCS_ROOT / "part-ii"
     if part_ii.is_dir():
         for path in part_ii.rglob("*.md"):
-            stubs.add(path.name)
+            rel = str(path.relative_to(part_ii)).replace("\\", "/")
+            declared.add(path.name)
+            declared.add(rel)
     stub_file = part_ii / "_stubs.txt"
     if stub_file.is_file():
-        for line in stub_file.read_text(encoding="utf-8").splitlines():
-            name = line.strip()
-            if name and not name.startswith("#"):
-                stubs.add(Path(name).name)
-    return stubs
+        for raw in stub_file.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "->" in line:
+                left, right = line.split("->", 1)
+                alias = left.strip()
+                target = right.strip().replace("\\", "/")
+                aliases[Path(alias).name] = target
+                declared.add(Path(alias).name)
+                declared.add(target)
+                declared.add(Path(target).name)
+            else:
+                token = line.replace("\\", "/")
+                declared.add(Path(token).name)
+                declared.add(token)
+    return declared, aliases
+
+
+def declared_stubs() -> set[str]:
+    declared, _aliases = parse_stub_file()
+    return declared
+
+
+def stub_aliases() -> dict[str, str]:
+    _declared, aliases = parse_stub_file()
+    return aliases
 
 
 def glossary_slugs() -> set[str]:
@@ -202,23 +238,40 @@ def check_coverage(pages: list[Page]) -> list[str]:
 def check_pointers(pages: list[Page]) -> list[str]:
     errors: list[str] = []
     stubs = declared_stubs()
+    aliases = stub_aliases()
+    part_ii = DOCS_ROOT / "part-ii"
+    pointer_target = re.compile(r"([A-Za-z0-9_./-]+\.md(?:#[A-Za-z0-9_-]+)?)")
     for page in pages:
-        for line in page.body.splitlines():
-            match = POINTER_RE.match(line)
-            if not match:
+        lines = page.body.splitlines()
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            target = None
+            if line.lstrip().startswith("⤷"):
+                match = POINTER_RE.match(line)
+                if match:
+                    target = match.group(1)
+                elif i + 1 < len(lines):
+                    nxt = pointer_target.search(lines[i + 1])
+                    if nxt:
+                        target = nxt.group(1)
+            if target is None:
+                i += 1
                 continue
-            raw = match.group(1)
-            target = raw.split("#", 1)[0]
-            resolved = (page.path.parent / target).resolve()
-            if resolved.is_file():
-                continue
-            name = Path(target).name
-            if name in stubs:
-                continue
-            # Part II slots are declared by plan/17 and may not be written yet.
-            if "part-ii" in target.replace("\\", "/"):
-                continue
-            errors.append(f"broken pointer in {page.rel}: {target}")
+            raw = target.split("#", 1)[0].replace("\\", "/")
+            resolved = (page.path.parent / raw).resolve()
+            name = Path(raw).name
+            alias_target = aliases.get(name)
+            alias_resolved = (part_ii / alias_target).resolve() if alias_target else None
+            if not (
+                resolved.is_file()
+                or name in stubs
+                or raw in stubs
+                or (alias_resolved and alias_resolved.is_file())
+                or "part-ii" in raw
+            ):
+                errors.append(f"broken pointer in {page.rel}: {raw}")
+            i += 1
     return errors
 
 
@@ -274,25 +327,166 @@ def check_part_i_caps(pages: list[Page]) -> list[str]:
     return errors
 
 
+
+LOG_EVENT_CALL = re.compile(
+    r'\.(?:debug|info|warning|warn|error|critical)\(\s*"([a-zA-Z0-9_.-]+)"'
+)
+DOC_EVENT_ITEM = re.compile(r"^- `([a-z0-9_.-]+)` \(\*\*", re.MULTILINE)
+
+
+def _read_event_list(path: Path) -> set[str]:
+    if not path.is_file():
+        return set()
+    items: set[str] = set()
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        items.add(line)
+    return items
+
+
+def emitted_log_events() -> set[str]:
+    events: set[str] = set()
+    src = REPO / "src/downcroc"
+    if not src.is_dir():
+        return events
+    for path in src.rglob("*.py"):
+        try:
+            text_py = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for match in LOG_EVENT_CALL.finditer(text_py):
+            events.add(match.group(1))
+    return events
+
+
+def documented_log_events() -> set[str]:
+    events: set[str] = set()
+    events_dir = DOCS_ROOT / "part-ii/19-logs/events"
+    if not events_dir.is_dir():
+        return events
+    for path in events_dir.glob("*.md"):
+        if path.name == "index.md":
+            continue
+        try:
+            text_md = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for match in DOC_EVENT_ITEM.finditer(text_md):
+            events.add(match.group(1))
+    return events
+
+
+def check_log_events() -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    events_dir = DOCS_ROOT / "part-ii/19-logs/events"
+    undocumented_allow = _read_event_list(events_dir / "_undocumented_log_events.txt")
+    orphan_allow = _read_event_list(events_dir / "_orphan_documented_log_events.txt")
+    emitted = emitted_log_events()
+    documented = documented_log_events()
+    undocumented = sorted(emitted - documented - undocumented_allow)
+    orphans = sorted(documented - emitted - orphan_allow)
+    for name in undocumented:
+        errors.append(f"undocumented log event: {name}")
+    for name in orphans:
+        errors.append(f"orphaned documented log event: {name}")
+    active_undoc = sorted((emitted - documented) & undocumented_allow)
+    active_orphan = sorted((documented - emitted) & orphan_allow)
+    if active_undoc:
+        warnings.append(
+            f"override: {len(active_undoc)} emitted log event(s) allowed undocumented via 19-logs/events/_undocumented_log_events.txt"
+        )
+    if active_orphan:
+        warnings.append(
+            f"override: {len(active_orphan)} documented log event(s) allowed orphaned via 19-logs/events/_orphan_documented_log_events.txt"
+        )
+    return errors, warnings
+
+
+def check_config_reference() -> list[str]:
+    errors: list[str] = []
+    ref = DOCS_ROOT / "part-iii/38-config.md"
+    if not ref.is_file():
+        return ["missing config reference: part-iii/38-config.md"]
+    text = ref.read_text(encoding="utf-8")
+    try:
+        from downcroc.runtime.config.spec import describe
+
+        fields = describe()
+    except Exception as error:  # noqa: BLE001
+        return [f"config reference check failed: {error}"]
+    for field in fields:
+        path = str(field.get("path") or "")
+        if not path:
+            continue
+        if f"`{path}`" not in text:
+            errors.append(f"undocumented config field in part-iii/38-config.md: {path}")
+    return errors
+
+
+def holder_pages(pages: list[Page]) -> list[Page]:
+    return [page for page in pages if page.is_holder]
+
+
+def report_holders(pages: list[Page]) -> None:
+    holders = holder_pages(pages)
+    if not holders:
+        return
+    for page in holders:
+        title = str(page.front.get("title") or page.path.stem)
+        print(f"holder: {page.rel} - {title}", file=sys.stderr)
+
+
+def run_holders() -> int:
+    pages = load_pages()
+    holders = holder_pages(pages)
+    if not holders:
+        print("no holder pages")
+        return 0
+    for page in holders:
+        title = str(page.front.get("title") or page.path.stem)
+        print(f"{page.rel}\t{title}")
+    print(f"{len(holders)} holder page(s)", file=sys.stderr)
+    return 0
+
+
 def run_check() -> int:
     pages = load_pages()
+    report_holders(pages)
     problems: list[str] = []
     problems.extend(check_coverage(pages))
     problems.extend(check_pointers(pages))
     problems.extend(check_terms(pages))
     problems.extend(check_screens(pages))
     problems.extend(check_part_i_caps(pages))
+    log_errors, log_warnings = check_log_events()
+    problems.extend(log_errors)
+    for item in log_warnings:
+        print(item, file=sys.stderr)
+    problems.extend(check_config_reference())
     # also run glossary self-check (drift + see_also + term refs)
     try:
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location(
-            "glossary", REPO / "scripts/glossary.py"
-        )
-        if spec is None or spec.loader is None:
-            raise RuntimeError("could not load glossary.py")
-        glossary_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(glossary_mod)
+        glossary_path = REPO / "scripts/glossary.py"
+        sys.path.insert(0, str(REPO / "scripts"))
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "downcroc_glossary_check", glossary_path
+            )
+            if spec and spec.loader:
+                glossary_mod = importlib.util.module_from_spec(spec)
+                sys.modules[spec.name] = glossary_mod
+                spec.loader.exec_module(glossary_mod)
+            else:
+                import glossary as glossary_mod  # type: ignore[assignment]
+        finally:
+            try:
+                sys.path.remove(str(REPO / "scripts"))
+            except ValueError:
+                pass
         entries = glossary_mod.load_entries()
         rendered = glossary_mod.render(entries)
         current = (
@@ -318,6 +512,15 @@ def run_check() -> int:
         for item in problems:
             print(item, file=sys.stderr)
         return 1
+    stub_file = DOCS_ROOT / "part-ii/_stubs.txt"
+    if stub_file.is_file():
+        aliases = 0
+        for raw in stub_file.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if "->" in line:
+                aliases += 1
+        if aliases:
+            print(f"note: {aliases} legacy Part II alias(es) defined in part-ii/_stubs.txt", file=sys.stderr)
     print(f"ok: {len(pages)} pages checked")
     return 0
 
@@ -422,6 +625,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check")
+    sub.add_parser("holders")
     touched = sub.add_parser("touched")
     touched.add_argument("sources", nargs="+")
     diff = sub.add_parser("diff")
@@ -429,6 +633,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "check":
         return run_check()
+    if args.command == "holders":
+        return run_holders()
     if args.command == "touched":
         return run_touched(args.sources)
     return run_diff(args.rev)

@@ -42,16 +42,25 @@ KEYS = {
 
 
 def resolve(words: list[str]) -> tuple[CommandSpec, Tree, str]:
+    from downcroc.cli.ui.tree.session import _choice_exposure
+
     tree = build_tree(build_parser())
     node = tree.root
     label = "downcroc"
     for word in words:
         children = {child.path[-1]: child for child in node.children}
-        if word not in children:
-            hint = ", ".join(sorted(children)) or "(no subcommands)"
-            raise SystemExit(f"unknown command {word!r} under {label}; choices: {hint}")
-        node = children[word]
-        label = f"{label} {word}"
+        if word in children:
+            node = children[word]
+            label = f"{label} {word}"
+            continue
+        choices = _choice_exposure(node)
+        if choices and word in choices.choices:
+            return node, tree, f"{label} {word}"
+        hint_items = sorted(children)
+        if choices:
+            hint_items = sorted(choices.choices)
+        hint = ", ".join(hint_items) or "(no subcommands)"
+        raise SystemExit(f"unknown command {word!r} under {label}; choices: {hint}")
     return node, tree, label
 
 
