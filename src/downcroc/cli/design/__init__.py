@@ -32,6 +32,7 @@ from downcroc.cli.design.primitives import (
     heading,
     icon,
     inline_code,
+    italic,
     keybar,
     keycap,
     label,
@@ -42,6 +43,7 @@ from downcroc.cli.design.primitives import (
     sample_shell,
     spacer,
     status_dot,
+    strike,
     strong,
     truncate,
 )
@@ -76,6 +78,7 @@ __all__ = [
     "heading",
     "icon",
     "inline_code",
+    "italic",
     "keybar",
     "keycap",
     "label",
@@ -86,6 +89,7 @@ __all__ = [
     "sample_shell",
     "spacer",
     "status_dot",
+    "strike",
     "strong",
     "truncate",
 ]

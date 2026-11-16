@@ -41,10 +41,12 @@ from downcroc.cli.design.primitives.text import (
     breadcrumb,
     heading,
     inline_code,
+    italic,
     label,
     link_text,
     muted,
     prose,
+    strike,
     strong,
     truncate,
 )
@@ -52,11 +54,14 @@ from downcroc.cli.design.primitives.toast import Toast
 from downcroc.cli.design.samples.data_samples import (
     KV_COMPACT,
     KV_ITEMS,
+    KV_STACKED,
     LIST_ITEMS,
+    NESTED_LIST_ITEMS,
     ORDERED_ITEMS,
     TABLE_ALIGN,
     TABLE_HEADERS,
     TABLE_ROWS,
+    TABLE_SECTION_ROWS,
     TASK_ITEMS,
 )
 from downcroc.cli.design.samples.feedback_samples import (
@@ -69,6 +74,8 @@ from downcroc.cli.design.samples.text_samples import (
     BREADCRUMB_SAMPLE,
     HEADING_SAMPLES,
     LABEL_SAMPLES,
+    PROSE_LEAD_SAMPLE,
+    PROSE_MUTED_SAMPLE,
     PROSE_SAMPLE,
 )
 from downcroc.cli.design.theme import DEFAULT, Theme
@@ -161,22 +168,9 @@ def _text_section(theme: Theme) -> Group:
     parts.append(prose(PROSE_SAMPLE, theme, width=62))
     parts.append(spacer(1, theme=theme))
     parts.append(Text("prose tones", style=theme.style("fg_faint")))
-    parts.append(
-        prose(
-            "Muted supporting text for secondary context.",
-            theme,
-            width=62,
-            tone="fg_muted",
-        )
-    )
-    parts.append(
-        prose(
-            "Primary lead text for emphasis in a block.",
-            theme,
-            width=62,
-            tone="fg_primary",
-        )
-    )
+    parts.append(prose(PROSE_LEAD_SAMPLE, theme, width=62, tone="fg_primary"))
+    parts.append(prose(PROSE_SAMPLE, theme, width=62, tone="fg_secondary"))
+    parts.append(prose(PROSE_MUTED_SAMPLE, theme, width=62, tone="fg_muted"))
     parts.append(spacer(1, theme=theme))
     inline = Text()
     inline.append("Body with ", style=theme.style("fg_secondary"))
@@ -185,6 +179,10 @@ def _text_section(theme: Theme) -> Group:
     inline.append_text(link_text("a link", theme, href="https://example.com"))
     inline.append(", ", style=theme.style("fg_secondary"))
     inline.append_text(strong("strong", theme))
+    inline.append(", ", style=theme.style("fg_secondary"))
+    inline.append_text(italic("italic", theme))
+    inline.append(", ", style=theme.style("fg_secondary"))
+    inline.append_text(strike("strike", theme))
     inline.append(", and ", style=theme.style("fg_secondary"))
     inline.append_text(muted("muted", theme))
     inline.append(".", style=theme.style("fg_secondary"))
@@ -300,7 +298,15 @@ def _data_section(theme: Theme) -> Group:
         )
     ]
     parts.append(label("tables", theme))
-    parts.append(TableView(TABLE_HEADERS, TABLE_ROWS, theme, align=TABLE_ALIGN))
+    parts.append(
+        TableView(
+            TABLE_HEADERS,
+            TABLE_ROWS,
+            theme,
+            align=TABLE_ALIGN,
+            title="account rows",
+        )
+    )
     parts.append(spacer(1, theme=theme))
     parts.append(Text("compact, zebra off", style=theme.style("fg_faint")))
     parts.append(
@@ -313,16 +319,26 @@ def _data_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
-    parts.append(Text("column widths / no-wrap", style=theme.style("fg_faint")))
+    parts.append(
+        Text("column widths / no-wrap / overflow", style=theme.style("fg_faint"))
+    )
     parts.append(
         TableView(
             ["Key", "Description", "State"],
             [
-                ["sync.interval", "How often the watcher polls IMAP", "ok"],
-                ["retry.backoff", "Exponential backoff ceiling value", "warn"],
+                [
+                    "sync.interval",
+                    "How often the watcher polls IMAP for inbound mail",
+                    "ok",
+                ],
+                [
+                    "retry.backoff",
+                    "Exponential backoff ceiling value for failing sends",
+                    "warn",
+                ],
             ],
             theme,
-            col_widths=[16, 28, 6],
+            col_widths=[16, 30, 6],
             no_wrap=[True, False, True],
             align=["left", "left", "center"],
         )
@@ -331,15 +347,23 @@ def _data_section(theme: Theme) -> Group:
     parts.append(Text("caption and sections", style=theme.style("fg_faint")))
     parts.append(
         TableView(
-            ["Service", "Status"],
-            [
-                (["watcher", "running"], True),
-                ["sender", "queued"],
-                (["ingester", "idle"], False),
-            ],
+            ["Service", "Status", "Jobs"],
+            TABLE_SECTION_ROWS,
             theme,
             caption="service health snapshot",
+            caption_justify="left",
             zebra=False,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("sections off lines", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Name", "Value"],
+            [["a", "1"], ["b", "2"], ["c", "3"]],
+            theme,
+            show_lines=False,
+            zebra=True,
         )
     )
     parts.append(spacer(1, theme=theme))
@@ -357,12 +381,19 @@ def _data_section(theme: Theme) -> Group:
     parts.append(spacer(1, theme=theme))
     parts.append(label("key-value", theme))
     parts.append(KeyValue(KV_ITEMS, theme))
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("compact divider", style=theme.style("fg_faint")))
     parts.append(KeyValue(KV_COMPACT, theme, compact=True, divider=True))
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("stacked with divider", style=theme.style("fg_faint")))
+    parts.append(KeyValue(KV_STACKED, theme, stacked=True, divider=True, compact=True))
     parts.append(spacer(1, theme=theme))
     parts.append(label("lists", theme))
     parts.append(ListBlock(LIST_ITEMS, theme))
     parts.append(spacer(1, theme=theme))
-    parts.append(ListBlock(ORDERED_ITEMS, theme, ordered=True))
+    parts.append(ListBlock(ORDERED_ITEMS, theme, ordered=True, start=3))
+    parts.append(spacer(1, theme=theme))
+    parts.append(ListBlock(NESTED_LIST_ITEMS, theme))
     parts.append(spacer(1, theme=theme))
     parts.append(ListBlock(TASK_ITEMS, theme, task=True))
     parts.append(spacer(1, theme=theme))
@@ -373,9 +404,19 @@ def _data_section(theme: Theme) -> Group:
             theme,
             body="Create one to get started.",
             hint="Press b to create a batch",
+            icon="inbox",
         )
     )
     parts.append(EmptyState("Nothing selected", theme, compact=True))
+    parts.append(
+        EmptyState(
+            "Search returned nothing",
+            theme,
+            body="Try a broader query or clear filters.",
+            icon="search",
+            compact=True,
+        )
+    )
     return Group(*parts)
 
 
@@ -472,11 +513,21 @@ def _feedback_nav_section(theme: Theme) -> Group:
         parts.append(Callout(title, body, theme, tone=tone, icon=icon_name, width=58))
     parts.append(
         Callout(
-            "Compact",
+            "Compact info",
             "Compact callout without trailing gap.",
             theme,
             tone="info",
             icon="info",
+            width=58,
+            compact=True,
+        )
+    )
+    parts.append(
+        Callout(
+            "Compact warning",
+            "Dense warning for tight layouts.",
+            theme,
+            tone="warning",
             width=58,
             compact=True,
         )

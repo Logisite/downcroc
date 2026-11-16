@@ -29,7 +29,10 @@ class TableView:
         empty_text: str = "No rows",
         show_header_on_empty: bool = False,
         caption: str = "",
+        caption_justify: str = "center",
         title: str = "",
+        row_styles: list[str | Style] | None = None,
+        show_lines: bool = True,
     ) -> None:
         self.headers = headers
         self.rows = rows
@@ -43,7 +46,10 @@ class TableView:
         self.empty_text = empty_text
         self.show_header_on_empty = show_header_on_empty
         self.caption = caption
+        self.caption_justify = caption_justify
         self.title = title
+        self.row_styles = row_styles
+        self.show_lines = show_lines
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
@@ -53,16 +59,19 @@ class TableView:
             yield Text(self.empty_text, style=theme.style("fg_faint"))
             return
         padding = (0, 1)
-        row_styles = [Style(color=theme.fg_secondary)]
+        base_row_styles: list[str | Style] = [Style(color=theme.fg_secondary)]
         if self.zebra:
-            row_styles.append(Style(color=theme.fg_secondary, bgcolor=theme.bg_panel))
+            base_row_styles.append(
+                Style(color=theme.fg_secondary, bgcolor=theme.bg_panel)
+            )
+        row_styles = self.row_styles if self.row_styles is not None else base_row_styles
         table = Table(
             title=self.title or None,
             caption=self.caption or None,
             box=box.SQUARE,
             show_edge=True,
             pad_edge=True,
-            show_lines=True,
+            show_lines=self.show_lines,
             expand=bool(self.width),
             width=self.width,
             padding=padding,
@@ -71,6 +80,7 @@ class TableView:
             ),
             border_style=Style(color=theme.border_strong),
             caption_style=Style(color=theme.fg_faint),
+            caption_justify=self.caption_justify,
             title_style=Style(color=theme.fg_secondary, bold=True),
             row_styles=row_styles,
         )

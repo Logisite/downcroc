@@ -29,10 +29,12 @@ from downcroc.cli.design.primitives.text import (
     chip,
     heading,
     inline_code,
+    italic,
     label,
     link_text,
     muted,
     prose,
+    strike,
     strong,
     truncate,
 )
@@ -65,6 +67,7 @@ __all__ = [
     "heading",
     "icon",
     "inline_code",
+    "italic",
     "keybar",
     "keycap",
     "label",
@@ -75,6 +78,7 @@ __all__ = [
     "sample_shell",
     "spacer",
     "status_dot",
+    "strike",
     "strong",
     "truncate",
 ]

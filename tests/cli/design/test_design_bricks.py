@@ -45,6 +45,13 @@ def test_gallery_text_renders_bricks() -> None:
     assert "service health" in text
     assert "snapshot" in text
     assert "prose tones" in text
+    assert "account rows" in text
+    assert "stacked with divider" in text
+    assert "Compact warning" in text
+    assert "Example" in text
+    assert "Search returned nothing" in text
+    assert "italic" in text
+    assert "strike" in text
 
 
 def test_gallery_plain_text_snapshot(snapshot) -> None:

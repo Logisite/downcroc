@@ -20,4 +20,8 @@ PROSE_SAMPLE = (
     "goes wrong, and never wonder whether it left."
 )
 
+PROSE_MUTED_SAMPLE = "Muted prose can carry secondary guidance without competing."
+
+PROSE_LEAD_SAMPLE = "Lead prose establishes context before the detailed steps follow."
+
 BREADCRUMB_SAMPLE = ["docs", "inbound", "watcher"]

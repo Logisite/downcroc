@@ -4,9 +4,13 @@ from __future__ import annotations
 
 CALLOUTS = [
     ("Note", "note", "info", "Useful context for the reader."),
+    ("Info", "info", "", "Explicit info tone uses the info icon by default."),
     ("Tip", "tip", "success", "A helpful suggestion."),
-    ("Warning", "warning", "warning", "Something needs attention."),
-    ("Danger", "danger", "danger", "This action can cause data loss."),
+    ("Success", "success", "", "Operation completed successfully."),
+    ("Warning", "warning", "", "Something needs attention."),
+    ("Danger", "danger", "", "This action can cause data loss."),
+    ("Example", "example", "", "An illustrative example callout."),
+    ("Quote", "quote", "", "Quoted or cited guidance."),
 ]
 
 TOASTS = [

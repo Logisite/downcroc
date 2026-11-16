@@ -44,10 +44,15 @@
   it left.
   
   prose tones
-  Muted supporting text for secondary context.
-  Primary lead text for emphasis in a block.
+  Lead prose establishes context before the detailed steps 
+  follow.
+  downcroc writes the message down, gives it a name, and only 
+  then sends it. Once the message is written down, you can see 
+  it, retry it if something goes wrong, and never wonder whether
+  it left.
+  Muted prose can carry secondary guidance without competing.
   
-  Body with  inline_code() , a link, strong, and muted.
+  Body with  inline_code() , a link, strong, italic, strike, and muted.
   link states: default  hover  focus
   truncate: a very long ident…
   
@@ -93,6 +98,7 @@
   ──────────────────────────────────────────────────
   
   TABLES
+               account rows              
   ┌─────────┬───────────────────┬───────┐
   │ Field   │ Value             │ Count │
   ├─────────┼───────────────────┼───────┤
@@ -110,29 +116,37 @@
   │ zebra │ off     │
   └───────┴─────────┘
   
-  column widths / no-wrap
-  ┌──────────────────┬──────────────────────────────┬────────┐
-  │ Key              │ Description                  │ State  │
-  ├──────────────────┼──────────────────────────────┼────────┤
-  │ sync.interval    │ How often the watcher polls  │   ok   │
-  │                  │ IMAP                         │        │
-  ├──────────────────┼──────────────────────────────┼────────┤
-  │ retry.backoff    │ Exponential backoff ceiling  │  warn  │
-  │                  │ value                        │        │
-  └──────────────────┴──────────────────────────────┴────────┘
+  column widths / no-wrap / overflow
+  ┌──────────────────┬────────────────────────────────┬────────┐
+  │ Key              │ Description                    │ State  │
+  ├──────────────────┼────────────────────────────────┼────────┤
+  │ sync.interval    │ How often the watcher polls    │   ok   │
+  │                  │ IMAP for inbound mail          │        │
+  ├──────────────────┼────────────────────────────────┼────────┤
+  │ retry.backoff    │ Exponential backoff ceiling    │  warn  │
+  │                  │ value for failing sends        │        │
+  └──────────────────┴────────────────────────────────┴────────┘
   
   caption and sections
-  ┌──────────┬─────────┐
-  │ Service  │ Status  │
-  ├──────────┼─────────┤
-  │ watcher  │ running │
-  ├──────────┼─────────┤
-  │ sender   │ queued  │
-  ├──────────┼─────────┤
-  │ ingester │ idle    │
-  └──────────┴─────────┘
-      service health    
-         snapshot       
+  ┌──────────┬─────────┬──────┐
+  │ Service  │ Status  │ Jobs │
+  ├──────────┼─────────┼──────┤
+  │ watcher  │ running │ 1    │
+  ├──────────┼─────────┼──────┤
+  │ sender   │ queued  │ 4    │
+  ├──────────┼─────────┼──────┤
+  │ ingester │ idle    │ 0    │
+  └──────────┴─────────┴──────┘
+  service health snapshot      
+  
+  sections off lines
+  ┌──────┬───────┐
+  │ Name │ Value │
+  ├──────┼───────┤
+  │ a    │ 1     │
+  │ b    │ 2     │
+  │ c    │ 3     │
+  └──────┴───────┘
   
   empty (header shown)
   ┌─────────────┬───────┐
@@ -145,29 +159,45 @@
   account  alice@example.com
   mailbox  inbox            
   state    connected        
+  
+  compact divider
   mode compact
   ────────────────────────────────────────────────────────────────────────
   sync idle
+  
+  stacked with divider
+  endpoint
+    https://mail.example.test/inbound
+  ────────────────────────────────────────────────────────────────────────
+  token
+    ••••••••••••
   
   LISTS
   •  Queued and waiting
   •  Accepted by server and visible in sent folder history for later review
   •  Visible in sent folder
   
-  1. Create job
-  2. Review batch
-  3. Send
+  3. Create job
+  4. Review batch
+  5. Send
+  
+  •  Inbox
+    •  Unread
+    •  Starred
+  •  Sent
   
   ☑  Connect mailbox
   ☐  Send first email
   ☐  Check logs
   
   EMPTY STATES
-  ∅ No batches yet
+  inbox No batches yet
     Create one to get started.
     Press b to create a batch
   
   ∅ Nothing selected
+  search Search returned nothing
+    Try a broader query or clear filters.
   Code panels  chrome, states, highlight
   ──────────────────────────────────────
   
@@ -222,8 +252,14 @@
   ▎ 󰋽 Note                                                  
      Useful context for the reader.                         
   
+  ▎ 󰋽 Info                                                  
+     Explicit info tone uses the info icon by default.      
+  
   ▎ 󰄬 Tip                                                   
      A helpful suggestion.                                  
+  
+  ▎ 󰄬 Success                                               
+     Operation completed successfully.                      
   
   ▎ 󰀪 Warning                                               
      Something needs attention.                             
@@ -231,8 +267,16 @@
   ▎ 󰅚 Danger                                                
      This action can cause data loss.                       
   
-  ▎ 󰋽 Compact                                               
+  ▎ 󰋽 Example                                               
+     An illustrative example callout.                       
+  
+  ▎ ● Quote                                                 
+     Quoted or cited guidance.                              
+  
+  ▎ 󰋽 Compact info                                          
      Compact callout without trailing gap.                  
+  ▎ 󰀪 Compact warning                                       
+     Dense warning for tight layouts.                       
   
   TOASTS
    󰄬 Connected to mailbox 

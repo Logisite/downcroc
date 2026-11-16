@@ -71,6 +71,14 @@ def muted(text: str, theme: Theme) -> Text:
     return Text(text, style=theme.style("fg_muted"))
 
 
+def italic(text: str, theme: Theme) -> Text:
+    return Text(text, style=theme.style("fg_secondary", italic=True))
+
+
+def strike(text: str, theme: Theme) -> Text:
+    return Text(text, style=theme.style("fg_faint", strike=True))
+
+
 def truncate(text: str, max_width: int, *, ellipsis: str = "…") -> str:
     """Truncate plain text to max_width cells, appending ellipsis if needed."""
     if max_width <= 0:

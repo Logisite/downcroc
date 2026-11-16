@@ -79,7 +79,8 @@ class ListBlock:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         rendered = []
-        for index, item in enumerate(self.items):
+        number = self.start
+        for item in self.items:
             if isinstance(item, tuple):
                 text = str(item[0])
                 level = int(item[1]) if len(item) > 1 else 0
@@ -89,7 +90,9 @@ class ListBlock:
                 level = 0
                 checked = False if self.task else None
             if self.ordered:
-                marker = f"{self.start + index}."
+                marker = f"{number}." if level == 0 else "•"
+                if level == 0:
+                    number += 1
             else:
                 marker = "•"
             rendered.append(
