@@ -125,6 +125,71 @@ def render_inlines(inlines: tuple[Inline, ...], theme: Theme = DEFAULT) -> Text:
     return out
 
 
+def _style_at(text: Text, offset: int):
+    """Style at a plain-text offset: the containing span's, else the base."""
+    for span in text.spans:
+        if span.start <= offset < span.end:
+            return span.style
+    return text.style
+
+
+def _wrap_prose_styles(text: Text, width: int) -> list[Text]:
+    """Word-wrap a Text across style boundaries, preserving per-word styles.
+
+    rich's Text.wrap breaks lines at style-run borders, stranding bold or
+    link runs on their own line. This folds by word instead.
+    """
+    if width < 4:
+        return [text.copy()]
+    tokens: list[tuple[str, int]] = []
+    for m in re.finditer(r"\S+\s*|\n", text.plain):
+        tokens.append((m.group(0), m.start()))
+    base = text.style
+    lines: list[Text] = []
+    cur = Text(style=base)
+    cur_len = 0
+    for seg, start in tokens:
+        style = _style_at(text, start)
+        if "\n" in seg:
+            for part in seg.split("\n"):
+                if part and cur_len + len(part) > width and cur_len > 0:
+                    _finish_line(lines, cur, base)
+                    cur = Text(style=base)
+                    cur_len = 0
+                cur.append(part, style=style or base)
+                cur_len += len(part)
+            lines.append(cur)
+            cur = Text(style=base)
+            cur_len = 0
+            continue
+        while cur_len + len(seg) > width and cur_len > 0:
+            _finish_line(lines, cur, base)
+            cur = Text(style=base)
+            cur_len = 0
+        if len(seg) > width:
+            while seg:
+                head, seg = seg[:width], seg[width:]
+                cur.append(head, style=style or base)
+                _finish_line(lines, cur, base)
+                cur = Text(style=base)
+            cur_len = 0
+            continue
+        if cur_len == 0:
+            seg = seg.lstrip()
+        cur.append(seg, style=style or base)
+        cur_len += len(seg)
+    if cur.plain.strip():
+        lines.append(cur)
+    return lines
+
+
+def _finish_line(lines: list[Text], cur: Text, base) -> None:
+    trailing = len(cur.plain) - len(cur.plain.rstrip())
+    if trailing:
+        cur.right_crop(trailing)
+    lines.append(cur)
+
+
 class RichProse:
     """Prose block that wraps inline-styled Rich Text."""
 
@@ -138,15 +203,7 @@ class RichProse:
         t = self.text.copy()
         if not t.style:
             t.stylize(self.theme.style("fg_secondary"))
-        try:
-            lines = t.wrap(console, width, overflow="fold", no_wrap=False)
-            yield from lines
-            return
-        except TypeError:
-            pass
-        lines = Text(t.plain, style=self.theme.style("fg_secondary")).wrap(
-            console, width, overflow="fold", no_wrap=False
-        )
+        lines = _wrap_prose_styles(t, width)
         yield from lines
 
     def __rich_measure__(self, console, options):
