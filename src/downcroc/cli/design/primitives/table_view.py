@@ -54,8 +54,8 @@ class TableView:
             row_styles.append(Style(color=theme.fg_secondary, bgcolor=theme.bg_panel))
         table = Table(
             box=box.SQUARE,
-            show_edge=False,
-            pad_edge=False,
+            show_edge=True,
+            pad_edge=True,
             show_lines=True,
             expand=bool(self.width),
             width=self.width,

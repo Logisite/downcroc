@@ -43,9 +43,21 @@ def inline_code(text: str, theme: Theme) -> Text:
     return Text(f" {text} ", style=theme.style("accent_strong", on="bg_raised"))
 
 
-def link_text(text: str, theme: Theme, *, href: str | None = None) -> Text:
-    """A link-styled text span, optionally with an OSC 8 target."""
-    style = theme.style("fg_link", underline=True)
+def link_text(
+    text: str, theme: Theme, *, href: str | None = None, state: str = "default"
+) -> Text:
+    """A link-styled text span, optionally with an OSC 8 target.
+
+    Render states: default, hover, focus (visual-only for Phase 1/2 prep).
+    """
+    tone = "fg_link"
+    bold = False
+    if state == "hover":
+        tone = "fg_link_hover"
+    elif state == "focus":
+        tone = "fg_link_hover"
+        bold = True
+    style = theme.style(tone, underline=True, bold=bold)
     if href:
         style = style + Style(link=href)
     return Text(text, style=style)

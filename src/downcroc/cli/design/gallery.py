@@ -171,6 +171,18 @@ def _text_section(theme: Theme) -> Group:
     inline.append_text(muted("muted", theme))
     inline.append(".", style=theme.style("fg_secondary"))
     parts.append(inline)
+    link_states = Text()
+    link_states.append("link states: ", style=theme.style("fg_muted"))
+    link_states.append_text(link_text("default", theme, href="https://example.com"))
+    link_states.append("  ", style=theme.style("bg_page"))
+    link_states.append_text(
+        link_text("hover", theme, href="https://example.com", state="hover")
+    )
+    link_states.append("  ", style=theme.style("bg_page"))
+    link_states.append_text(
+        link_text("focus", theme, href="https://example.com", state="focus")
+    )
+    parts.append(link_states)
     parts.append(
         Text(
             f"truncate: {truncate('a very long identifier name', 18)}",
@@ -406,6 +418,18 @@ def _feedback_nav_section(theme: Theme) -> Group:
     parts.append(label("callout tones", theme))
     for title, tone, icon_name, body in CALLOUTS:
         parts.append(Callout(title, body, theme, tone=tone, icon=icon_name, width=58))
+    parts.append(
+        Callout(
+            "Compact",
+            "Compact callout without trailing gap.",
+            theme,
+            tone="info",
+            icon="info",
+            width=58,
+            compact=True,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     parts.append(label("toasts", theme))
     for message, tone in TOASTS:
         parts.append(Toast(message, theme, tone=tone))

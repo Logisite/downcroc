@@ -32,6 +32,7 @@ class Callout:
         tone: str = "note",
         icon: str = "",
         width: int | None = None,
+        compact: bool = False,
     ) -> None:
         self.title = title
         self.body = body
@@ -39,6 +40,7 @@ class Callout:
         self.tone = tone
         self.icon = icon
         self.width = width
+        self.compact = compact
 
     def _tone_token(self) -> str:
         return TONES.get(self.tone, "info")
@@ -67,4 +69,5 @@ class Callout:
             if pad_len > 0:
                 padded.append(" " * pad_len, style=f"{theme.fg_secondary} on {dim}")
             yield Text.assemble(Text(" ", style=f"{color} on {dim}"), padded)
-        yield Text("")
+        if not self.compact:
+            yield Text("")

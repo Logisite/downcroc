@@ -44,6 +44,7 @@
   it left.
   
   Body with  inline_code() , a link, strong, and muted.
+  link states: default  hover  focus
   truncate: a very long ident…
   
   BADGES
@@ -86,31 +87,39 @@
   ──────────────────────────────────────────────────
   
   TABLES
-  Field   │ Value             │ Count
-  ────────┼───────────────────┼──────
-  account │ alice@example.com │    12
-  ────────┼───────────────────┼──────
-  status  │ queued            │     3
+  ┌─────────┬───────────────────┬───────┐
+  │ Field   │ Value             │ Count │
+  ├─────────┼───────────────────┼───────┤
+  │ account │ alice@example.com │    12 │
+  ├─────────┼───────────────────┼───────┤
+  │ status  │ queued            │     3 │
+  └─────────┴───────────────────┴───────┘
   
   compact, zebra off
-  Field │ Value  
-  ──────┼────────
-  mode  │ compact
-  ──────┼────────
-  zebra │ off    
+  ┌───────┬─────────┐
+  │ Field │ Value   │
+  ├───────┼─────────┤
+  │ mode  │ compact │
+  ├───────┼─────────┤
+  │ zebra │ off     │
+  └───────┴─────────┘
   
   column widths / no-wrap
-  Key              │ Description                  │ State 
-  ─────────────────┼──────────────────────────────┼───────
-  sync.interval    │ How often the watcher polls  │   ok  
-                   │ IMAP                         │       
-  ─────────────────┼──────────────────────────────┼───────
-  retry.backoff    │ Exponential backoff ceiling  │  warn 
-                   │ value                        │       
+  ┌──────────────────┬──────────────────────────────┬────────┐
+  │ Key              │ Description                  │ State  │
+  ├──────────────────┼──────────────────────────────┼────────┤
+  │ sync.interval    │ How often the watcher polls  │   ok   │
+  │                  │ IMAP                         │        │
+  ├──────────────────┼──────────────────────────────┼────────┤
+  │ retry.backoff    │ Exponential backoff ceiling  │  warn  │
+  │                  │ value                        │        │
+  └──────────────────┴──────────────────────────────┴────────┘
   
   empty (header shown)
-  Field │ Value
-  ──────┼──────
+  ┌───────┬───────┐
+  │ Field │ Value │
+  ├───────┼───────┤
+  └───────┴───────┘
    No data yet
   
   KEY-VALUE
@@ -202,6 +211,9 @@
   
   ▎ 󰅚 Danger                                                
      This action can cause data loss.                       
+  
+  ▎ 󰋽 Compact                                               
+     Compact callout without trailing gap.                  
   
   TOASTS
    󰄬 Connected to mailbox 
