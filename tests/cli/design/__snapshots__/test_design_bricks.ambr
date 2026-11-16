@@ -2,11 +2,32 @@
 # name: test_components_rhythm_targeted
   '''
    info 
+  [warn]
+  ────────────────────
   ─────────── group ───────────
   Details  meta
   ────────────────
   
    ▏Save 
+  
+  '''
+# ---
+# name: test_content_primitives_targeted
+  '''
+                      
+   fig                
+                      
+  
+  cap
+  
+  ∅ Empty
+    none
+    do x
+  ▎ 󰋽 Info                      
+     Body                       
+    ● ● ●  a.py   python  [ copy ] 
+    1 print(1)                  
+                                
   
   '''
 # ---
@@ -88,6 +109,8 @@
   truncate middle: runtime/se…ecycle.py
   truncate start: …runtime.lifecycle
   truncate short: tiny
+  truncate exact: exact / tiny width: …
+  truncate narrow middle: abc…nop
   
   BADGES
    queued    sent    warning    error 
@@ -130,9 +153,11 @@
                                       
    Figure content block               
                                       
+  
   Figure: compact inset panel sample
   
   ───────────── section divider ─────────────
+  ────────────────────────
   
   Data & collections  table, key-value, lists, empty
   ──────────────────────────────────────────────────
@@ -210,6 +235,23 @@
   │ types │ pending  │
   └───────┴──────────┘
   
+  typed row states (dict api)
+  ┌─────────┬──────────┐
+  │ Item    │ State    │
+  ├─────────┼──────────┤
+  │ build   │ ok       │
+  ├─────────┼──────────┤
+  │ deploy  │ selected │
+  ├─────────┼──────────┤
+  │ notify  │ warning  │
+  ├─────────┼──────────┤
+  │ cleanup │ muted    │
+  ├─────────┼──────────┤
+  │ audit   │ danger   │
+  ├─────────┼──────────┤
+  │ review  │ hovered  │
+  └─────────┴──────────┘
+  
   empty (header shown)
   ┌───────────────┬───────┬───────┐
   │ Field         │ Value │ State │
@@ -220,6 +262,17 @@
   empty (no header)
   No rows
   
+  single column / alignments
+  ┌───────┬───────┬────────┐
+  │ Name  │ Count │ Status │
+  ├───────┼───────┼────────┤
+  │ alpha │     1 │   ok   │
+  ├───────┼───────┼────────┤
+  │ beta  │    23 │  warn  │
+  ├───────┼───────┼────────┤
+  │ gamma │   456 │  err   │
+  └───────┴───────┴────────┘
+  
   KEY-VALUE
   account  alice@example.com
   mailbox  inbox            
@@ -227,14 +280,14 @@
   
   compact divider
   mode compact
-  ────────────────────────────────────────────────────────────────────────
+  ────────────────────
   sync idle
   
   full-width aligned divider
   service       downcroc watcher
-  ──────────────────────────────────────────────────────
+  ─────────────────────────────────
   last_sync     2026-11-16 08:30:00
-  ──────────────────────────────────────────────────────
+  ─────────────────────────────────
   notes         healthy
   
   fixed rule width
@@ -244,15 +297,24 @@
   
   long values (aligned)
   mailbox_path   INBOX/Projects/downcroc/design
-  ──────────────────────────────────────────────────────────
+  ────────────────────────────────────────────────────
   last_error     temporary IMAP disconnect during sync
+  
+  content-width divider
+  id a1
+  ────────────────────
+  region eu-west-1
   
   stacked with divider
   endpoint
     https://mail.example.test/inbound
-  ────────────────────────────────────────────────────────────────────────
+  ──────────────────────────────────────────
   token
     ••••••••••••
+  
+  single item / no divider
+  status ok
+  status ok
   
   LISTS
   •  Queued and waiting
@@ -402,6 +464,9 @@
   compact toasts
    󰄬 Saved                                                                      
    󰀪 Retrying                                                                   
+   󰅚 Failed                                                                     
+   󰋽 Note                                                                       
+   󰍉 Custom icon toast 
   ICONS
   󰀄  󰇮  󰒊  󰍉  󰒓  ● online  ● syncing
   
@@ -423,6 +488,129 @@
   TAGS
    mailbox   sync   beta 
   
+  Composites (Phase 3)  built from primitives
+  ───────────────────────────────────────────
+  
+  Docs page
+  Composed header: title, lead, meta, divider.
+  updated: 2026-11-16
+  ──────────────────────────────────────────────────────────
+  
+  Design system
+  Compose atoms into reusable sections without domain 
+  coupling.
+  
+  ╭──────────────────────────────────────────────╮
+  │ primitive-first                              │
+  │                                              │
+  │ Hero highlights use card + text primitives.  │
+  ╰──────────────────────────────────────────────╯
+  
+  Metadata  key-value section
+  ───────────────────────────
+  
+  phase 3
+  ────────────────────
+  status in progress
+  ────────────────────
+  scope components
+  
+  NAVIGATION GROUP
+  
+  ▌ 󰇮 Overview                            
+  │ 󰉋 Tokens                              
+    │ 󰉋 Components                        
+  
+  Code group  grouped panels
+  ──────────────────────────
+  
+    ● ● ●  run.sh   bash                           [ copy ] 
+    1 uv run downcroc service start                         
+    2 uv run downcroc logs --event watcher. --json | grep '"
+                                                            
+  
+    ● ● ●  snippet.py   python                     [ copy ] 
+    1 def stop(self, timeout: float = 5.0) -> None:         
+    2 │   """Stop the daemon and release its lock."""       
+    3 │   self._workers.stop(timeout=timeout)               
+    4 │   self._lock.release()                              
+                                                            
+  
+  Callouts  grouped feedback
+  ──────────────────────────
+  
+  ▎ 󰋽 Note                                                  
+     Grouped callout sample.                                
+  
+  ▎ 󰀪 Warning                                               
+     Second callout in group.                               
+  
+  BREADCRUMB BAR
+  docs › design › components
+  
+  updated: 2026-11-16  •  phase: 3  •  scope: docs
+  
+  docs › design › page
+  
+  Document title
+  Richer doc header with breadcrumb, lead, meta, and divider.
+  author: design  •  phase: 3/4
+  
+  ──────────────────────────────────────────────────────────────
+  
+  Anchored overview  anchor: #overview
+  ────────────────────────────────────
+  
+  #OVERVIEW
+  Section content prepared for anchor/TOC targeting.
+  
+  Main content composed beside an                ╭──────────────────────╮       
+  outline area.                                  │ On this page         │       
+                                                 │ ────────────────     │       
+                                                 │                      │       
+                                                 │ ▸ Overview           │       
+                                                 │   · Details          │       
+                                                 │                      │       
+                                                 ╰──────────────────────╯       
+  
+  Stateful nav                                                                  
+  ────────────────                                                              
+                                                                                
+  │ 󰇮 Intro                                                                     
+  │ 󰉋 Tokens                                                                    
+    │ 󰉋 Components                                                              
+                                                                                
+  On this page                                                                  
+  ────────────────                                                              
+                                                                                
+  ▸ Overview                                                                    
+    · Details                                                                   
+                                                                                
+  
+  Meta rows
+  ────────────────
+  
+  owner design
+  ────────────────────
+  status ready
+  ────────────────────
+  scope phase 3
+  
+                                        
+   Composed figure content              
+                                        
+  
+  Figure: panel wrapped as a figure composite
+  
+  
+  
+  PAGER (PREVIOUS/NEXT)
+  ╭────────────────────────────╮          ╭────────────────────────────╮        
+  │ ← Previous                 │          │                     Next → │        
+  │ Tokens                     │          │                 Components │        
+  │ /docs/design/tokens        │          │    /docs/design/components │        
+  ╰────────────────────────────╯          ╰────────────────────────────╯        
+  
   KEYBAR
    enter  open    ?  keys    q  quit
   
@@ -438,6 +626,19 @@
     — ref
   
    one   two   three 
+  
+  '''
+# ---
+# name: test_navigation_targeted
+  '''
+  ▌ 󰇮 Inbox                     
+    │ 󰉋 Archive                 
+  ▸ Intro
+    · Details
+  󰍉
+  ●
+   enter 
+   q  quit    ?  help
   
   '''
 # ---
@@ -462,6 +663,15 @@
   │ tests │ failed   │
   │ sync  │ selected │
   └───────┴──────────┘
+  ┌────────┬──────────┐
+  │ Item   │ State    │
+  ├────────┼──────────┤
+  │ build  │ ok       │
+  ├────────┼──────────┤
+  │ deploy │ selected │
+  ├────────┼──────────┤
+  │ audit  │ danger   │
+  └────────┴──────────┘
   ┌───────────────┬───────┬───────┐
   │ Field         │ Value │ State │
   ├───────────────┼───────┼───────┤
@@ -471,6 +681,9 @@
   queue 12
   ────────────────────────
   workers 3
+  id a1
+  ────────────────────
+  region eu-west-1
   
   '''
 # ---

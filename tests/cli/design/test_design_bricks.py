@@ -58,8 +58,10 @@ def test_gallery_text_renders_bricks() -> None:
     assert "truncate middle" in text
     assert "truncate start" in text
     assert "row styles (state tones)" in text
+    assert "typed row states (dict api)" in text
     assert "fixed rule width" in text
     assert "long values (aligned)" in text
+    assert "content-width divider" in text
     assert "BUTTON STATE MATRIX" in text
     assert "compact toasts" in text
     assert "focus copy state" in text
@@ -68,6 +70,8 @@ def test_gallery_text_renders_bricks() -> None:
     assert "Inset panel with extra padding" in text
     assert "empty (no header)" in text
     plain = export_gallery_plain_text()
+    assert "hovered" in plain
+    assert "audit" in plain
     assert "selected" in plain
     assert "No rows" in plain
     assert "docs › reference › design › primitives › table" in plain
@@ -141,6 +145,19 @@ def test_table_and_key_value_targeted(snapshot) -> None:
     )
     console.print(
         TableView(
+            ["Item", "State"],
+            [
+                {"cells": ["build", "ok"], "style": "success"},
+                {"cells": ["deploy", "selected"], "style": "selected"},
+                {"cells": ["audit", "danger"], "style": "danger"},
+            ],
+            DEFAULT,
+            zebra=False,
+            compact=True,
+        )
+    )
+    console.print(
+        TableView(
             ["Field", "Value", "State"],
             [],
             DEFAULT,
@@ -157,6 +174,11 @@ def test_table_and_key_value_targeted(snapshot) -> None:
             divider=True,
             rule_width=24,
             compact=True,
+        )
+    )
+    console.print(
+        KeyValue(
+            [("id", "a1"), ("region", "eu-west-1")], DEFAULT, divider=True, compact=True
         )
     )
     assert console.export_text() == snapshot
@@ -258,7 +280,7 @@ def test_components_rhythm_targeted(snapshot) -> None:
 
     from downcroc.cli.design.primitives.badge import badge
     from downcroc.cli.design.primitives.button import Button
-    from downcroc.cli.design.primitives.rule import divider
+    from downcroc.cli.design.primitives.rule import divider, hairline
     from downcroc.cli.design.primitives.section_header import SectionHeader
     from downcroc.cli.design.theme import DEFAULT
 
@@ -266,9 +288,68 @@ def test_components_rhythm_targeted(snapshot) -> None:
         record=True, width=50, force_terminal=False, color_system=None, file=StringIO()
     )
     console.print(badge("info", DEFAULT, tone="info"))
+    console.print(badge("warn", DEFAULT, tone="warning", variant="outline"))
+    console.print(hairline(DEFAULT, width=20))
     console.print(divider(DEFAULT, width=30, label="group"))
     console.print(SectionHeader("Details", DEFAULT, meta="meta"))
     console.print(Button("Save", DEFAULT, variant="secondary", state="focus"))
+    assert console.export_text() == snapshot
+
+
+def test_content_primitives_targeted(snapshot) -> None:
+    """Targeted code/figure/empty/callout snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.callout import Callout
+    from downcroc.cli.design.primitives.code_panel import CodePanel
+    from downcroc.cli.design.primitives.empty_state import EmptyState
+    from downcroc.cli.design.primitives.figure import Figure
+    from downcroc.cli.design.primitives.panel import Panel
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=60, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(Figure(Panel("fig", DEFAULT, width=20), DEFAULT, caption="cap"))
+    console.print(EmptyState("Empty", DEFAULT, body="none", hint="do x", compact=True))
+    console.print(Callout("Info", "Body", DEFAULT, tone="info", compact=True, width=30))
+    console.print(
+        CodePanel(
+            "print(1)\n",
+            DEFAULT,
+            language="python",
+            filename="a.py",
+            width=30,
+            button_state="hover",
+        )
+    )
+    assert console.export_text() == snapshot
+
+
+def test_navigation_targeted(snapshot) -> None:
+    """Targeted nav/toc/keybar/icon rhythm snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.icon import icon, status_dot
+    from downcroc.cli.design.primitives.keybar import keybar, keycap
+    from downcroc.cli.design.primitives.nav import NavItem, TocItem
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=50, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(NavItem("Inbox", DEFAULT, icon="inbox", active=True, width=30))
+    console.print(NavItem("Archive", DEFAULT, icon="folder", indent=1, width=30))
+    console.print(TocItem("Intro", DEFAULT, active=True))
+    console.print(TocItem("Details", DEFAULT, level=2))
+    console.print(icon("search", DEFAULT))
+    console.print(status_dot(DEFAULT, tone="success"))
+    console.print(keycap("enter", DEFAULT))
+    console.print(keybar([("q", "quit"), ("?", "help")], DEFAULT))
     assert console.export_text() == snapshot
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.measure import Measurement
 from rich.style import Style
 from rich.text import Text
 
@@ -40,7 +41,8 @@ def chip(text: str, theme: Theme, *, tone: str = "bg_raised") -> Text:
 
 def inline_code(text: str, theme: Theme) -> Text:
     """Inline code span on a raised background chip."""
-    return Text(f" {text} ", style=theme.style("accent_strong", on="bg_raised"))
+    pad = " " * theme.space_1
+    return Text(f"{pad}{text}{pad}", style=theme.style("accent_strong", on="bg_raised"))
 
 
 def link_text(
@@ -165,9 +167,10 @@ class Prose:
 
     def __rich_measure__(
         self, console: Console, options: ConsoleOptions
-    ) -> tuple[int, int]:
+    ) -> Measurement:
         width = self.width or options.max_width
-        return min(20, width), width
+        minimum = min(20, width) if width > 0 else 0
+        return Measurement(minimum, max(width, minimum))
 
 
 def prose(

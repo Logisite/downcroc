@@ -1,0 +1,220 @@
+# serializer version: 1
+# name: test_badge_rule_section_edge_targeted
+  '''
+   info 
+   warn 
+  [err]
+   ok 
+  ────────────────────
+  ─────────── group ───────────
+  Details  meta
+  ────────────────
+  
+  Only title
+  ────────────────
+  
+  
+  '''
+# ---
+# name: test_button_edge_targeted
+  '''
+   Btn                                                                            
+   Btn                                                                            
+   ▏Btn                                                                           
+   Btn                                                                            
+   Btn                                                                            
+   Btn                                                                            
+   Btn                                                                            
+   ▏Btn                                                                           
+   Btn                                                                            
+   Btn                                                                            
+   Btn                                                                            
+   Btn                                                                            
+   ▏Btn                                                                           
+   Btn                                                                            
+   Btn                                                                            
+   Btn                                                                            
+   Btn                                                                            
+   ▏Btn                                                                           
+   Btn                                                                            
+   Btn                                                                            
+   󰍉 Search 
+  
+  '''
+# ---
+# name: test_callout_toast_edge_targeted
+  '''
+  ▎ 󰋽 note                                  
+     note body                              
+  
+  ▎ 󰄬 tip                                   
+     tip body                               
+  
+  ▎ 󰀪 warning                               
+     warning body                           
+  
+  ▎ 󰅚 danger                                
+     danger body                            
+  
+  ▎ 󰋽 info                                  
+     info body                              
+  
+  ▎ 󰄬 success                               
+     success body                           
+  
+  ▎ No icon                                 
+     body                                   
+  ▎ 󰍉 Custom                                
+     body                                   
+   󰋽 info toast 
+  
+   󰋽 info compact 
+   󰄬 success toast 
+  
+   󰄬 success compact 
+   󰀪 warning toast 
+  
+   󰀪 warning compact 
+   󰅚 danger toast 
+  
+   󰅚 danger compact 
+   󰍉 Custom icon toast 
+  
+  '''
+# ---
+# name: test_list_empty_edge_targeted
+  '''
+  •  one
+  •  two
+  1. first
+  2. second
+  •  parent
+    •  child
+      •  leaf
+  ☐  todo
+  ☐  done
+  ∅ Empty
+  
+  inbox None
+    body
+    hint
+  ∅ Search returned nothing
+    Try broader query.
+  
+  '''
+# ---
+# name: test_nav_toc_icon_tag_keybar_edge_targeted
+  '''
+  ▌ 󰇮 Active                    
+  │ 󰉋 Hover                     
+  │ 󰒓 Focus                     
+  │ 󰉋 Disabled                2 
+  ▸ Active
+  · Hover
+    · Focus
+  󰍉
+  ●
+  ●
+   a   bb   ccc 
+   single 
+   enter 
+   q  quit    ?  help
+  
+  '''
+# ---
+# name: test_surfaces_edge_targeted
+  '''
+                          
+   t                      
+                          
+   body text              
+                          
+  ╭──────────────────────╮
+  │ h                    │
+  │                      │
+  │ hairline body        │
+  ╰──────────────────────╯
+                      
+   panel              
+                      
+                      
+                      
+    padded            
+                      
+                      
+  zero            
+                
+   fig          
+                
+  
+  cap
+  
+  ▎ quoted
+  
+  ▎ quoted cite
+    — src
+  
+  
+  '''
+# ---
+# name: test_table_kv_edge_targeted
+  '''
+  ┌───┬───┬───┐
+  │ A │ B │ C │
+  ├───┼───┼───┤
+  │ 1 │ 2 │ 3 │
+  ├───┼───┼───┤
+  │ 4 │ 5 │ 6 │
+  └───┴───┴───┘
+  ┌──────┬──────────┐
+  │ Item │ State    │
+  ├──────┼──────────┤
+  │ x    │ hover    │
+  ├──────┼──────────┤
+  │ y    │ focus    │
+  ├──────┼──────────┤
+  │ z    │ danger   │
+  ├──────┼──────────┤
+  │ w    │ selected │
+  └──────┴──────────┘
+  ┌────────┬───┐
+  │ X      │ Y │
+  ├────────┼───┤
+  │   None │   │
+  └────────┴───┘
+  No rows
+  k v
+  k v
+  long-key-name long value text here
+  mailbox_path   INBOX/Projects/downcroc/design
+  a
+    1
+  ────────────────────
+  b
+    2
+  
+  '''
+# ---
+# name: test_text_edge_targeted
+  '''
+  H1
+  ▏ H2
+  · H3
+  SECTION
+  FAINT
+  Wrapped prose text for edge 
+  coverage and rhythm.
+  Muted prose
+  strong italic strike muted (chip)  code 
+  default
+  hover
+  focus
+  end:abcdefg…
+  mid:abcd…nop
+  start:…jklmnop
+  tiny:…
+  a › b › c
+  a › b › c
+  
+  '''
+# ---

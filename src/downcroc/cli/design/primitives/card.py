@@ -68,7 +68,8 @@ class Card:
     def _render_hairline(self, width: int) -> RenderResult:
         theme = self.theme
         panel = theme.bg(self.fill)
-        inner = max(width - 4, 10)
+        pad = theme.space_2
+        inner = max(width - (pad * 2), 10)
         body_lines = self._wrap(self.body, inner)
         height = 4 + len(body_lines)
         canvas = CellCanvas(width, height)
@@ -76,11 +77,11 @@ class Card:
         # write text into canvas
         title_style = theme.style("fg_primary", bold=True) + panel
         for i, ch in enumerate(self.title[: inner + 1]):
-            canvas.set(2 + i, 1, ch, title_style)
+            canvas.set(pad + i, 1, ch, title_style)
         body_style = theme.style("fg_secondary") + panel
         for r, line in enumerate(body_lines):
             for i, ch in enumerate(line):
-                canvas.set(2 + i, 3 + r, ch, body_style)
+                canvas.set(pad + i, 3 + r, ch, body_style)
         yield from canvas.segments()
 
     def __rich_console__(

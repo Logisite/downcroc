@@ -1,0 +1,110 @@
+# serializer version: 1
+# name: test_breadcrumb_bar_and_meta_bar_composites
+  '''
+  PATH
+  docs › design › components
+  
+  author: docs  •  updated: 2026-11-16  •  phase: 3
+  
+  
+  '''
+# ---
+# name: test_code_and_callout_group_composites
+  '''
+  Examples  meta
+  ────────────────
+  
+    ● ● ●  a.sh   bash                     [ copy ] 
+    1 echo hi                                       
+                                                    
+  
+    ● ● ●  b.py   python                   [ copy ] 
+    1 print('x')                                    
+                                                    
+  
+  Notes  meta
+  ────────────────
+  
+  ▎ 󰋽 Info                                          
+     Body                                           
+  
+  ▎ 󰀪 Warn                                          
+     Careful                                        
+  
+  
+  '''
+# ---
+# name: test_hero_composite
+  '''
+  Hero title
+  Lead paragraph for the hero block.
+  
+  ╭──────────────────────────────────────────────╮
+  │ highlight                                    │
+  │                                              │
+  │ Composed from card + text.                   │
+  ╰──────────────────────────────────────────────╯
+  
+  
+  '''
+# ---
+# name: test_meta_rows_and_figure_block_composites
+  '''
+  Details
+  ────────────────
+  
+  a 1
+  ────────────────────
+  b 2
+  ────────────────────
+  c 3
+  
+                                
+   content                      
+                                
+  
+  caption text
+  
+  
+  
+  '''
+# ---
+# name: test_page_header_composite
+  '''
+  Page title
+  Lead text composed from primitives.
+  meta: sample
+  ──────────────────────────────────────────────────────
+  
+  
+  '''
+# ---
+# name: test_pager_composite
+  '''
+  ╭───────────────────────────────╮    ╭───────────────────────────────╮  
+  │ ← Previous                    │    │                        Next → │  
+  │ Tokens                        │    │                    Components │  
+  │ /docs/tokens                  │    │              /docs/components │  
+  ╰───────────────────────────────╯    ╰───────────────────────────────╯  
+  
+  
+  '''
+# ---
+# name: test_section_and_nav_group_composites
+  '''
+  Details  meta
+  ────────────────
+  
+  a 1
+  ────────────────────
+  b 2
+  
+  GROUP
+  
+  ▌ 󰇮 One                             
+  │ 󰉋 Two                             
+    │ 󰉋 Three                         
+  
+  
+  '''
+# ---

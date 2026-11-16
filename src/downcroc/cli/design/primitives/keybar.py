@@ -27,4 +27,7 @@ def keybar(items: list[tuple[str, str]], theme: Theme) -> Text:
 
 def keycap(key: str, theme: Theme) -> Text:
     """A single keycap chip, for use inside other bricks."""
-    return Text(f" {key} ", style=theme.style("fg_primary", on="bg_raised", bold=True))
+    pad = " " * theme.space_1
+    return Text(
+        f"{pad}{key}{pad}", style=theme.style("fg_primary", on="bg_raised", bold=True)
+    )

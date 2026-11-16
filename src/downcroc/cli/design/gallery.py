@@ -14,6 +14,21 @@ from rich.console import Console, Group
 from rich.terminal_theme import TerminalTheme
 from rich.text import Text
 
+from downcroc.cli.design.components.anchored_section import AnchoredSection
+from downcroc.cli.design.components.breadcrumb_bar import BreadcrumbBar
+from downcroc.cli.design.components.callout_group import CalloutGroup
+from downcroc.cli.design.components.code_group import CodeGroup
+from downcroc.cli.design.components.content_outline import ContentOutline
+from downcroc.cli.design.components.doc_header import DocHeader
+from downcroc.cli.design.components.figure_block import FigureBlock
+from downcroc.cli.design.components.hero import Hero
+from downcroc.cli.design.components.meta_bar import MetaBar
+from downcroc.cli.design.components.meta_rows import MetaRows
+from downcroc.cli.design.components.nav_group import NavGroup
+from downcroc.cli.design.components.page_header import PageHeader
+from downcroc.cli.design.components.pager import Pager
+from downcroc.cli.design.components.section import Section
+from downcroc.cli.design.components.stateful_nav import StatefulNav, StatefulToc
 from downcroc.cli.design.primitives.badge import badge
 from downcroc.cli.design.primitives.blockquote import Blockquote
 from downcroc.cli.design.primitives.button import Button
@@ -32,7 +47,7 @@ from downcroc.cli.design.primitives.keybar import keybar
 from downcroc.cli.design.primitives.list_block import ListBlock
 from downcroc.cli.design.primitives.nav import NavItem, TocItem
 from downcroc.cli.design.primitives.panel import Panel
-from downcroc.cli.design.primitives.rule import divider
+from downcroc.cli.design.primitives.rule import divider, hairline
 from downcroc.cli.design.primitives.section_header import SectionHeader
 from downcroc.cli.design.primitives.spacer import spacer
 from downcroc.cli.design.primitives.table_view import TableView
@@ -240,6 +255,18 @@ def _text_section(theme: Theme) -> Group:
             style=theme.style("fg_muted"),
         )
     )
+    parts.append(
+        Text(
+            f"truncate exact: {truncate('exact', 5)} / tiny width: {truncate('abc', 1)}",
+            style=theme.style("fg_muted"),
+        )
+    )
+    parts.append(
+        Text(
+            f"truncate narrow middle: {truncate('abcdefghijklmnop', 7, mode='middle')}",
+            style=theme.style("fg_muted"),
+        )
+    )
     parts.append(spacer(1, theme=theme))
     badges = Text()
     badges.append_text(badge("queued", theme, tone="info"))
@@ -338,6 +365,7 @@ def _surfaces_section(theme: Theme) -> Group:
         )
     )
     parts.append(divider(theme, width=44, label="section divider"))
+    parts.append(hairline(theme, width=24))
     parts.append(spacer(1, theme=theme))
     return Group(*parts)
 
@@ -459,6 +487,24 @@ def _data_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
+    parts.append(Text("typed row states (dict api)", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Item", "State"],
+            [
+                {"cells": ["build", "ok"], "style": "success"},
+                {"cells": ["deploy", "selected"], "style": "selected"},
+                {"cells": ["notify", "warning"], "style": "warning"},
+                {"cells": ["cleanup", "muted"], "style": "muted"},
+                {"cells": ["audit", "danger"], "style": "danger", "end_section": True},
+                {"cells": ["review", "hovered"], "style": "hover"},
+            ],
+            theme,
+            zebra=False,
+            compact=True,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     parts.append(Text("empty (header shown)", style=theme.style("fg_faint")))
     parts.append(
         TableView(
@@ -473,6 +519,18 @@ def _data_section(theme: Theme) -> Group:
     parts.append(spacer(1, theme=theme))
     parts.append(Text("empty (no header)", style=theme.style("fg_faint")))
     parts.append(TableView([], [], theme))
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("single column / alignments", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Name", "Count", "Status"],
+            [["alpha", "1", "ok"], ["beta", "23", "warn"], ["gamma", "456", "err"]],
+            theme,
+            align=["left", "right", "center"],
+            compact=True,
+            zebra=False,
+        )
+    )
     parts.append(spacer(1, theme=theme))
     parts.append(label("key-value", theme))
     parts.append(KeyValue(KV_ITEMS, theme))
@@ -510,8 +568,22 @@ def _data_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
+    parts.append(Text("content-width divider", style=theme.style("fg_faint")))
+    parts.append(
+        KeyValue(
+            [("id", "a1"), ("region", "eu-west-1")],
+            theme,
+            divider=True,
+            compact=True,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     parts.append(Text("stacked with divider", style=theme.style("fg_faint")))
     parts.append(KeyValue(KV_STACKED, theme, stacked=True, divider=True, compact=True))
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("single item / no divider", style=theme.style("fg_faint")))
+    parts.append(KeyValue([("status", "ok")], theme, compact=True))
+    parts.append(KeyValue([("status", "ok")], theme, divider=True, compact=True))
     parts.append(spacer(1, theme=theme))
     parts.append(label("lists", theme))
     parts.append(ListBlock(LIST_ITEMS, theme))
@@ -708,10 +780,15 @@ def _feedback_nav_section(theme: Theme) -> Group:
             [
                 Toast("Saved", theme, tone="success", compact=True),
                 Toast("Retrying", theme, tone="warning", compact=True),
+                Toast("Failed", theme, tone="danger", compact=True),
+                Toast("Note", theme, tone="info", compact=True),
             ],
             expand=False,
             padding=(0, 1),
         )
+    )
+    parts.append(
+        Toast("Custom icon toast", theme, tone="info", icon="search", compact=True)
     )
     parts.append(label("icons", theme))
     icons_line = Text()
@@ -753,6 +830,211 @@ def _feedback_nav_section(theme: Theme) -> Group:
     return Group(*parts)
 
 
+def _composites_section(theme: Theme) -> Group:
+    parts: list[object] = [
+        SectionHeader("Composites (Phase 3)", theme, meta="built from primitives")
+    ]
+    parts.append(
+        PageHeader(
+            "Docs page",
+            theme,
+            subtitle="Composed header: title, lead, meta, divider.",
+            meta="updated: 2026-11-16",
+            width=58,
+        )
+    )
+    parts.append(
+        Hero(
+            "Design system",
+            "Compose atoms into reusable sections without domain coupling.",
+            theme,
+            width=58,
+            highlight_title="primitive-first",
+            highlight_body="Hero highlights use card + text primitives.",
+        )
+    )
+    parts.append(
+        Section(
+            "Metadata",
+            KeyValue(
+                [("phase", "3"), ("status", "in progress"), ("scope", "components")],
+                theme,
+                divider=True,
+                compact=True,
+            ),
+            theme,
+            meta="key-value section",
+        )
+    )
+    parts.append(
+        NavGroup(
+            "Navigation group",
+            [
+                ("Overview", {"icon": "inbox", "active": True}),
+                ("Tokens", {"icon": "folder"}),
+                ("Components", {"icon": "folder", "indent": 1, "state": "hover"}),
+            ],
+            theme,
+            width=40,
+        )
+    )
+    parts.append(
+        CodeGroup(
+            "Code group",
+            [
+                CodePanel(
+                    sample_shell(theme).source,
+                    theme,
+                    language="bash",
+                    filename="run.sh",
+                    width=58,
+                ),
+                CodePanel(
+                    sample_panel(theme).source,
+                    theme,
+                    language="python",
+                    filename="snippet.py",
+                    width=58,
+                    button_state="hover",
+                ),
+            ],
+            theme,
+            meta="grouped panels",
+        )
+    )
+    parts.append(
+        CalloutGroup(
+            "Callouts",
+            [
+                Callout(
+                    "Note", "Grouped callout sample.", theme, tone="note", width=58
+                ),
+                Callout(
+                    "Warning",
+                    "Second callout in group.",
+                    theme,
+                    tone="warning",
+                    width=58,
+                    compact=True,
+                ),
+            ],
+            theme,
+            meta="grouped feedback",
+        )
+    )
+    parts.append(
+        BreadcrumbBar(
+            [("docs", "default"), ("design", "default"), ("components", "active")],
+            theme,
+            title="Breadcrumb bar",
+        )
+    )
+    parts.append(
+        MetaBar(
+            [("updated", "2026-11-16"), ("phase", "3"), ("scope", "docs")],
+            theme,
+        )
+    )
+    parts.append(
+        DocHeader(
+            "Document title",
+            theme,
+            breadcrumb_items=[
+                ("docs", "default"),
+                ("design", "default"),
+                ("page", "active"),
+            ],
+            lead="Richer doc header with breadcrumb, lead, meta, and divider.",
+            meta=[("author", "design"), ("phase", "3/4")],
+            width=62,
+        )
+    )
+    parts.append(
+        AnchoredSection(
+            "overview",
+            "Anchored overview",
+            prose(
+                "Section content prepared for anchor/TOC targeting.", theme, width=54
+            ),
+            theme,
+            meta="anchor: #overview",
+        )
+    )
+    parts.append(
+        ContentOutline(
+            [prose("Main content composed beside an outline area.", theme, width=34)],
+            [
+                ("Overview", {"anchor": "overview", "level": 1}),
+                ("Details", {"anchor": "details", "level": 2}),
+            ],
+            theme,
+            active="overview",
+            outline_width=24,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(
+        Columns(
+            [
+                StatefulNav(
+                    [
+                        ("Intro", {"icon": "inbox"}),
+                        ("Tokens", {"icon": "folder"}),
+                        ("Components", {"icon": "folder", "indent": 1}),
+                    ],
+                    theme,
+                    title="Stateful nav",
+                    active_index=0,
+                    selected_index=0,
+                    focused=True,
+                    width=28,
+                ),
+                StatefulToc(
+                    [
+                        ("Overview", {"anchor": "overview", "level": 1}),
+                        ("Details", {"anchor": "details", "level": 2}),
+                    ],
+                    theme,
+                    active_anchor="overview",
+                    selected_anchor="overview",
+                    focused=False,
+                ),
+            ],
+            expand=False,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(
+        MetaRows(
+            "Meta rows",
+            [("owner", "design"), ("status", "ready"), ("scope", "phase 3")],
+            theme,
+            width=48,
+        )
+    )
+    parts.append(
+        FigureBlock(
+            Panel("Composed figure content", theme, width=38, fill="bg_inset"),
+            "Figure: panel wrapped as a figure composite",
+            theme,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("pager (previous/next)", theme))
+    parts.append(
+        Pager(
+            theme,
+            prev_label="Tokens",
+            prev_target="/docs/design/tokens",
+            next_label="Components",
+            next_target="/docs/design/components",
+            width=62,
+            next_state="hover",
+        )
+    )
+    return Group(*parts)
+
+
 def gallery_console(width: int = 78) -> Console:
     """Render every brick to a recording console, headless."""
     console = Console(
@@ -776,6 +1058,7 @@ def gallery_console(width: int = 78) -> Console:
     console.print(_data_section(DEFAULT))
     console.print(_code_section(DEFAULT))
     console.print(_feedback_nav_section(DEFAULT))
+    console.print(_composites_section(DEFAULT))
     console.print(label("keybar", DEFAULT))
     console.print(keybar([("enter", "open"), ("?", "keys"), ("q", "quit")], DEFAULT))
     console.print(spacer(1, theme=DEFAULT))

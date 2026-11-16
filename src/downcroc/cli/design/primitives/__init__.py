@@ -13,6 +13,7 @@ from downcroc.cli.design.primitives.code_panel import (
 from downcroc.cli.design.primitives.empty_state import EmptyState
 from downcroc.cli.design.primitives.figure import Figure
 from downcroc.cli.design.primitives.icon import icon, status_dot
+from downcroc.cli.design.primitives.kbd import kbd
 from downcroc.cli.design.primitives.key_value import KeyValue
 from downcroc.cli.design.primitives.keybar import keybar, keycap
 from downcroc.cli.design.primitives.list_block import ListBlock, ListItem
@@ -41,21 +42,30 @@ from downcroc.cli.design.primitives.text import (
 from downcroc.cli.design.primitives.toast import Toast
 
 __all__ = [
+    "Alert",
     "Blockquote",
     "Button",
     "Callout",
     "Card",
     "CodePanel",
+    "Collapsible",
+    "DialogSpec",
     "EmptyState",
     "Figure",
     "KeyValue",
     "ListBlock",
     "ListItem",
+    "MenuItem",
     "NavItem",
     "Panel",
     "Prose",
+    "ResizablePanel",
+    "ResizablePanelGroup",
+    "ScrollAreaSpec",
     "SectionHeader",
+    "SheetSpec",
     "TableView",
+    "Tabs",
     "TagList",
     "Toast",
     "TocItem",
@@ -68,17 +78,25 @@ __all__ = [
     "icon",
     "inline_code",
     "italic",
+    "kbd",
     "keybar",
     "keycap",
     "label",
     "link_text",
     "muted",
     "prose",
+    "render_command_menu",
+    "render_dialog",
+    "render_dropdown",
+    "render_menu",
+    "render_popover",
     "sample_panel",
     "sample_shell",
+    "separator",
     "spacer",
     "status_dot",
     "strike",
     "strong",
+    "tooltip_hint",
     "truncate",
 ]

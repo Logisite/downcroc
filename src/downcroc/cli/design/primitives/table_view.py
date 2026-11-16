@@ -51,6 +51,24 @@ class TableView:
         self.row_styles = row_styles
         self.show_lines = show_lines
 
+    def _resolve_row_style(self, style: str | Style | None) -> str | Style | None:
+        theme = self.theme
+        if style is None:
+            return None
+        if isinstance(style, Style):
+            return style
+        mapping = {
+            "selected": f"{theme.accent_strong} on {theme.bg_selected}",
+            "active": f"{theme.accent_strong} on {theme.bg_selected}",
+            "hover": f"{theme.fg_primary} on {theme.bg_hover}",
+            "focus": f"{theme.accent_strong} on {theme.bg_hover}",
+            "success": f"{theme.success} on {theme.success_dim}",
+            "warning": f"{theme.warning} on {theme.warning_dim}",
+            "danger": f"{theme.danger} on {theme.danger_dim}",
+            "muted": f"{theme.fg_muted} on {theme.bg_panel}",
+        }
+        return mapping.get(style, style)
+
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
@@ -113,13 +131,19 @@ class TableView:
                 table.caption = self.empty_text
                 table.caption_style = Style(color=theme.fg_faint)
         for row in self.rows:
+            if isinstance(row, dict):
+                cells = row.get("cells", [])
+                end_section = bool(row.get("end_section", False))
+                row_style = self._resolve_row_style(row.get("style"))
+                table.add_row(*cells, end_section=end_section, style=row_style)
+                continue
             if isinstance(row, tuple):
                 if len(row) == 3:
                     cells, end_section, row_style = row
                     table.add_row(
                         *cells,
                         end_section=bool(end_section),
-                        style=row_style,
+                        style=self._resolve_row_style(row_style),
                     )
                     continue
                 if len(row) == 2:
@@ -130,7 +154,7 @@ class TableView:
                         and isinstance(first, list)
                     ):
                         # (cells, style)
-                        table.add_row(*first, style=second)
+                        table.add_row(*first, style=self._resolve_row_style(second))
                         continue
                     cells, end_section = row
                     table.add_row(*cells, end_section=bool(end_section))

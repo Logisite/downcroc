@@ -44,10 +44,14 @@ class KeyValue:
             rule_width = max(self.rule_width, 8)
         else:
             gap = pad[1]
-            key_w = self.key_width or max((len(k) for k, _ in self.items), default=8)
-            val_w = max((len(v) for _, v in self.items), default=8)
+            key_w = self.key_width or max(
+                (len(str(k)) for k, _ in self.items), default=8
+            )
+            val_w = max((len(str(v)) for _, v in self.items), default=8)
             content_w = key_w + gap + val_w
-            rule_width = max(min(max(target_width, content_w), 72), 20)
+            # Prefer content width when it fits target, else clamp to target.
+            preferred = min(content_w, target_width)
+            rule_width = max(min(preferred, 72), 20)
         if self.stacked:
             for index, (key, value) in enumerate(self.items):
                 yield Text(key, style=theme.style("fg_muted"))

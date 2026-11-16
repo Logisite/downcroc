@@ -27,6 +27,7 @@ class Figure:
     ) -> RenderResult:
         parts: list[object] = [self.content]
         if self.caption:
+            parts.append(Text(""))
             parts.append(Text(self.caption, style=self.theme.style("fg_faint")))
         yield Group(*parts)
         yield Text("")

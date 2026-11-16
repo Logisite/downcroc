@@ -1,144 +1,62 @@
 from __future__ import annotations
 
-from rich import box
+from pathlib import Path
+
 from rich.console import Group
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
 
-from downcroc.cli.docs import blocks, model
-
-TONES = {
-    "note": "cyan",
-    "tip": "green",
-    "warning": "yellow",
-    "danger": "red",
-    "example": "cyan",
-    "quote": "dim",
-}
+from downcroc.cli.design.theme import DEFAULT
+from downcroc.cli.docs import model
+from downcroc.cli.docs.content.parser import parse_document
+from downcroc.cli.docs.md_render import render_page as render_page_v2
 
 
-def page_renderable(page: model.Page, width: int, *, plain: bool = False) -> Group:
+def page_renderable(
+    page: model.Page,
+    width: int,
+    *,
+    plain: bool = False,
+    prev_next: tuple[tuple[str, str] | None, tuple[str, str] | None] | None = None,
+) -> Group:
+    del plain
+    source = _page_source(page)
+    doc = parse_document(source)
+    return render_page_v2(
+        doc,
+        title=page.title or doc.title,
+        description=page.description or doc.description,
+        breadcrumbs=_breadcrumbs(page),
+        prev_next=prev_next,
+        theme=DEFAULT,
+        width=max(32, width),
+    )
+
+
+def _page_source(page: model.Page) -> str:
+    path = getattr(page, "path", None)
+    if path:
+        p = Path(path)
+        if p.is_file():
+            return p.read_text(encoding="utf-8")
+    raw = getattr(page, "raw", None)
+    if isinstance(raw, str) and raw:
+        return raw
+    body = getattr(page, "body", "")
+    return body if isinstance(body, str) else ""
+
+
+def _breadcrumbs(page: model.Page) -> list[str]:
     if page.rel == "index.md":
-        return home_renderable(page, width, plain=plain)
-    parts: list[object] = []
-    parts.append(Text(page.title, style="" if plain else "bold"))
-    parts.append(Text("─" * min(width, max(8, len(page.title) + 4)), style="dim"))
-    if page.description:
-        parts.append(Text(page.description, style="dim"))
-        parts.append(Text(""))
-    if page.toc and page.headings:
-        parts.append(Text("On this page", style="bold"))
-        parts.extend(Text(f"  {item}", style="dim") for item in page.headings)
-        parts.append(Text(""))
-    body = _without_first_h1(page.body)
-    for block in model.blocks(body):
-        parts.append(_block(block, width, plain))
-    return Group(*parts)
+        return ["Home"]
+    parts = page.rel.removesuffix(".md").split("/")
+    crumbs = ["Home"]
+    if len(parts) > 1:
+        crumbs.extend(parts[:-1])
+    crumbs.append(page.title)
+    return crumbs
 
 
 def home_renderable(page: model.Page, width: int, *, plain: bool = False) -> Group:
-    del plain
-    cards = [
-        ("01  Install", "One command. Linux and Windows."),
-        ("02  Connect", "OAuth or app password. Verify with doctor."),
-        ("03  Send", "Preview, approve, and follow up."),
-    ]
-    local = [
-        ("Vault", "encrypted"),
-        ("SQLite", "local"),
-        ("Content", "local"),
-        ("JSONL logs", "local"),
-    ]
-    return Group(
-        blocks.hero(page.title, page.description, width),
-        Text(""),
-        blocks.code(
-            "install",
-            "curl -fsSL https://raw.githubusercontent.com/Logisite/downcroc/master/scripts/install.sh | sh",
-            "bash",
-        ),
-        Text(""),
-        blocks.card_row(cards, width),
-        Text(""),
-        blocks.section("What stays local"),
-        blocks.card_row(local, width),
-    )
+    return page_renderable(page, width, plain=plain)
 
 
-def _card_row(cards: list[tuple[str, str]], width: int, plain: bool) -> object:
-    if width < 70:
-        return Group(
-            *[
-                Panel(
-                    Text(f"{title}\n{body}", style="dim" if plain else ""),
-                    box=box.ROUNDED,
-                    border_style="dim",
-                    padding=(0, 1),
-                )
-                for title, body in cards
-            ]
-        )
-    table = Table.grid(expand=True, padding=(0, 1))
-    for _ in cards:
-        table.add_column(ratio=1)
-    table.add_row(
-        *[
-            Panel(
-                Text(f"{title}\n{body}", style="dim" if plain else ""),
-                box=box.ROUNDED,
-                border_style="dim",
-                padding=(0, 1),
-            )
-            for title, body in cards
-        ]
-    )
-    return table
-
-
-def _block(block: model.Block, width: int, plain: bool) -> object:
-    if block.kind == "code":
-        return blocks.code(block.language or "text", block.text, block.language)
-    if block.kind == "mermaid":
-        return Panel(
-            Text("diagram omitted in the terminal\ndowncroc docs --open shows it"),
-            title=" diagram ",
-            border_style="dim",
-            box=box.ROUNDED,
-        )
-    if block.kind == "callout":
-        return blocks.callout(block.title, block.text, TONES.get(block.tone, "#67e8f9"))
-    if block.kind == "image":
-        return Text(f"[image] {block.text}  {block.title}", style="dim")
-    if block.kind == "table":
-        return _table(block.text, width)
-    return Markdown(block.text)
-
-
-def _table(text: str, width: int) -> object:
-    header, rows = model.table_rows(text)
-    if not header:
-        return Text(text)
-    if width < 60:
-        lines = []
-        for row in rows:
-            for key, value in zip(header, row):
-                lines.append(Text(f"{key}: {value}"))
-            lines.append(Text(""))
-        return Group(*lines)
-    table = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False)
-    for key in header:
-        table.add_column(key)
-    for row in rows:
-        table.add_row(*row)
-    return table
-
-
-def _without_first_h1(body: str) -> str:
-    lines = body.splitlines()
-    for index, line in enumerate(lines):
-        if line.startswith("# "):
-            lines[index] = ""
-            break
-    return "\n".join(lines)
+# Legacy block-level renderer removed in favor of typed markdown pipeline (Phase 4).
