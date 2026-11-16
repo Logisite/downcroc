@@ -1,5 +1,7 @@
 """Primitive bricks: atoms with zero app knowledge."""
 
+from downcroc.cli.design.primitives.badge import badge
+from downcroc.cli.design.primitives.blockquote import Blockquote
 from downcroc.cli.design.primitives.callout import Callout
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import (
@@ -9,6 +11,7 @@ from downcroc.cli.design.primitives.code_panel import (
 )
 from downcroc.cli.design.primitives.keybar import keybar, keycap
 from downcroc.cli.design.primitives.rule import divider, hairline
+from downcroc.cli.design.primitives.spacer import spacer
 from downcroc.cli.design.primitives.table_view import TableView
 from downcroc.cli.design.primitives.text import (
     Prose,
@@ -25,11 +28,13 @@ from downcroc.cli.design.primitives.text import (
 )
 
 __all__ = [
+    "Blockquote",
     "Callout",
     "Card",
     "CodePanel",
     "Prose",
     "TableView",
+    "badge",
     "breadcrumb",
     "chip",
     "divider",
@@ -44,6 +49,7 @@ __all__ = [
     "prose",
     "sample_panel",
     "sample_shell",
+    "spacer",
     "strong",
     "truncate",
 ]

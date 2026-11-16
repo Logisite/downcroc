@@ -45,25 +45,21 @@ class CodePanel:
     def _button(self) -> Text:
         """The chrome copy button: a pill that flashes on success."""
         theme = self.theme
-        chrome = theme.bg("bg_raised")
+        chrome = theme.bg("code_chrome_bg")
         out = Text(style=chrome)
         out.append(" ", style=chrome)
         if self.copied:
-            out.append(
-                "copied ✓",
-                style=theme.style("success", bold=True) + chrome,
-            )
+            out.append("copied ✓", style=theme.style("success", bold=True) + chrome)
         else:
             out.append(
-                "[ copy ]",
-                style=theme.style("accent", bold=True) + chrome,
+                "[ copy ]", style=theme.style("code_button_fg", bold=True) + chrome
             )
         out.append(" ", style=chrome)
         return out
 
     def _chrome(self, width: int) -> Text:
         theme = self.theme
-        chrome = theme.bg("bg_raised")
+        chrome = theme.bg("code_chrome_bg")
         out = Text(style=chrome)
         out.append("  ", style=chrome)
         for dot, color in zip(range(3), (theme.danger, theme.warning, theme.success)):
@@ -72,10 +68,13 @@ class CodePanel:
         if self.filename:
             out.append(" ", style=chrome)
             out.append(self.filename, style=theme.style("fg_secondary") + chrome)
-        out.append_text(self._button())
-        pad = width - len(out)
-        if pad > 0:
-            out.append(" " * pad, style=chrome)
+        button = self._button()
+        gap = width - len(out) - len(button)
+        if gap > 0:
+            out.append(" " * gap, style=chrome)
+        out.append_text(button)
+        if len(out) < width:
+            out.append(" " * (width - len(out)), style=chrome)
         return out
 
     def __rich_console__(
@@ -89,11 +88,11 @@ class CodePanel:
             self.language or "text",
             theme="ansi_dark",
             word_wrap=False,
-            background_color=theme.bg_inset,
+            background_color=theme.code_bg,
             line_numbers=True,
             indent_guides=True,
         )
-        yield Text("", style=theme.bg("bg_inset"))
+        yield Text("", style=theme.bg("code_bg"))
 
 
 def sample_panel(theme: Theme) -> CodePanel:

@@ -6,11 +6,13 @@ segments over Textual's engine. See plan: downcroc-design-system.md.
 """
 
 from downcroc.cli.design.primitives import (
+    Blockquote,
     Callout,
     Card,
     CodePanel,
     Prose,
     TableView,
+    badge,
     breadcrumb,
     chip,
     divider,
@@ -25,6 +27,7 @@ from downcroc.cli.design.primitives import (
     prose,
     sample_panel,
     sample_shell,
+    spacer,
     strong,
     truncate,
 )
@@ -32,12 +35,14 @@ from downcroc.cli.design.theme import DEFAULT, Theme
 
 __all__ = [
     "DEFAULT",
+    "Blockquote",
     "Callout",
     "Card",
     "CodePanel",
     "Prose",
     "TableView",
     "Theme",
+    "badge",
     "breadcrumb",
     "chip",
     "divider",
@@ -52,6 +57,7 @@ __all__ = [
     "prose",
     "sample_panel",
     "sample_shell",
+    "spacer",
     "strong",
     "truncate",
 ]

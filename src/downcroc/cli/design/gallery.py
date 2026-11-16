@@ -13,6 +13,8 @@ from rich.console import Console, Group
 from rich.terminal_theme import TerminalTheme
 from rich.text import Text
 
+from downcroc.cli.design.primitives.badge import badge
+from downcroc.cli.design.primitives.blockquote import Blockquote
 from downcroc.cli.design.primitives.callout import Callout
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import sample_panel, sample_shell
@@ -133,6 +135,24 @@ def _text_section(theme: Theme) -> Group:
         Text(
             f"truncate: {truncate('a very long identifier name', 18)}",
             style=theme.style("fg_muted"),
+        )
+    )
+    parts.append(Text(""))
+    badges = Text()
+    badges.append_text(badge("queued", theme, tone="info"))
+    badges.append("  ")
+    badges.append_text(badge("sent", theme, tone="success"))
+    badges.append("  ")
+    badges.append_text(badge("warning", theme, tone="warning"))
+    badges.append("  ")
+    badges.append_text(badge("error", theme, tone="danger", variant="solid"))
+    parts.append(badges)
+    parts.append(Text(""))
+    parts.append(
+        Blockquote(
+            "Queued means written down and waiting. Nothing has gone to the mail server yet.",
+            theme,
+            cite="docs",
         )
     )
     return Group(*parts)
