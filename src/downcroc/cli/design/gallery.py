@@ -19,12 +19,16 @@ from downcroc.cli.design.primitives.callout import Callout
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import sample_panel, sample_shell
 from downcroc.cli.design.primitives.empty_state import EmptyState
+from downcroc.cli.design.primitives.icon import icon, status_dot
 from downcroc.cli.design.primitives.key_value import KeyValue
 from downcroc.cli.design.primitives.keybar import keybar
 from downcroc.cli.design.primitives.list_block import ListBlock
+from downcroc.cli.design.primitives.nav import NavItem, TocItem
 from downcroc.cli.design.primitives.panel import Panel
 from downcroc.cli.design.primitives.rule import divider
+from downcroc.cli.design.primitives.section_header import SectionHeader
 from downcroc.cli.design.primitives.table_view import TableView
+from downcroc.cli.design.primitives.tag_list import TagList
 from downcroc.cli.design.primitives.text import (
     breadcrumb,
     heading,
@@ -36,6 +40,7 @@ from downcroc.cli.design.primitives.text import (
     strong,
     truncate,
 )
+from downcroc.cli.design.primitives.toast import Toast
 from downcroc.cli.design.samples.text_samples import (
     BREADCRUMB_SAMPLE,
     HEADING_SAMPLES,
@@ -208,9 +213,15 @@ def gallery_console(width: int = 78) -> Console:
     )
     console.print(
         TableView(
-            ["Field", "Value"],
-            [["account", "alice@example.com"], ["status", "queued"]],
+            ["Field", "Value", "Count"],
+            [["account", "alice@example.com", "12"], ["status", "queued", "3"]],
             DEFAULT,
+            align=["left", "left", "right"],
+        )
+    )
+    console.print(
+        TableView(
+            ["Field", "Value"], [], DEFAULT, compact=True, empty_text="No data yet"
         )
     )
     console.print(Text(""))
@@ -253,6 +264,32 @@ def gallery_console(width: int = 78) -> Console:
     console.print(
         EmptyState("No batches yet", DEFAULT, body="Create one to get started.")
     )
+    console.print(Text(""))
+    console.print(label("icons / nav / toc / tags / feedback", DEFAULT))
+    console.print(SectionHeader("Mailbox status", DEFAULT, meta="3 accounts"))
+    icons_line = Text()
+    for name in ["account", "inbox", "sent", "search", "settings"]:
+        icons_line.append_text(icon(name, DEFAULT, tone="fg_muted"))
+        icons_line.append("  ", style=DEFAULT.style("bg_page"))
+    icons_line.append_text(status_dot(DEFAULT, tone="success"))
+    icons_line.append(" online  ", style=DEFAULT.style("fg_muted"))
+    icons_line.append_text(status_dot(DEFAULT, tone="warning"))
+    icons_line.append(" syncing", style=DEFAULT.style("fg_muted"))
+    console.print(icons_line)
+    console.print(Text(""))
+    console.print(NavItem("Inbox", DEFAULT, icon="󰇮", active=True, badge_text="12"))
+    console.print(NavItem("Sent", DEFAULT, icon="󰒊"))
+    console.print(NavItem("Archive", DEFAULT, icon="󰉋", indent=1))
+    console.print(Text(""))
+    console.print(TocItem("Overview", DEFAULT, level=1, active=True))
+    console.print(TocItem("Setup", DEFAULT, level=1))
+    console.print(TocItem("Troubleshooting", DEFAULT, level=2))
+    console.print(Text(""))
+    console.print(TagList(["mailbox", "sync", "beta"], DEFAULT))
+    console.print(Text(""))
+    console.print(Toast("Connected to mailbox", DEFAULT, tone="success"))
+    console.print(Toast("Retry scheduled", DEFAULT, tone="warning"))
+    console.print(Toast("Delivery failed", DEFAULT, tone="danger"))
     console.print(label("keybar", DEFAULT))
     console.print(keybar([("enter", "open"), ("?", "keys"), ("q", "quit")], DEFAULT))
     console.print(Text(""))
