@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import io
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,7 @@ from rich.theme import Theme
 
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
+from downcroc.cli.install_health import repair as repair_install
 from downcroc.cli.install_layout import install_prefix
 from downcroc.cli.output import json_out, record
 from downcroc.cli.ui import panel
@@ -142,6 +144,32 @@ def _wheel(release: dict, directory: Path) -> tuple[Path, str | None]:
     return target, expected
 
 
+def _install_command() -> list[str]:
+    """Use pip inside the venv when present, otherwise uv's pip shim."""
+    probe = subprocess.run(
+        [sys.executable, "-c", "import pip"],
+        capture_output=True,
+        check=False,
+    )
+    if probe.returncode == 0:
+        return [sys.executable, "-m", "pip", "install", "--upgrade"]
+    uv = shutil.which("uv")
+    if uv is not None:
+        return [
+            uv,
+            "pip",
+            "install",
+            "--python",
+            sys.executable,
+            "--upgrade",
+        ]
+    raise CliError(
+        "the managed install has no package installer",
+        code="installer_missing",
+        hint="reinstall downcroc with scripts/install.sh or scripts/install.ps1",
+    )
+
+
 def _restart_after_update(paths, settings, ui) -> bool:
     was_running = status(paths).get("state") == "running"
     if was_running:
@@ -234,6 +262,13 @@ def run(args: object) -> int:
             code="not_managed_install",
             hint="use scripts/install.sh or scripts/install.ps1",
         )
+    preflight = repair_install()
+    if preflight.status == "unrecoverable":
+        raise CliError(
+            "the managed install cannot be repaired",
+            code="install_unrecoverable",
+            hint=preflight.fix,
+        )
     paths, settings, _ = load()
     was_running = _restart_after_update(paths, settings, ui)
     try:
@@ -246,7 +281,7 @@ def run(args: object) -> int:
                         "the wheel checksum does not match",
                         code="checksum_failed",
                     )
-            command = [sys.executable, "-m", "pip", "install", "--upgrade"]
+            command = _install_command()
             if args.force:
                 command.extend(["--force-reinstall", "--no-deps"])
             command.append(str(wheel))
@@ -286,12 +321,21 @@ def run(args: object) -> int:
     except BaseException:
         _restart(paths, settings, was_running, ui, no_restart=args.no_restart)
         raise
+    healthy = repair_install()
+    if not healthy.ok:
+        _restart(paths, settings, was_running, ui, no_restart=args.no_restart)
+        raise CliError(
+            "the installed release is not healthy",
+            code="install_unhealthy",
+            hint=healthy.fix,
+        )
     _restart(paths, settings, was_running, ui, no_restart=args.no_restart)
     body = {
         "current": current,
         "installed": latest,
         "url": release.get("html_url"),
         "restarted": was_running and not args.no_restart,
+        "install_health": healthy.status,
     }
     if ui.json_mode:
         json_out(body)

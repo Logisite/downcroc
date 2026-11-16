@@ -64,6 +64,13 @@ def top(commands: argparse._SubParsersAction) -> None:
     )
     common(update)
 
+    repair = commands.add_parser(
+        "repair",
+        help="check and repair the managed install",
+        epilog="example:\n  downcroc repair --json",
+    )
+    common(repair)
+
     uninstall = commands.add_parser(
         "uninstall",
         help="remove downcroc, keeping data unless --purge",

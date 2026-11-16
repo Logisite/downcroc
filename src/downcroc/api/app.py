@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -35,6 +36,7 @@ from downcroc.core.bootstrap import build
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
+from downcroc.store.db.migrate import MigrationFailed
 from downcroc.version import API_VERSION, __version__
 
 
@@ -49,7 +51,27 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        services = build(settings, paths, log)
+        try:
+            services = build(settings, paths, log)
+        except MigrationFailed as error:
+            # Keep startup failures short and structured. A raw alembic
+            # traceback here made the real cause invisible in the JSONL log.
+            log.error(
+                "daemon.start_failed",
+                reason="db_migration_failed",
+                detail=error.message,
+                hint=error.hint or "",
+            )
+            raise SystemExit(error.message) from None
+        except Exception as error:
+            log.error(
+                "daemon.start_failed",
+                reason="bootstrap_failed",
+                error=type(error).__name__,
+                detail=str(error)[:300],
+                traceback=traceback.format_exc()[-4000:],
+            )
+            raise
         app.state.services = services
         app.state.config = services.config
         services.bus.start(asyncio.get_running_loop())

@@ -121,7 +121,30 @@ else
     "$VENV/bin/python" -m pip install --upgrade "$SOURCE"
 fi
 
+# A base-Python upgrade can leave the venv's python/python3/pythonX.Y links
+# dangling or pointing at a removed interpreter. Pin them to the interpreter
+# chosen for this install and verify the environment before declaring success.
+if [ -n "$PYTHON" ] && [ -d "$VENV/bin" ]; then
+    command -v realpath >/dev/null 2>&1 && RESOLVED_PYTHON=$(realpath "$PYTHON") || RESOLVED_PYTHON="$PYTHON"
+    for link in python python3 "$($RESOLVED_PYTHON -c 'import sys; print("python%d.%d" % sys.version_info[:2])' 2>/dev/null)"; do
+        [ -n "$link" ] || continue
+        rm -f "$VENV/bin/$link"
+        ln -s "$RESOLVED_PYTHON" "$VENV/bin/$link"
+    done
+fi
+
+if ! "$VENV/bin/python" -c 'import downcroc.cli.main' >/dev/null 2>&1; then
+    echo "install.sh: the virtual environment is not healthy" >&2
+    echo "install.sh: rerun with --wheel or check that Python 3.14+ is available" >&2
+    exit 1
+fi
+
 ln -sfn "$VENV/bin/downcroc" "$BIN/downcroc"
+
+if ! "$VENV/bin/python" -c 'import os,sys; p=open(sys.argv[1]).readline().strip()[2:]; sys.exit(0 if os.path.exists(p) else 1)' "$VENV/bin/downcroc"; then
+    echo "install.sh: the console script interpreter is not executable" >&2
+    exit 1
+fi
 
 echo
 "$BIN/downcroc" --version

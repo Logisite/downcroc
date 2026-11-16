@@ -84,6 +84,12 @@ def _checks(args: object, ui: Ui) -> list[dict]:
         add(
             "health reachable", False, "daemon is not running", "downcroc service start"
         )
+    from downcroc.cli.install_health import managed_venv
+    from downcroc.cli.install_health import probe as install_probe
+
+    if managed_venv() is not None:
+        health = install_probe()
+        add("install health", health.ok, health.detail, health.fix)
     add("version", True, __version__)
     del settings
     return checks

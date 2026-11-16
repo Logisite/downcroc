@@ -4,13 +4,20 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.2.post2
+since: 1.3.2.post3
 order: 0
 terminal:
-  summary: Current release is 1.3.2.post2.
+  summary: Current release is 1.3.2.post3.
 ---
 
 # Release notes
+
+## 1.3.2.post3
+
+Self-healing managed installs: interpreter repair, `downcroc repair`, doctor check, robust update,
+and structured migration-failure logging.
+
+See the full note in `release-notes/v1.3.2.post3.md` at the repository root.
 
 ## 1.3.2.post2
 
@@ -46,4 +53,4 @@ See the full note in `release-notes/v1.3.1.md` at the repository root.
 ## Upgrade
 
 The daemon runs new migrations at startup when a release includes them. Restart a user service
-after upgrading. `1.3.2.post2` includes a database migration.
+after upgrading. No new config is required unless noted in the release note.

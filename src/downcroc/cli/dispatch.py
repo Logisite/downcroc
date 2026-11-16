@@ -34,6 +34,7 @@ HANDLERS: dict[str, str] = {
     "mail": "downcroc.cli.commands.mail:run",
     "logs": "downcroc.cli.commands.logs:run",
     "update": "downcroc.cli.commands.update:run",
+    "repair": "downcroc.cli.commands.repair:run",
     "uninstall": "downcroc.cli.commands.uninstall:run",
 }
 

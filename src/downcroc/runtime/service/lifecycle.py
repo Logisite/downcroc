@@ -39,6 +39,8 @@ from downcroc.runtime.service.process import (
 )
 from downcroc.runtime.service.registry import ServiceInfo, read, remove, write
 from downcroc.runtime.service.units import launcher
+from downcroc.store.db.engine import open_database
+from downcroc.store.db.migrate import MigrationFailed, check_revisions
 from downcroc.version import API_VERSION, COMMIT, __version__
 
 
@@ -281,6 +283,22 @@ def run_foreground(paths: Paths) -> None:
             commit=COMMIT,
             config=str(paths.config_file),
         )
+        # Run migrations before uvicorn starts so a schema/code mismatch is a
+        # short, actionable error instead of a raw ASGI traceback in the log.
+        check_engine = open_database(paths.data / "downcroc.db")
+        try:
+            check_revisions(check_engine, log)
+        except MigrationFailed as error:
+            log.error(
+                "daemon.start_failed",
+                reason="db_migration_failed",
+                detail=error.message,
+                hint=error.hint or "",
+            )
+            _cleanup(paths)
+            check_engine.dispose()
+            raise SystemExit(error.message) from None
+        check_engine.dispose()
         app = create_app(settings, paths, log, token=token)
         server = DaemonServer(
             uvicorn.Config(

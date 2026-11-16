@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,11 +26,44 @@ def run(*args: str) -> str:
     return result.stdout.strip()
 
 
-def set_version(version: str, *, frozen: bool = True) -> None:
-    cmd = ["uv", "version", version]
+def set_version(version: str, *, frozen: bool = False) -> None:
+    """Set the version in pyproject.toml and refresh uv.lock by default.
+
+    ``uv version`` re-locks by default, but that fails on machines where the
+    pinned interpreter is absent (for example after a Python minor upgrade).
+    We do it in two explicit steps so the version is always applied and the
+    lock refresh uses an interpreter that actually exists.
+    """
+    subprocess.run(["uv", "version", version, "--frozen"], cwd=ROOT, check=True)
     if frozen:
-        cmd.append("--frozen")
+        return
+    refresh_lock()
+
+
+def refresh_lock() -> None:
+    cmd = ["uv", "lock"]
+    interpreter = os.environ.get("UV_PYTHON") or _available_python()
+    if interpreter:
+        cmd.extend(["--python", interpreter])
     subprocess.run(cmd, cwd=ROOT, check=True)
+
+
+def _available_python() -> str | None:
+    for candidate in (sys.executable, "python3", "python"):
+        if not candidate:
+            continue
+        try:
+            result = subprocess.run(
+                [candidate, "-c", "import sys; print(sys.version.split()[0])"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            continue
+        if result.returncode == 0 and result.stdout.strip():
+            return candidate
+    return None
 
 
 def changelog_entry(version: str) -> str:
@@ -129,22 +164,21 @@ def main() -> int:
         ],
     )
     parser.add_argument(
-        "--sync",
+        "--frozen",
         action="store_true",
-        help="allow uv to sync/lock (default: --frozen)",
+        help="set the version without refreshing uv.lock (not recommended)",
     )
     args = parser.parse_args()
 
-    frozen = not args.sync
     if args.bump:
-        cmd = ["uv", "version", "--bump", args.bump, "--short"]
-        if frozen:
-            cmd.append("--frozen")
+        cmd = ["uv", "version", "--bump", args.bump, "--short", "--frozen"]
         version = run(*cmd)
+        if not args.frozen:
+            refresh_lock()
     else:
         version = args.version
         assert version is not None
-        set_version(version, frozen=frozen)
+        set_version(version, frozen=args.frozen)
 
     update_changelog(version)
     release_note(version)
