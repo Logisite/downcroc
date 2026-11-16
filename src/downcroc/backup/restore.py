@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from downcroc.backup.config_swap import (
+    finish_config,
+    swap_config,
+    unique,
+)
+from downcroc.backup.config_swap import (
+    stamp as backup_stamp,
+)
 from downcroc.backup.fsops import sync_dir
 from downcroc.backup.manifest import Manifest
 from downcroc.backup.pending import (
@@ -24,6 +31,7 @@ from downcroc.domain.errors import (
     RestorePending,
     RestoreRefused,
 )
+from downcroc.runtime.fs import remove_tree
 from downcroc.runtime.fs import replace as replace_path
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
@@ -121,8 +129,9 @@ def perform_pending(paths: Paths, resumed: bool = True) -> RestoreOutcome | None
         )
     )
     if data_done:
+        _restore_venv(paths, previous_data)
         try:
-            previous_config = _finish_config(
+            previous_config = finish_config(
                 paths, marker_path, marker, stage_config, previous_config
             )
         except OSError as error:
@@ -147,17 +156,19 @@ def perform_pending(paths: Paths, resumed: bool = True) -> RestoreOutcome | None
         stage_data = stage.data
         stage_config = stage.config
         counts = stage.counts
-    stamp = _stamp()
-    if paths.data.exists():
-        previous_data = _unique(paths.data.with_name(f"{paths.data.name}.bak-{stamp}"))
-    elif previous_data is None or not previous_data.exists():
+    stamp = backup_stamp()
+    if previous_data is not None and previous_data.exists():
+        pass  # a resumed restore keeps its recorded backup
+    elif paths.data.exists() and (paths.data / "downcroc.db").is_file():
+        previous_data = unique(paths.data.with_name(f"{paths.data.name}.bak-{stamp}"))
+    else:
         previous_data = None
     if (
         stage_config is not None
         and any(stage_config.iterdir())
         and paths.config.exists()
     ):
-        previous_config = _unique(
+        previous_config = unique(
             paths.config.with_name(f"{paths.config.name}.bak-{stamp}")
         )
     staged = replace(
@@ -170,8 +181,10 @@ def perform_pending(paths: Paths, resumed: bool = True) -> RestoreOutcome | None
     )
     write_marker(marker_path, staged)
     try:
-        if paths.data.exists():
+        if previous_data is not None:
             replace_path(paths.data, previous_data)
+        elif paths.data.exists():
+            remove_tree(paths.data)
         if stage_data is None or not stage_data.exists():
             raise RestoreFailed(
                 "staged data is missing",
@@ -188,8 +201,9 @@ def perform_pending(paths: Paths, resumed: bool = True) -> RestoreOutcome | None
             fields={"path": str(paths.data), "reason": str(error)},
         ) from error
 
+    _restore_venv(paths, previous_data)
     try:
-        previous_config = _swap_config(paths, stage_config, previous_config, stamp)
+        previous_config = swap_config(paths, stage_config, previous_config, stamp)
     except OSError as error:
         raise RestoreFailed(
             "config swap failed",
@@ -240,23 +254,6 @@ def _optional(value: str | None) -> Path | None:
     return Path(value) if value else None
 
 
-def _stamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-
-
-def _unique(path: Path) -> Path:
-    if not path.exists():
-        return path
-    for index in range(1, 1000):
-        candidate = path.with_name(f"{path.name}-{index}")
-        if not candidate.exists():
-            return candidate
-    raise RestoreFailed(
-        "cannot choose a backup directory name",
-        fields={"path": str(path)},
-    )
-
-
 def _rollback_data(paths: Paths, previous: Path | None) -> None:
     if previous is None or not previous.exists() or paths.data.exists():
         return
@@ -265,6 +262,30 @@ def _rollback_data(paths: Paths, previous: Path | None) -> None:
         sync_dir(paths.data.parent)
     except OSError:
         return
+
+
+def _restore_venv(paths: Paths, previous_data: Path | None) -> None:
+    """Keep the managed install's venv across the data swap.
+
+    The bundle never carries a venv, but the swap renames the whole data
+    directory aside and the managed one lives inside it at ``venv``. Move it
+    from the swapped-aside copy into the restored directory, or the launcher
+    is left dangling after a successful restore.
+    """
+    if previous_data is None:
+        return
+    held = previous_data / "venv"
+    target = paths.data / "venv"
+    if not held.is_dir() or target.exists():
+        return
+    try:
+        replace_path(held, target)
+        sync_dir(paths.data.parent)
+    except OSError as error:
+        raise RestoreFailed(
+            "could not preserve the managed environment",
+            fields={"path": str(held), "reason": str(error)},
+        ) from error
 
 
 def _recover_live(paths: Paths, marker: RestoreMarker) -> None:
@@ -279,68 +300,6 @@ def _recover_live(paths: Paths, marker: RestoreMarker) -> None:
     stage_data = _optional(marker.stage_data)
     stage_config = _optional(marker.stage_config)
     discard_stage(stage_data, stage_config)
-
-
-def _swap_config(
-    paths: Paths,
-    stage_config: Path | None,
-    previous_config: Path | None,
-    stamp: str,
-) -> Path | None:
-    if (
-        stage_config is not None
-        and stage_config.is_dir()
-        and any(stage_config.iterdir())
-    ):
-        if paths.config.exists():
-            chosen = previous_config
-            if chosen is None or chosen.exists():
-                chosen = _unique(
-                    paths.config.with_name(f"{paths.config.name}.bak-{stamp}")
-                )
-            replace_path(paths.config, chosen)
-        else:
-            chosen = previous_config
-        paths.config.parent.mkdir(parents=True, exist_ok=True)
-        replace_path(stage_config, paths.config)
-        sync_dir(paths.config.parent)
-        return chosen
-    if (
-        not paths.config.exists()
-        and previous_config is not None
-        and previous_config.exists()
-    ):
-        replace_path(previous_config, paths.config)
-        sync_dir(paths.config.parent)
-    return previous_config
-
-
-def _finish_config(
-    paths: Paths,
-    marker_path: Path,
-    marker: RestoreMarker,
-    stage_config: Path | None,
-    previous_config: Path | None,
-) -> Path | None:
-    if (
-        stage_config is not None
-        and stage_config.is_dir()
-        and any(stage_config.iterdir())
-        and paths.config.exists()
-        and previous_config is None
-    ):
-        previous_config = _unique(
-            paths.config.with_name(f"{paths.config.name}.bak-{_stamp()}")
-        )
-        write_marker(
-            marker_path,
-            replace(
-                marker,
-                phase="staged",
-                previous_config=str(previous_config),
-            ),
-        )
-    return _swap_config(paths, stage_config, previous_config, _stamp())
 
 
 def _restored(

@@ -40,6 +40,7 @@ downcroc update [--pre] [--force] [--version VERSION] [--no-restart]
 - If the target is the same as the current version, it reports “up to date” and makes no changes (unless `--force`).
 - Downgrades (installing an older version than current) are refused unless `--force` is provided.
 - Downloads the release wheel, verifies its checksum when a digest is provided, and installs it into the managed installation.
+- Repairs the managed installation before and after installing: broken or looping interpreter links are normalized to a real Python interpreter. If the venv has no `pip` module, uv's package installer is used instead.
 - If the daemon was running, it is stopped before installation and restarted afterward unless `--no-restart` is set. A restart failure after a completed install is reported as an error but the new version remains installed.
 
 **Output**
@@ -71,6 +72,7 @@ Common flags: `--json`, `--no-input`, `--wide`, `--full`, `--glyphs {auto,nerd,a
 - Requires network access to reach the release feed/downloads; failures are reported (for example offline or feed/download errors).
 - Must run from a managed install; otherwise the command refuses with a hint to use the supported install scripts.
 - A missing wheel or checksum mismatch fails the update without installing an unverified artifact.
+- If the managed install cannot be repaired (for example no supported Python interpreter is available) the update refuses with an actionable message.
 
 ## Examples
 

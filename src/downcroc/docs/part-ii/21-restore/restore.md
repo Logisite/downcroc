@@ -45,6 +45,8 @@ Before replacing data, restore explains that it will replace the current data at
 
 The restore swaps in the bundle’s data. On success it reports what was restored (bundle, files, counts) and the location of the preserved previous data. On refusal or failure it reports the reason; a refused bundle (for example due to version/schema incompatibility or damage) is not applied, and a failed restore keeps the previous data.
 
+A bundle never contains the managed virtual environment, because it lives inside the data directory. The restore moves it back into place after the swap, so the `downcroc` launcher keeps working after a restore. On a machine where no managed install exists yet (a fresh restore), run the install script once afterwards.
+
 ## Output
 
 - Default: prints the bundle summary, confirmation prompts/warnings as needed, and the restore outcome (or pending/resume/refusal details).

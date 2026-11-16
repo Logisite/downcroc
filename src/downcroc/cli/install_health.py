@@ -132,8 +132,10 @@ def _console_script_ok(venv: Path) -> bool:
 
 
 def _import_ok(venv: Path) -> bool:
-    python = _executable(_bin(venv) / ("python.exe" if os.name == "nt" else "python"))
-    if python is None:
+    python = _bin(venv) / ("python.exe" if os.name == "nt" else "python")
+    # Do not resolve the link to its target: the venv's site-packages only
+    # come into play when the interpreter is launched through the venv path.
+    if not python.is_file() or not os.access(python, os.X_OK):
         return False
     try:
         result = subprocess.run(

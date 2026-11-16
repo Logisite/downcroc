@@ -150,6 +150,16 @@ More: [batch holds](../part-ii/08-batch/holds.md), [service](../part-ii/01-servi
 
 See also: [[batch]], [[job]], [[queued]]
 
+## I
+
+### interpreter links
+
+The small links named `python`, `python3`, and `pythonX.Y` inside the [[venv]] `bin` directory. They point at the Python interpreter that runs downcroc. When a system upgrade removes that interpreter, the links dangle or loop and downcroc will not start. [[repair]] points them at a Python that exists.
+
+More: [repair](../part-ii/26-repair/repair.md)
+
+See also: [[venv]], [[managed-install]], [[repair]]
+
 ## J
 
 ### jitter
@@ -176,6 +186,14 @@ More: [jobs](../part-ii/09-job/job.md)
 See also: [[queued]], [[sent]], [[failed]], [[batch]]
 
 ## M
+
+### managed install
+
+An install that the supported install scripts set up. It has a launcher on your PATH and a [[venv]] under the application data directory. Commands like `update`, `uninstall`, and [[repair]] work with a managed install. If you made your own environment from a checkout, downcroc will not treat it as managed.
+
+More: [update](../part-ii/24-update/update.md), [uninstall](../part-ii/25-uninstall/uninstall.md)
+
+See also: [[venv]], [[repair]]
 
 ### max_in_flight
 
@@ -231,6 +249,16 @@ More: [job states](33-states.md)
 
 See also: [[job]], [[sent]]
 
+## R
+
+### repair
+
+The command that fixes a [[managed-install]] after a Python upgrade. It checks the [[interpreter-links]] in the [[venv]], points them at a Python that exists, and checks that downcroc is still in [[site-packages]].
+
+More: [repair](../part-ii/26-repair/repair.md)
+
+See also: [[managed-install]], [[venv]], [[interpreter-links]], [[site-packages]]
+
 ## S
 
 ### sending_window
@@ -261,6 +289,12 @@ A shared declaration is a kind of [[follow-up declaration]] whose JSON defines t
 
 More:
 - [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
+
+### site-packages
+
+The folder inside the [[venv]] where Python keeps installed packages. If it is empty, the interpreter starts but cannot import downcroc. [[repair]] reports this as `needs_reinstall`, and `downcroc update --force` fixes it.
+
+See also: [[venv]], [[repair]]
 
 ### suppressed
 
@@ -317,3 +351,11 @@ the daemon is not running, unlocked while it works, and locked again on a
 clean stop. A locked vault is normal; nothing sends until it is unlocked.
 
 More: [vault commands](../part-ii/04-vault/vault.md)
+
+### venv
+
+A private Python environment kept inside your [[managed-install]]. It holds the packages downcroc needs, so a system Python upgrade does not change them. The [[interpreter-links]] inside it are what the launcher uses to start downcroc.
+
+More: [repair](../part-ii/26-repair/repair.md)
+
+See also: [[managed-install]], [[interpreter-links]], [[site-packages]], [[repair]]

@@ -223,6 +223,9 @@ def _swap(
                 hint="the previous data is kept; inspect `downcroc logs --since 5m`",
             ) from error
         if outcome is not None:
+            # The swap replaced the tree the log file lived in; reopen the
+            # handler so the outcome lands in the restored data directory.
+            log = _logger(paths)
             log_outcome(log, outcome)
         return outcome
     finally:

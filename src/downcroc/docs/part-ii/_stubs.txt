@@ -36,3 +36,4 @@
 23-openapi/openapi.md
 24-update/update.md
 25-uninstall/uninstall.md
+26-repair/repair.md

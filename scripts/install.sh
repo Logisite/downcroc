@@ -125,7 +125,10 @@ fi
 # dangling or pointing at a removed interpreter. Pin them to the interpreter
 # chosen for this install and verify the environment before declaring success.
 if [ -n "$PYTHON" ] && [ -d "$VENV/bin" ]; then
-    command -v realpath >/dev/null 2>&1 && RESOLVED_PYTHON=$(realpath "$PYTHON") || RESOLVED_PYTHON="$PYTHON"
+    # Resolve through PATH first: realpath on a bare name such as "python3"
+    # would resolve against the current directory, not the PATH entry.
+    PYTHON_BIN=$(command -v "$PYTHON" 2>/dev/null || printf '%s' "$PYTHON")
+    command -v realpath >/dev/null 2>&1 && RESOLVED_PYTHON=$(realpath "$PYTHON_BIN") || RESOLVED_PYTHON="$PYTHON_BIN"
     for link in python python3 "$($RESOLVED_PYTHON -c 'import sys; print("python%d.%d" % sys.version_info[:2])' 2>/dev/null)"; do
         [ -n "$link" ] || continue
         rm -f "$VENV/bin/$link"

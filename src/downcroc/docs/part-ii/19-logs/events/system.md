@@ -53,7 +53,10 @@ Other operational events: backup/restore, API/SSE, quotas, snapshots, input hand
   - Includes counts such as `kept` and `dropped` as emitted.
 
 - `daemon.start_failed` (**error**) — the daemon failed to start (e.g. from service/runtime start path).
-  - `reason`: failure reason.
+  - `reason`: failure reason (`db_migration_failed`, `bootstrap_failed`, or another startup reason).
+  - `detail`: a short description of the failure.
+  - `hint`: the next action when one is available.
+  - `error`, `traceback`: when `reason=bootstrap_failed`, the error class and a truncated traceback.
 
 - `event.gap` (**warning**) — indicates a gap in event sequencing/stream where detected (e.g. requested event id older than available history).
   - `requested_id`: the id requested by the client.
@@ -77,6 +80,19 @@ This module is not exhaustive of every rare/internal diagnostic; for any event n
 
 - `daemon.recovered` (**info/warning**, when emitted) — the daemon recovered from a prior abnormal state on startup.
   - Fields as emitted.
+
+- `db.revision_ok` (**info**) — the recorded database revision is known to this build and startup may proceed.
+  - `current`: the recorded revision (or `none`).
+  - `head`: the newest migration revision in this build.
+  - `known_revisions`: number of revisions available in this build.
+
+- `db.migrate_failed` (**error**) — the recorded database revision is not in this build, or a migration failed. Emitted as one short structured event instead of a raw traceback; the daemon then exits with a short message.
+  - `reason`: `unknown_revision` (database newer than the installed code) or `upgrade_failed`.
+  - `current`: the recorded revision (or `none`).
+  - `head`: the newest migration revision in this build.
+  - `known_revisions`: when `reason=unknown_revision`, the sorted list of known revisions.
+  - `error`, `detail`: when `reason=upgrade_failed`, the error class and a truncated detail.
+  - `hint`: the next action, for example install a newer release or restore a backup.
 
 - `db.migrate` (**info**) — database migrations were applied on startup.
   - `from`: previous schema revision (or `none`).

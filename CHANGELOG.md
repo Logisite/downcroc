@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.2.post4
+
+Describe this release.
+
+See [`release-notes/v1.3.2.post4.md`](release-notes/v1.3.2.post4.md).
+
 ## 1.3.2.post3
 
 Self-healing managed installs: interpreter repair, `downcroc repair`, doctor check, robust update, and structured migration-failure logging.
