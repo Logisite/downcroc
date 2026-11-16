@@ -92,10 +92,17 @@ def gallery_console(width: int = 78) -> Console:
 def export_gallery_svg(path: str) -> str:
     """Write the brick gallery as an SVG screenshot and return its path."""
     console = gallery_console()
+    svg = console.export_svg(
+        title="downcroc design system",
+        theme=EXPORT_THEME,
+        font_aspect_ratio=0.6,
+    )
+    # cairosvg ignores textLength, so the declared font must have the exact
+    # advance Rich assumes (0.6 em) and cover box-drawing corners: JetBrains
+    # Mono does both, Fira Code lacks the arcs.
+    svg = svg.replace("Fira Code", "JetBrains Mono")
     with open(path, "w", encoding="utf-8") as handle:
-        handle.write(
-            console.export_svg(title="downcroc design system", theme=EXPORT_THEME)
-        )
+        handle.write(svg)
     return path
 
 

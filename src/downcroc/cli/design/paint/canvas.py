@@ -56,24 +56,25 @@ class CellCanvas:
     def rounded_rect(self, style: Style, *, fill: Style | None = None) -> None:
         """Draw a rounded hairline rect covering the whole canvas.
 
-        ``fill`` paints the interior background; the border glyph style draws
-        the hairline characters in the border color.
+        ``fill`` paints the interior background; border cells carry the fill
+        as their own background so the hairline sits flush on the card.
         """
         right = self.width - 1
         bottom = self.height - 1
         if right < 1 or bottom < 1:
             return
+        border_style = style + fill if fill is not None else style
         if fill is not None:
             self.fill_rect(1, 1, right - 1, bottom - 1, fill)
-        self.set(0, 0, "╭", style)
-        self.set(right, 0, "╮", style)
-        self.set(0, bottom, "╰", style)
-        self.set(right, bottom, "╯", style)
-        self.hline(1, 0, right - 1, "─", style)
-        self.hline(1, bottom, right - 1, "─", style)
+        self.set(0, 0, "╭", border_style)
+        self.set(right, 0, "╮", border_style)
+        self.set(0, bottom, "╰", border_style)
+        self.set(right, bottom, "╯", border_style)
+        self.hline(1, 0, right - 1, "─", border_style)
+        self.hline(1, bottom, right - 1, "─", border_style)
         for row in range(1, bottom):
-            self.set(0, row, "│", style)
-            self.set(right, row, "│", style)
+            self.set(0, row, "│", border_style)
+            self.set(right, row, "│", border_style)
 
     def segments(self) -> Iterator[Segment]:
         for row in self._grid:
