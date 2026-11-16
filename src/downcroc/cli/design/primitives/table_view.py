@@ -17,7 +17,7 @@ class TableView:
     def __init__(
         self,
         headers: list[str],
-        rows: list[list[str]],
+        rows: list[list[str]] | list[tuple[list[str], bool]],
         theme: Theme,
         *,
         width: int | None = None,
@@ -28,6 +28,8 @@ class TableView:
         zebra: bool = True,
         empty_text: str = "No rows",
         show_header_on_empty: bool = False,
+        caption: str = "",
+        title: str = "",
     ) -> None:
         self.headers = headers
         self.rows = rows
@@ -40,6 +42,8 @@ class TableView:
         self.zebra = zebra
         self.empty_text = empty_text
         self.show_header_on_empty = show_header_on_empty
+        self.caption = caption
+        self.title = title
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
@@ -53,6 +57,8 @@ class TableView:
         if self.zebra:
             row_styles.append(Style(color=theme.fg_secondary, bgcolor=theme.bg_panel))
         table = Table(
+            title=self.title or None,
+            caption=self.caption or None,
             box=box.SQUARE,
             show_edge=True,
             pad_edge=True,
@@ -64,6 +70,8 @@ class TableView:
                 color=theme.fg_primary, bold=True, bgcolor=theme.bg_raised
             ),
             border_style=Style(color=theme.border_strong),
+            caption_style=Style(color=theme.fg_faint),
+            title_style=Style(color=theme.fg_secondary, bold=True),
             row_styles=row_styles,
         )
         for index, header in enumerate(self.headers):
@@ -82,11 +90,17 @@ class TableView:
             )
         if not self.rows and self.show_header_on_empty:
             if self.headers:
-                empty_row = [self.empty_text] + [""] * (len(self.headers) - 1)
+                empty_row = [Text(self.empty_text, style=theme.style("fg_faint"))] + [
+                    Text("")
+                ] * (len(self.headers) - 1)
                 table.add_row(*empty_row)
             else:
                 table.caption = self.empty_text
                 table.caption_style = Style(color=theme.fg_faint)
         for row in self.rows:
-            table.add_row(*row)
+            if isinstance(row, tuple) and len(row) == 2:
+                cells, end_section = row
+                table.add_row(*cells, end_section=bool(end_section))
+            else:
+                table.add_row(*row)
         yield table

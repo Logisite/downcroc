@@ -41,6 +41,10 @@ def test_gallery_text_renders_bricks() -> None:
     assert "disabled copy state" in text
     assert "copied state" in text
     assert "Figure: compact inset panel sample" in text
+    assert "caption and sections" in text
+    assert "service health" in text
+    assert "snapshot" in text
+    assert "prose tones" in text
 
 
 def test_gallery_plain_text_snapshot(snapshot) -> None:

@@ -55,6 +55,7 @@
    queued    sent    warning    error 
   [beta]   ok    muted 
    info   success   warning   danger   accent  
+  [info] [warning] [danger]  success   accent  
   
   BLOCKQUOTE
   ▎ Queued means written down and waiting. Nothing has gone to the mail server 
@@ -120,6 +121,19 @@
   │                  │ value                        │        │
   └──────────────────┴──────────────────────────────┴────────┘
   
+  caption and sections
+  ┌──────────┬─────────┐
+  │ Service  │ Status  │
+  ├──────────┼─────────┤
+  │ watcher  │ running │
+  ├──────────┼─────────┤
+  │ sender   │ queued  │
+  ├──────────┼─────────┤
+  │ ingester │ idle    │
+  └──────────┴─────────┘
+      service health    
+         snapshot       
+  
   empty (header shown)
   ┌─────────────┬───────┐
   │ Field       │ Value │
@@ -132,7 +146,7 @@
   mailbox  inbox            
   state    connected        
   mode compact
-  ────────────────
+  ────────────────────────────────────────────────────────────────────────
   sync idle
   
   LISTS

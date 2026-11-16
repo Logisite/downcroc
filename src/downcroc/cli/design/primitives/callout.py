@@ -55,7 +55,19 @@ class Callout:
         width = self.width or min(options.max_width, 60)
         inner = max(width - 1, 10)
 
-        icon = resolve_icon(self.icon) if self.icon else ""
+        default_icon = {
+            "info": "info",
+            "success": "success",
+            "warning": "warning",
+            "danger": "danger",
+            "accent": "info",
+            "fg_muted": "dot",
+        }.get(token, "")
+        icon = (
+            resolve_icon(self.icon or default_icon)
+            if (self.icon or default_icon)
+            else ""
+        )
         label = f"{icon} {self.title}" if icon else self.title
         bar = Text("▎", style=f"{color} on {dim}")
         title = Text(f" {label}".ljust(inner), style=f"bold {color} on {dim}")

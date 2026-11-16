@@ -41,11 +41,8 @@ class KeyValue:
         grid.add_column(style=theme.style("fg_secondary"))
 
         def divider_line() -> Text:
-            # Continuous rule: span approximate rendered grid width.
-            key_w = self.key_width or max((len(k) for k, _ in self.items), default=8)
-            val_w = max((len(v) for _, v in self.items), default=8)
-            gap = pad[1]
-            width = max(min(key_w + gap + val_w, options.max_width), 16)
+            # Continuous rule across available width.
+            width = max(min(options.max_width, 72), 20)
             return Text("─" * width, style=theme.style("border_hairline"))
 
         for index, (key, value) in enumerate(self.items):

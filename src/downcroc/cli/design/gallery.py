@@ -232,10 +232,18 @@ def _text_section(theme: Theme) -> Group:
     for tone in ["info", "success", "warning", "danger", "accent"]:
         badges3.append_text(badge(tone, theme, tone=tone))
         badges3.append(" ")
+    badges4 = Text()
+    for tone in ["info", "warning", "danger"]:
+        badges4.append_text(badge(tone, theme, tone=tone, variant="outline"))
+        badges4.append(" ")
+    for tone in ["success", "accent"]:
+        badges4.append_text(badge(tone, theme, tone=tone, variant="solid"))
+        badges4.append(" ")
     parts.append(label("badges", theme))
     parts.append(badges)
     parts.append(badges2)
     parts.append(badges3)
+    parts.append(badges4)
     parts.append(spacer(1, theme=theme))
     parts.append(label("blockquote", theme))
     parts.append(
@@ -317,6 +325,21 @@ def _data_section(theme: Theme) -> Group:
             col_widths=[16, 28, 6],
             no_wrap=[True, False, True],
             align=["left", "left", "center"],
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("caption and sections", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Service", "Status"],
+            [
+                (["watcher", "running"], True),
+                ["sender", "queued"],
+                (["ingester", "idle"], False),
+            ],
+            theme,
+            caption="service health snapshot",
+            zebra=False,
         )
     )
     parts.append(spacer(1, theme=theme))

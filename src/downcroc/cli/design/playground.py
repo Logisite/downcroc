@@ -10,9 +10,11 @@ from typing import ClassVar
 
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
+from textual.events import Blur, Enter, Focus, Leave, MouseDown, MouseUp
 from textual.widget import Widget
 
+from downcroc.cli.design.primitives.button import Button
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import sample_panel
 from downcroc.cli.design.primitives.keybar import keybar
@@ -31,12 +33,54 @@ class Brick(Widget):
         return self._renderable
 
 
+class InteractiveButton(Widget):
+    """Textual-integrated demo: maps Textual focus/hover/press to Button states."""
+
+    can_focus = True
+
+    def __init__(self, text: str, *, variant: str = "secondary") -> None:
+        super().__init__()
+        self._text = text
+        self._variant = variant
+        self._state = "default"
+
+    def _set_state(self, state: str) -> None:
+        if self._state != state:
+            self._state = state
+            self.refresh()
+
+    def on_enter(self, _: Enter) -> None:
+        if not self.has_focus:
+            self._set_state("hover")
+
+    def on_leave(self, _: Leave) -> None:
+        if not self.has_focus:
+            self._set_state("default")
+
+    def on_focus(self, _: Focus) -> None:
+        self._set_state("focus")
+
+    def on_blur(self, _: Blur) -> None:
+        self._set_state("default")
+
+    def on_mouse_down(self, _: MouseDown) -> None:
+        self._set_state("pressed")
+
+    def on_mouse_up(self, _: MouseUp) -> None:
+        self._set_state("focus" if self.has_focus else "hover")
+
+    def render(self) -> object:
+        return Button(self._text, DEFAULT, variant=self._variant, state=self._state)
+
+
 class PlaygroundApp(App):
-    """One screen, every brick, on the page background."""
+    """One screen, bricks and Textual-integrated interaction demos."""
 
     CSS = """
     Screen { background: #000000; }
     #gallery { padding: 1 2; }
+    .row { height: auto; }
+    InteractiveButton { width: auto; height: 1; margin-right: 1; }
     """
 
     BINDINGS: ClassVar = [("q", "quit", "Quit")]
@@ -44,6 +88,13 @@ class PlaygroundApp(App):
     def compose(self) -> ComposeResult:
         with Vertical(id="gallery"):
             yield Brick(heading("playground", DEFAULT))
+            yield Brick(Text(" "))
+            yield Brick(label("interactive (textual-integrated)", DEFAULT))
+            with Horizontal(classes="row"):
+                yield InteractiveButton("Primary", variant="primary")
+                yield InteractiveButton("Secondary", variant="secondary")
+                yield InteractiveButton("Ghost", variant="ghost")
+                yield InteractiveButton("Danger", variant="danger")
             yield Brick(Text(" "))
             yield Brick(label("bricks", DEFAULT))
             yield Brick(
