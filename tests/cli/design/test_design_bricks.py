@@ -59,8 +59,11 @@ def test_gallery_text_renders_bricks() -> None:
     assert "truncate start" in text
     assert "row styles (state tones)" in text
     assert "fixed rule width" in text
+    assert "long values (aligned)" in text
+    assert "BUTTON STATE MATRIX" in text
     assert "compact toasts" in text
     assert "focus copy state" in text
+    assert "Custom icon" in text
     plain = export_gallery_plain_text()
     assert "docs › reference › design › primitives › table" in plain
     assert "runtime/se…ecycle.py" in plain

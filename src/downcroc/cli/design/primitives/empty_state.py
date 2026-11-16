@@ -32,14 +32,15 @@ class EmptyState:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         theme = self.theme
+        indent = " " * theme.space_2
         head = Text()
         if self.icon:
             head.append(f"{self.icon} ", style=theme.style("fg_faint"))
         head.append(self.title, style=theme.style("fg_muted", bold=True))
         yield head
         if self.body:
-            yield Text(f"  {self.body}", style=theme.style("fg_faint"))
+            yield Text(f"{indent}{self.body}", style=theme.style("fg_faint"))
         if self.hint:
-            yield Text(f"  {self.hint}", style=theme.style("accent_dim"))
+            yield Text(f"{indent}{self.hint}", style=theme.style("accent_dim"))
         if not self.compact:
             yield Text("")

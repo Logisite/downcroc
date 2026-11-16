@@ -433,6 +433,16 @@ def _data_section(theme: Theme) -> Group:
             [
                 (["lint", "ok"], False, f"{theme.success} on {theme.success_dim}"),
                 (["tests", "failed"], False, f"{theme.danger} on {theme.danger_dim}"),
+                (
+                    ["sync", "active"],
+                    False,
+                    f"{theme.accent_strong} on {theme.bg_selected}",
+                ),
+                (
+                    ["queue", "hovered"],
+                    False,
+                    f"{theme.fg_primary} on {theme.bg_hover}",
+                ),
                 ["types", "pending"],
             ],
             theme,
@@ -469,6 +479,21 @@ def _data_section(theme: Theme) -> Group:
             key_width=10,
             divider=True,
             rule_width=28,
+            compact=True,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("long values (aligned)", style=theme.style("fg_faint")))
+    parts.append(
+        KeyValue(
+            [
+                ("mailbox_path", "INBOX/Projects/downcroc/design"),
+                ("last_error", "temporary IMAP disconnect during sync"),
+            ],
+            theme,
+            key_width=14,
+            divider=True,
+            width=58,
             compact=True,
         )
     )
@@ -608,6 +633,13 @@ def _feedback_nav_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
+    parts.append(label("button state matrix", theme))
+    for variant in ["secondary", "ghost", "danger"]:
+        row = [Text(f"{variant:<9}", style=theme.style("fg_faint"))]
+        for state in ["default", "hover", "focus", "pressed", "disabled"]:
+            row.append(Button("Go", theme, variant=variant, state=state))
+        parts.append(Columns(row, expand=False, padding=(0, 1)))
+    parts.append(spacer(1, theme=theme))
     parts.append(label("callout tones", theme))
     for title, tone, icon_name, body in CALLOUTS:
         parts.append(Callout(title, body, theme, tone=tone, icon=icon_name, width=58))
@@ -628,6 +660,17 @@ def _feedback_nav_section(theme: Theme) -> Group:
             "Dense warning for tight layouts.",
             theme,
             tone="warning",
+            width=58,
+            compact=True,
+        )
+    )
+    parts.append(
+        Callout(
+            "Custom icon",
+            "Callout with an explicit icon override.",
+            theme,
+            tone="info",
+            icon="search",
             width=58,
             compact=True,
         )

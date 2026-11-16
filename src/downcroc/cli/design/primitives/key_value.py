@@ -37,7 +37,7 @@ class KeyValue:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         theme = self.theme
-        pad = (0, 1) if self.compact else (0, 2)
+        pad = (0, theme.space_1) if self.compact else (0, theme.space_2)
         target_width = min(self.width or options.max_width, options.max_width)
 
         rule_width = self.rule_width or max(min(target_width, 72), 20)
@@ -45,7 +45,9 @@ class KeyValue:
         if self.stacked:
             for index, (key, value) in enumerate(self.items):
                 yield Text(key, style=theme.style("fg_muted"))
-                yield Text(f"  {value}", style=theme.style("fg_secondary"))
+                yield Text(
+                    f"{' ' * theme.space_2}{value}", style=theme.style("fg_secondary")
+                )
                 if self.divider and index < len(self.items) - 1:
                     yield Text("─" * rule_width, style=theme.style("border_hairline"))
                 elif index < len(self.items) - 1 and not self.compact:

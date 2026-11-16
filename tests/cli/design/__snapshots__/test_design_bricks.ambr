@@ -187,6 +187,10 @@
   ├───────┼─────────┤
   │ tests │ failed  │
   ├───────┼─────────┤
+  │ sync  │ active  │
+  ├───────┼─────────┤
+  │ queue │ hovered │
+  ├───────┼─────────┤
   │ types │ pending │
   └───────┴─────────┘
   
@@ -218,6 +222,11 @@
   queue      12
   ────────────────────────────
   workers    3
+  
+  long values (aligned)
+  mailbox_path   INBOX/Projects/downcroc/design
+  ──────────────────────────────────────────────────────────
+  last_error     temporary IMAP disconnect during sync
   
   stacked with divider
   endpoint
@@ -308,6 +317,26 @@
    Danger                                                                       
    󰍉 Search                                                                     
   
+  BUTTON STATE MATRIX
+  secondary                                                                     
+   Go                                                                           
+   Go                                                                           
+   ▏Go                                                                          
+   Go                                                                           
+   Go                                                                           
+  ghost                                                                         
+   Go                                                                           
+   Go                                                                           
+   ▏Go                                                                          
+   Go                                                                           
+   Go                                                                           
+  danger                                                                        
+   Go                                                                           
+   Go                                                                           
+   ▏Go                                                                          
+   Go                                                                           
+   Go                                                                           
+  
   CALLOUT TONES
   ▎ 󰋽 Note                                                  
      Useful context for the reader.                         
@@ -337,6 +366,8 @@
      Compact callout without trailing gap.                  
   ▎ 󰀪 Compact warning                                       
      Dense warning for tight layouts.                       
+  ▎ 󰍉 Custom icon                                           
+     Callout with an explicit icon override.                
   
   TOASTS
    󰄬 Connected to mailbox 
