@@ -7,6 +7,7 @@ import socket
 import tarfile
 import tempfile
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -153,12 +154,25 @@ class BackupService:
         if not root.is_dir():
             return []
         found: list[tuple[str, Path]] = []
-        for path in sorted(root.rglob("*")):
-            if path.is_symlink() or not path.is_file():
-                continue
-            relative = path.relative_to(root).as_posix()
+        for relative, path in self._walk(root, root):
             found.append((f"{prefix}/{relative}", path))
         return found
+
+    @staticmethod
+    def _walk(root: Path, directory: Path) -> Iterator[tuple[str, Path]]:
+        entries = sorted(os.scandir(directory), key=lambda entry: entry.name)
+        for entry in entries:
+            relative = (
+                entry.name
+                if directory is root
+                else (f"{directory.relative_to(root).as_posix()}/{entry.name}")
+            )
+            if entry.is_symlink():
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                yield from BackupService._walk(root, Path(entry.path))
+            elif entry.is_file(follow_symlinks=False):
+                yield relative, Path(entry.path)
 
     def _freeze(
         self, work: Path, entries: list[tuple[str, Path]]

@@ -62,7 +62,7 @@ TONE = {
     "key": "\033[1;36m",
 }
 
-DEFAULT_TIMEOUT_S = 10.0
+DEFAULT_TIMEOUT_S = 20.0
 
 
 @dataclass(frozen=True)

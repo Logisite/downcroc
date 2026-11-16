@@ -11,7 +11,7 @@ from downcroc.runtime.paths import Paths
 from downcroc.runtime.service import token as service_token
 from downcroc.runtime.service.lock import running
 
-DEFAULT_TIMEOUT_S = 10.0
+DEFAULT_TIMEOUT_S = 20.0
 
 __all__ = [
     "CliError",

@@ -67,9 +67,9 @@ def _missing_database(paths) -> CliError:
     )
 
 
-def _create(paths, settings, target: Path, include_logs: bool) -> dict:
+def _create(paths, settings, target: Path, include_logs: bool, timeout: float) -> dict:
     if running(paths.service_file) is not None:
-        with api(paths) as client:
+        with api(paths, timeout=timeout) as client:
             return post(
                 client,
                 "/api/backups",
@@ -112,6 +112,7 @@ def run(args: object) -> int:
         settings,
         target,
         bool(getattr(args, "include_logs", False)),
+        ui.timeout,
     )
     if ui.json_mode:
         json_out(result)
