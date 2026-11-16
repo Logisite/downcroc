@@ -2,6 +2,7 @@
 
 from downcroc.cli.design.primitives.badge import badge
 from downcroc.cli.design.primitives.blockquote import Blockquote
+from downcroc.cli.design.primitives.button import Button
 from downcroc.cli.design.primitives.callout import Callout
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import (
@@ -38,6 +39,7 @@ from downcroc.cli.design.primitives.toast import Toast
 
 __all__ = [
     "Blockquote",
+    "Button",
     "Callout",
     "Card",
     "CodePanel",

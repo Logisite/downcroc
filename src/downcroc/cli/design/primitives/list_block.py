@@ -33,15 +33,28 @@ class ListItem:
         indent = "  " * max(self.level, 0)
         if self.checked is True:
             mark = Text("☑", style=theme.style("success"))
+            marker_plain = "☑"
         elif self.checked is False:
             mark = Text("☐", style=theme.style("fg_muted"))
+            marker_plain = "☐"
         else:
             mark = Text(self.marker, style=theme.style("accent"))
-        line = Text(indent)
-        line.append_text(mark)
-        line.append(" ")
-        line.append(self.text, style=theme.style("fg_secondary"))
-        yield line
+            marker_plain = self.marker
+        marker_width = max(len(marker_plain), 2)
+        body = Text(self.text, style=theme.style("fg_secondary"))
+        wrap_width = max(options.max_width - len(indent) - marker_width - 1, 8)
+        lines = list(body.wrap(console, wrap_width, overflow="fold")) or [Text("")]
+        first = Text(indent)
+        padded_mark = Text(marker_plain.ljust(marker_width), style=mark.style)
+        first.append_text(padded_mark)
+        first.append(" ")
+        first.append_text(lines[0])
+        yield first
+        cont = " " * (len(indent) + marker_width + 1)
+        for extra in lines[1:]:
+            line = Text(cont)
+            line.append_text(extra)
+            yield line
 
 
 class ListBlock:

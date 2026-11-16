@@ -42,7 +42,7 @@ class TableView:
         if not self.rows:
             yield Text(self.empty_text, style=theme.style("fg_faint"))
             return
-        padding = (0, 1)
+        padding = (0, 0) if self.compact else (0, 1)
         row_styles = [Style(color=theme.fg_secondary)]
         if self.zebra:
             row_styles.append(Style(color=theme.fg_secondary, bgcolor=theme.bg_panel))

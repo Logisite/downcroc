@@ -29,12 +29,14 @@ class Callout:
         theme: Theme,
         *,
         tone: str = "note",
+        icon: str = "",
         width: int | None = None,
     ) -> None:
         self.title = title
         self.body = body
         self.theme = theme
         self.tone = tone
+        self.icon = icon
         self.width = width
 
     def _tone_token(self) -> str:
@@ -50,15 +52,17 @@ class Callout:
         width = self.width or min(options.max_width, 60)
         inner = max(width - 1, 10)
 
+        label = f"{self.icon} {self.title}" if self.icon else self.title
         bar = Text("▎", style=f"{color} on {dim}")
-        title = Text(f" {self.title}".ljust(inner), style=f"bold {color} on {dim}")
+        title = Text(f" {label}".ljust(inner), style=f"bold {color} on {dim}")
         yield Text.assemble(bar, title)
 
-        lines = (self.body or "").splitlines() or [""]
-        for line in lines:
-            body_text = f"  {line}".ljust(inner)
-            yield Text.assemble(
-                Text(" ", style=f"{color} on {dim}"),
-                Text(body_text, style=f"{theme.fg_secondary} on {dim}"),
-            )
+        body = Text(self.body or "", style=f"{theme.fg_secondary} on {dim}")
+        for line in body.wrap(console, max(inner - 2, 8), overflow="fold"):
+            padded = Text("  ", style=f"{theme.fg_secondary} on {dim}")
+            padded.append_text(line)
+            pad_len = inner - len(padded.plain)
+            if pad_len > 0:
+                padded.append(" " * pad_len, style=f"{theme.fg_secondary} on {dim}")
+            yield Text.assemble(Text(" ", style=f"{color} on {dim}"), padded)
         yield Text("")

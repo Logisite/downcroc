@@ -30,6 +30,7 @@ class CodePanel:
         width: int | None = None,
         copied: bool = False,
         show_badge: bool = True,
+        button_state: str = "default",
     ) -> None:
         self.source = source.rstrip("\n")
         self.theme = theme
@@ -38,21 +39,30 @@ class CodePanel:
         self.width = width
         self.copied = copied
         self.show_badge = show_badge
+        self.button_state = button_state
 
     def copy(self) -> bool:
         """Copy the source to the clipboard and flip the button state."""
         ok = copy_to_clipboard(self.source)
         self.copied = ok
+        self.button_state = "copied" if ok else "default"
         return ok
 
     def _button(self) -> Text:
-        """The chrome copy button: a pill that flashes on success."""
+        """The chrome copy button: renderable visual states."""
         theme = self.theme
         chrome = theme.bg("code_chrome_bg")
         out = Text(style=chrome)
         out.append(" ", style=chrome)
-        if self.copied:
+        state = "copied" if self.copied else self.button_state
+        if state == "copied":
             out.append("copied ✓", style=theme.style("success", bold=True) + chrome)
+        elif state == "disabled":
+            out.append("[ copy ]", style=theme.style("fg_faint") + chrome)
+        elif state == "hover":
+            out.append(
+                "[ copy ]", style=theme.style("accent_strong", bold=True) + chrome
+            )
         else:
             out.append(
                 "[ copy ]", style=theme.style("code_button_fg", bold=True) + chrome
@@ -74,8 +84,8 @@ class CodePanel:
         if self.show_badge and self.language:
             out.append("  ", style=chrome)
             out.append(
-                self.language,
-                style=theme.style("fg_faint") + chrome,
+                f" {self.language} ",
+                style=theme.style("fg_muted", on="bg_panel"),
             )
         button = self._button()
         gap = width - len(out) - len(button)

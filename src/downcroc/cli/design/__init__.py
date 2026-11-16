@@ -7,6 +7,7 @@ segments over Textual's engine. See plan: downcroc-design-system.md.
 
 from downcroc.cli.design.primitives import (
     Blockquote,
+    Button,
     Callout,
     Card,
     CodePanel,
@@ -48,6 +49,7 @@ from downcroc.cli.design.theme import DEFAULT, Theme
 __all__ = [
     "DEFAULT",
     "Blockquote",
+    "Button",
     "Callout",
     "Card",
     "CodePanel",

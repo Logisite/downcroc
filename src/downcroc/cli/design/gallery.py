@@ -9,15 +9,21 @@ from __future__ import annotations
 
 import io
 
+from rich.columns import Columns
 from rich.console import Console, Group
 from rich.terminal_theme import TerminalTheme
 from rich.text import Text
 
 from downcroc.cli.design.primitives.badge import badge
 from downcroc.cli.design.primitives.blockquote import Blockquote
+from downcroc.cli.design.primitives.button import Button
 from downcroc.cli.design.primitives.callout import Callout
 from downcroc.cli.design.primitives.card import Card
-from downcroc.cli.design.primitives.code_panel import sample_panel, sample_shell
+from downcroc.cli.design.primitives.code_panel import (
+    CodePanel,
+    sample_panel,
+    sample_shell,
+)
 from downcroc.cli.design.primitives.empty_state import EmptyState
 from downcroc.cli.design.primitives.icon import icon, status_dot
 from downcroc.cli.design.primitives.key_value import KeyValue
@@ -204,12 +210,28 @@ def gallery_console(width: int = 78) -> Console:
     console.print(label("code panels", DEFAULT))
     console.print(sample_panel(DEFAULT))
     console.print(Text(""))
-    console.print(sample_shell(DEFAULT))
+    console.print(
+        CodePanel(
+            sample_shell(DEFAULT).source,
+            DEFAULT,
+            language="bash",
+            filename="deploy.sh",
+            width=72,
+            button_state="disabled",
+        )
+    )
     console.print(Text(""))
     console.print(label("rule / callout / table", DEFAULT))
     console.print(divider(DEFAULT, width=44, label="section"))
     console.print(
-        Callout("Note", "This is a sample callout brick.", DEFAULT, tone="note")
+        Callout(
+            "Note",
+            "This is a sample callout brick with wrapped body text to show flow inside the tinted surface.",
+            DEFAULT,
+            tone="note",
+            icon="󰋽",
+            width=58,
+        )
     )
     console.print(
         TableView(
@@ -217,6 +239,15 @@ def gallery_console(width: int = 78) -> Console:
             [["account", "alice@example.com", "12"], ["status", "queued", "3"]],
             DEFAULT,
             align=["left", "left", "right"],
+        )
+    )
+    console.print(
+        TableView(
+            ["Field", "Value"],
+            [["mode", "compact"], ["zebra", "off"]],
+            DEFAULT,
+            compact=True,
+            zebra=False,
         )
     )
     console.print(
@@ -240,10 +271,22 @@ def gallery_console(width: int = 78) -> Console:
             DEFAULT,
         )
     )
+    console.print(
+        KeyValue(
+            [("mode", "compact"), ("sync", "idle")],
+            DEFAULT,
+            compact=True,
+            divider=True,
+        )
+    )
     console.print(Text(""))
     console.print(
         ListBlock(
-            ["Queued and waiting", "Accepted by server", "Visible in sent folder"],
+            [
+                "Queued and waiting",
+                "Accepted by server and visible in sent folder history for later review",
+                "Visible in sent folder",
+            ],
             DEFAULT,
         )
     )
@@ -262,10 +305,37 @@ def gallery_console(width: int = 78) -> Console:
         )
     )
     console.print(
-        EmptyState("No batches yet", DEFAULT, body="Create one to get started.")
+        EmptyState(
+            "No batches yet",
+            DEFAULT,
+            body="Create one to get started.",
+            hint="Press b to create a batch",
+        )
+    )
+    console.print(EmptyState("Nothing selected", DEFAULT, compact=True))
+    console.print(Text(""))
+    console.print(label("buttons / icons / nav / toc / tags / feedback", DEFAULT))
+    console.print(
+        Columns(
+            [
+                Button("Send", DEFAULT, variant="primary", state=state)
+                for state in ["default", "hover", "focus", "pressed", "disabled"]
+            ],
+            expand=False,
+            padding=(0, 1),
+        )
+    )
+    console.print(
+        Columns(
+            [
+                Button(variant.title(), DEFAULT, variant=variant)
+                for variant in ["secondary", "ghost", "danger"]
+            ],
+            expand=False,
+            padding=(0, 1),
+        )
     )
     console.print(Text(""))
-    console.print(label("icons / nav / toc / tags / feedback", DEFAULT))
     console.print(SectionHeader("Mailbox status", DEFAULT, meta="3 accounts"))
     icons_line = Text()
     for name in ["account", "inbox", "sent", "search", "settings"]:
