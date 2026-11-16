@@ -7,19 +7,18 @@ cairosvg), ``export_gallery_text`` gives a quick ANSI text diff.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from rich.console import Console
 from rich.terminal_theme import TerminalTheme
 from rich.text import Text
 
-from downcroc.cli.design.doc_render import render_page
+from downcroc.cli.design.primitives.callout import Callout
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import sample_panel, sample_shell
 from downcroc.cli.design.primitives.keybar import keybar
+from downcroc.cli.design.primitives.rule import divider
+from downcroc.cli.design.primitives.table_view import TableView
 from downcroc.cli.design.primitives.text import chip, heading, label, prose
 from downcroc.cli.design.theme import DEFAULT
-from downcroc.cli.docs import model
 
 FG = (201, 209, 217)
 
@@ -87,14 +86,22 @@ def gallery_console(width: int = 78) -> Console:
     console.print()
     console.print(sample_shell(DEFAULT))
     console.print()
-    console.print(label("markdown rendering (docs/)", DEFAULT))
-    docs_root = Path(__file__).resolve().parents[4] / "docs"
-    page_path = docs_root / "part-i/02-first-mail/one-email.md"
-    if page_path.is_file():
-        pages = model.load_pages(docs_root)
-        page = next((p for p in pages if p.path == page_path), None)
-        if page is not None:
-            console.print(render_page(page, DEFAULT, width=72))
+    console.print(label("rule", DEFAULT))
+    console.print(divider(DEFAULT, width=44, label="section"))
+    console.print()
+    console.print(label("callout", DEFAULT))
+    console.print(
+        Callout("Note", "This is a sample callout brick.", DEFAULT, tone="note")
+    )
+    console.print()
+    console.print(label("table", DEFAULT))
+    console.print(
+        TableView(
+            ["Field", "Value"],
+            [["account", "alice@example.com"], ["status", "queued"]],
+            DEFAULT,
+        )
+    )
     console.print()
     console.print(label("keybar", DEFAULT))
     console.print(keybar([("enter", "open"), ("?", "keys"), ("q", "quit")], DEFAULT))
@@ -110,9 +117,6 @@ def export_gallery_svg(path: str) -> str:
         theme=EXPORT_THEME,
         font_aspect_ratio=0.6,
     )
-    # cairosvg ignores textLength, so the declared font must have the exact
-    # advance Rich assumes (0.6 em) and cover box-drawing corners: JetBrains
-    # Mono does both, Fira Code lacks the arcs.
     svg = svg.replace("Fira Code", "JetBrains Mono")
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(svg)
