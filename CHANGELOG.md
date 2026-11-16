@@ -5,13 +5,14 @@ file is a short index. The release note is the canonical description of a releas
 
 ## 1.3.2
 
-Follow-up outlook and batch thread views, improved mail/CLI reading, and docs updates.
+Follow-up visibility and CLI improvements for downcroc users.
 
-- `downcroc followups due` and `downcroc batch thread <batch_id>`
-- parent `batch list --parents/--sort` with follow-up summaries
-- relative `s/m/h/d/mo` CLI times; ISO timestamps in JSON
-- card-style `mail show`/`mail thread` and nested `docs --list` tree
-- new read APIs: `GET /api/followups/outlook`, `GET /api/batches/{id}/thread`
+- Follow-ups: `downcroc followups due` outlook, `downcroc batch thread <batch_id>` (with `--recipient`/`--all`), and `downcroc batch list --parents --sort {recent,stale}` with summaries and `next_due_at`
+- CLI: real sender shown on jobs, card-style `mail show`/`mail thread`, relative `s/m/h/d/mo` times (ISO in JSON), nested `docs --list` tree, and improved docs browser layout on narrow terminals
+- API: `GET /api/followups/outlook`, `GET /api/batches/{id}/thread`, and follow-up summaries in parent batch listing
+- Fix: preserve dispatch seat reason and rotate SMTP seats when idle
+- Docs: new command docs plus expanded bundled book (glossary, Part III references, more Part I/II content), cleanup, and README refresh
+- Tooling: `scripts/bump_version.py` for version bumps and release scaffolding
 
 See [`release-notes/v1.3.2.md`](release-notes/v1.3.2.md).
 
