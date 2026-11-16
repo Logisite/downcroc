@@ -114,7 +114,20 @@ def main() -> int:
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("version", nargs="?", help="explicit version, e.g. 1.3.2")
-    group.add_argument("--bump", choices=["major", "minor", "patch"])
+    group.add_argument(
+        "--bump",
+        choices=[
+            "major",
+            "minor",
+            "patch",
+            "stable",
+            "alpha",
+            "beta",
+            "rc",
+            "post",
+            "dev",
+        ],
+    )
     parser.add_argument(
         "--sync",
         action="store_true",

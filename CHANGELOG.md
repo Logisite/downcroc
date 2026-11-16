@@ -3,6 +3,14 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.2.post1
+
+Follow-up visibility fix.
+
+- `batch followups status`, `batch thread`, `batch list --parents`, and follow-up outlook now surface immediate/ad-hoc sent child follow-up steps that were previously missing from parent views
+
+See [`release-notes/v1.3.2.post1.md`](release-notes/v1.3.2.post1.md).
+
 ## 1.3.2
 
 Follow-up visibility and CLI improvements for downcroc users.
