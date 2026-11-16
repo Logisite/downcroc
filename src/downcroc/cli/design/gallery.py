@@ -25,6 +25,7 @@ from downcroc.cli.design.primitives.code_panel import (
     sample_shell,
 )
 from downcroc.cli.design.primitives.empty_state import EmptyState
+from downcroc.cli.design.primitives.figure import Figure
 from downcroc.cli.design.primitives.icon import icon, status_dot
 from downcroc.cli.design.primitives.key_value import KeyValue
 from downcroc.cli.design.primitives.keybar import keybar
@@ -208,7 +209,16 @@ def gallery_console(width: int = 78) -> Console:
     )
     console.print(Text(""))
     console.print(label("code panels", DEFAULT))
-    console.print(sample_panel(DEFAULT))
+    console.print(
+        CodePanel(
+            sample_panel(DEFAULT).source,
+            DEFAULT,
+            language="python",
+            filename="runtime/service/lifecycle.py",
+            width=72,
+            highlight_lines={3},
+        )
+    )
     console.print(Text(""))
     console.print(
         CodePanel(
@@ -252,7 +262,12 @@ def gallery_console(width: int = 78) -> Console:
     )
     console.print(
         TableView(
-            ["Field", "Value"], [], DEFAULT, compact=True, empty_text="No data yet"
+            ["Field", "Value"],
+            [],
+            DEFAULT,
+            compact=True,
+            empty_text="No data yet",
+            show_header_on_empty=True,
         )
     )
     console.print(Text(""))
@@ -339,6 +354,13 @@ def gallery_console(width: int = 78) -> Console:
     )
     console.print(Text(""))
     console.print(SectionHeader("Mailbox status", DEFAULT, meta="3 accounts"))
+    console.print(
+        Figure(
+            Panel("Figure content block", DEFAULT, width=36, fill="bg_inset"),
+            DEFAULT,
+            caption="Figure: compact inset panel sample",
+        )
+    )
     icons_line = Text()
     for name in ["account", "inbox", "sent", "search", "settings"]:
         icons_line.append_text(icon(name, DEFAULT, tone="fg_muted"))

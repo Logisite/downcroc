@@ -31,6 +31,7 @@ class CodePanel:
         copied: bool = False,
         show_badge: bool = True,
         button_state: str = "default",
+        highlight_lines: set[int] | None = None,
     ) -> None:
         self.source = source.rstrip("\n")
         self.theme = theme
@@ -40,6 +41,7 @@ class CodePanel:
         self.copied = copied
         self.show_badge = show_badge
         self.button_state = button_state
+        self.highlight_lines = highlight_lines or set()
 
     def copy(self) -> bool:
         """Copy the source to the clipboard and flip the button state."""
@@ -110,6 +112,7 @@ class CodePanel:
             background_color=theme.code_bg,
             line_numbers=True,
             indent_guides=True,
+            highlight_lines=self.highlight_lines,
         )
         render_opts = options.update_width(width)
         for line in console.render_lines(

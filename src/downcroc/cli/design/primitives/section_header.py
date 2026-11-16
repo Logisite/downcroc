@@ -18,11 +18,13 @@ class SectionHeader:
         *,
         meta: str = "",
         width: int | None = None,
+        rule: bool = True,
     ) -> None:
         self.title = title
         self.theme = theme
         self.meta = meta
         self.width = width
+        self.rule = rule
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
@@ -35,6 +37,7 @@ class SectionHeader:
             line.append("  ", style=theme.style("bg_page"))
             line.append(self.meta, style=theme.style("fg_faint"))
         yield line
-        rule_len = max(min(width, len(line.plain) + 4), len(self.title))
-        yield Text("─" * rule_len, style=theme.style("border_subtle"))
+        if self.rule:
+            rule_len = min(max(width, 8), max(len(line.plain), 16))
+            yield Text("─" * rule_len, style=theme.style("border_subtle"))
         yield Text("")

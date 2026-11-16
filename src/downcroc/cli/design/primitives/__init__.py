@@ -11,6 +11,7 @@ from downcroc.cli.design.primitives.code_panel import (
     sample_shell,
 )
 from downcroc.cli.design.primitives.empty_state import EmptyState
+from downcroc.cli.design.primitives.figure import Figure
 from downcroc.cli.design.primitives.icon import icon, status_dot
 from downcroc.cli.design.primitives.key_value import KeyValue
 from downcroc.cli.design.primitives.keybar import keybar, keycap
@@ -44,6 +45,7 @@ __all__ = [
     "Card",
     "CodePanel",
     "EmptyState",
+    "Figure",
     "KeyValue",
     "ListBlock",
     "ListItem",
