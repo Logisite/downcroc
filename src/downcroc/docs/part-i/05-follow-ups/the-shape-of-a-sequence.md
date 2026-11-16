@@ -7,40 +7,73 @@ screens: []
 
 # The shape of a sequence
 
-A follow-up is described as a step: wait this long, then send this, but only if
-it still makes sense. When you read or write a sequence, you are really reading
-a few simple decisions repeated for each step.
+A follow-up is described as a [[follow_up_step|step]]: wait this long, then send
+this, but only if it still makes sense. When you read or write a sequence, you
+are really reading a few simple decisions repeated for each step.
 
 ## When and whether
 
-Every step waits for a number of days before it becomes due. The `after_days`
-value is that wait, counted from the point the step follows. The `when` value
-says the condition. With `no_reply`, the step goes out only if the thread has
-stayed quiet; if the person has already answered, there is nothing to follow up
-on.
+Every step waits a number of days before it becomes due. `after_days` is that
+wait (1–365), counted from the point the step follows. `when` says the condition:
+`no_reply` sends only if the thread stayed quiet; `always` sends when due even if
+there was a reply (subject to other stop rules). A step can also ask for
+[[approval]] before it sends (`require_approval`), so downcroc prepares it but
+waits for you.
 
-A step can also ask for your approval before it sends. Marking it to require
-approval means downcroc will prepare the follow-up but wait for you to review
-it, which is useful when the later message should be checked by a person.
+## Content and identity
 
-## Naming a step
+Each step has a `key`, a short name that identifies it in the sequence. The key
+is how you refer to it later to inspect, change, or stop it; keys must be unique
+where required and stay meaningful once used.
 
-Each step has a key, a short name that tells it apart from the others in the
-same sequence. The key is how you refer to that step later when you want to
-look at it, change it, or stop it. Because the key identifies the step, two
-steps in the same sequence do not share one, and a key that has already been
-used for a step stays taken.
+A step needs something to send: `text` or `html` (or both). `subject` is
+optional — if you omit it, the follow-up is sent as a reply using the original
+subject in reply form. This keeps the message in the same conversation.
 
-## Following up as replies
+## Writing it in a campaign file
 
-A follow-up does not start over. It is sent as a reply on the original thread,
-to the person the original message went to, from the mailbox that sent it.
-That is what keeps a sequence feeling like one conversation rather than a
-string of unrelated notes.
+In a campaign JSON, steps live in the top-level `followups` list, and a message
+can carry per-recipient overrides for a step under `messages[].followups` keyed
+by step key:
 
-You can describe steps up front in a campaign file, or add and manage them on a
-batch after it exists. Either way, the shape is the same: a named step, a wait,
-a condition, and the message it will send.
+```json
+"followups": [
+  {
+    "key": "nudge",
+    "after_days": 3,
+    "when": "no_reply",
+    "text": "Just checking in on my earlier note.",
+    "require_approval": false
+  }
+]
+```
+
+```json
+"messages": [
+  {
+    "key": "m1",
+    "to": { "email": "ana@example.com" },
+    "subject": "Hello",
+    "text": "Hi Ana, ...",
+    "followups": { "nudge": { "skip": true } }
+  }
+]
+```
+
+An override may set `subject`, `text`, `html`, or `skip: true` for that
+recipient and that step. It must name a step key that exists in `followups`.
+
+## Adding it later: declarations
+
+After a batch exists you can add a step as a [[follow_up_declaration]]. A
+[[shared_declaration]] gives one schedule and shared content (plus optional
+overrides by parent message key). A [[payload_declaration]] gives a `followup`
+schedule block and an explicit `messages` list — one message per parent
+recipient — so each person can receive specific content.
+
+Those forms, and the rules for declaring, updating, removing, and retiring, are
+detailed in Part II. The important idea is the same in every case: a named step,
+a wait, a condition, and the message it will send as a reply.
 
 ⤷ adding a follow-up to work that already exists:
   [add-a-follow-up-to-a-batch.md](add-a-follow-up-to-a-batch.md)

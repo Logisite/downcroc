@@ -111,7 +111,7 @@ routing, not to the individual message.
 ## The follow-ups: what happens later
 
 A follow-up is a message that goes out after some time, usually only if nobody
-replied. You describe them in the `followups` block.
+replied. In a campaign file you describe planned steps in the `followups` block.
 
 ```json
 "followups": [
@@ -126,18 +126,42 @@ replied. You describe them in the `followups` block.
 ]
 ```
 
-`after_days` says how long to wait, and `when` says the condition: `no_reply`
-means send it only if the thread stayed quiet. Each follow-up step has a
-`key` that names it, so you and downcroc can tell one step from another.
-`require_approval` lets you ask for a human check before that later message
-goes out. A file with no follow-ups can leave this block out or keep it empty.
+Each step needs a `key` (its name). `after_days` (1–365) says how long to wait,
+and `when` says the condition: `no_reply` means send only if the thread stayed
+quiet; `always` means send when due regardless of a reply. A step must include
+`text` or `html` (or both); `subject` is optional — if you leave it out, the
+follow-up replies with the original subject in reply form. `require_approval`
+lets you ask for a human check before that later message goes out.
 
-Taken together, these blocks tell one complete story: a named send, with rules,
-carrying specific messages, and maybe a plan for what comes after. When you
-need the exact name and allowed value of every field, Part II has the full
-contract.
+You can also tailor a step for a specific person inside a message. Under that
+message, add a `followups` object keyed by the step key and set only what should
+change (or `skip` that step for them):
 
-⤷ the complete field-by-field contract for campaign files:
-  [../part-ii/08-batch/submit.md](../part-ii/08-batch/submit.md)
-⤷ declaring and managing follow-ups in depth:
+```json
+{
+  "key": "m1",
+  "to": { "email": "ana@example.com", "name": "Ana" },
+  "subject": "A quick question",
+  "text": "Hi Ana,\n\nDo you have a moment this week?\n",
+  "followups": {
+    "nudge": { "skip": false, "subject": "Checking in, Ana" }
+  }
+}
+```
+
+An override must refer to a step key that exists in the campaign `followups`. A
+file with no follow-ups can leave the block out or keep it empty.
+
+These blocks tell one complete story in the file: a named send, with rules,
+messages, and a planned sequence. Follow-ups can also be added or changed later
+on an existing [[batch]] as declarations (shared or payload-backed); Part II
+explains those forms and their rules.
+
+Taken together, this is the campaign JSON shape downcroc reads. When you need
+every field, allowed value, and constraint, Part II has the full contract and the
+`batch schema` command prints it from your installed version.
+
+⤷ the full campaign JSON contract (fields, routing/options, follow-ups, CSV/templates):
+  [../part-ii/08-batch/prepare.md](../part-ii/08-batch/prepare.md)
+⤷ declaring and managing follow-ups in depth (inline vs retroactive, shared/payload):
   [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)

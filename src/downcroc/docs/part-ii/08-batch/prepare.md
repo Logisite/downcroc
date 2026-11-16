@@ -94,12 +94,58 @@ downcroc batch preview <path> [--template NAME|PATH] [--account ID] [--key KEY] 
 
 Use `preview` to confirm recipients, subjects, bodies, routing, and follow-ups before you submit.
 
-## Input notes (as reflected by validation/schema)
+## Campaign JSON (how to write and read it)
 
-- Input is detected as JSON or CSV by content/shape. CSV inputs require a template (`--template`).
-- The campaign key may be omitted and derived from the file name when not provided. Message keys may be omitted and are auto-named in order (`m1`, `m2`, …). Follow-up step keys are required.
-- Per-message account fields are rejected in the message body; routing (including fixed account or auto selection with include/exclude) is expressed in campaign routing.
-- Campaign options (such as approval mode, reply suppression/window, `not_before`, stop conditions, and duplicate handling) and follow-up definitions are part of the contract shown by `batch schema` and enforced by validation.
+`downcroc batch schema` prints the machine-readable/human contract from your
+installed version. The summary below reflects the same structure
+(`schema: "downcroc.campaign/v1"`).
+
+**Top level:** `schema` (optional, defaults to supported schema), optional
+`producer` (free-form, stored), `campaign`, `messages`, and optional `followups`.
+Unknown fields are rejected except extension keys prefixed with `x-` in supported
+objects; some standard mail headers in message-like input are ignored/reported.
+
+**`campaign`**
+- `key`: string (≤128 chars), defaults to the file stem. `name`: defaults to key.
+- `routing.mode`: `auto` or `fixed`. `fixed` requires `routing.account` (id or
+  address). `include`/`exclude` are lists of account ids/addresses. Per-message
+  account selection is not expressed in the message body (use campaign routing or
+  `--account` on submit/preview/validate).
+- `options`: `approval` `review`|`auto` (default `review`), `suppress_replies`
+  boolean (default `true`), `reply_window_days` 0–3650 (default `60`),
+  `not_before` ISO 8601 timestamp, `stop_on` list containing `reply`/`bounce`,
+  `allow_duplicates` boolean (default `false`).
+
+**`messages[]`** (required, at least one). Each message becomes a [[job]]:
+- `key`: string (≤128), defaults to `m1`, `m2`, … in order.
+- `to`: `{ "email": "<addr>", "name": "<optional>" }` (email required/valid).
+- `subject`: required, non-empty string. `text` and/or `html` body required.
+- `reply_to`: optional address. `attachments`: list of paths relative to the
+  campaign file (must stay inside the source directory and meet size/validity
+  rules).
+- `followups`: optional per-message overrides keyed by [[follow_up_step]] key,
+  each with optional `subject`, `text`, `html`, and/or `skip` (boolean). A key
+  used here must match a step declared in `followups`.
+
+**`followups[]`** (inline campaign steps): each step has `key` (unique, required),
+`after_days` (1–365), `when` (`no_reply` or `always`, default `no_reply`),
+optional `subject`, `text` and/or `html`, and `require_approval` (boolean, default
+`false`). These define the planned sequence in the campaign; recipients may
+receive per-step overrides from `messages[].followups`.
+
+For **retroactive** follow-up definitions added to an existing batch (shared vs
+payload [[follow_up_declaration]] JSON, versioning, remove/retire), see
+[followups](followups.md).
+
+## Input notes
+
+- Input is detected as JSON or CSV by content/shape (UTF-8). CSV inputs require a
+  template (`--template`); template/CSV variables and manifests are described by
+  `batch schema`/examples.
+- The campaign key may be derived from the file name when omitted. Message keys
+  may be auto-named (`m1`, `m2`, …). Step keys are required.
+- Duplicate recipients are rejected unless `campaign.options.allow_duplicates`
+  is true. Overlap with recent recipients may be reported during validate/submit.
 
 ## Common flags
 

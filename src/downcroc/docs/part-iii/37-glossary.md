@@ -98,17 +98,44 @@ More: [the failed command](../part-ii/24-failed.md), [why things fail](32-failur
 
 See also: [[job]], [[code]]
 
-### follow_up
+### follow-up
 
-A follow-up is a message planned to go out after an earlier one, as a reply in
-the same thread. It waits for a set time and sends only when its condition is
-still true, such as when the person has not replied.
+A follow-up is a message planned to go out after an earlier one, as a reply in the same [[thread]]. It waits for a set time and sends only when its condition is still true (for example when the person has not replied, depending on `when` and stop/suppression rules).
 
-Follow-ups belong to a batch and are sent by the mailbox that sent the
-original message, so the conversation stays in one place.
+Follow-ups belong to a [[batch]] and are sent from the mailbox that sent the original message. A sequence is made of named follow-up steps, defined in a campaign file or added later as follow-up declarations.
 
 More:
-- [../part-ii/19-followups.md](../part-ii/19-followups.md)
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
+- [../part-i/05-follow-ups/what-is-a-follow-up.md](../part-i/05-follow-ups/what-is-a-follow-up.md)
+
+### follow-up declaration
+
+A follow-up declaration defines a follow-up step for an existing campaign [[batch]] outside the original campaign file (using `batch followups declare` / related commands). Declarations can be **shared** (one template/patch applied per recipient with optional overrides) or **payload-backed** (explicit per-recipient messages with a schedule).
+
+Declarations are versioned, can be declared before they run, removed before send, or retired to stop further planning while keeping history, subject to state and conflict rules.
+
+More:
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
+- [../part-i/05-follow-ups/change-a-sequence.md](../part-i/05-follow-ups/change-a-sequence.md)
+
+### follow-up override
+
+A follow-up override customizes what a particular recipient receives for a named follow-up step. In a campaign JSON, overrides live under a message’s `followups` object keyed by step key (and may set `subject`, `text`, `html`, or `skip`). In a shared declaration, overrides are provided in the declaration’s `overrides` object keyed by parent message key.
+
+Overrides must refer to known step/message keys as applicable.
+
+More:
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
+
+### follow-up step
+
+A follow-up step is a single planned follow-up in a sequence: it has a key, a wait (`after_days`), a condition (`when`, such as `no_reply` or `always`), the message content to send, and whether it requires approval.
+
+Steps can be defined up front in a campaign’s `followups` list or added later as a follow-up declaration on a [[batch]]. Each step is identified by its key within that sequence/parent context.
+
+More:
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
+- [../part-i/05-follow-ups/the-shape-of-a-sequence.md](../part-i/05-follow-ups/the-shape-of-a-sequence.md)
 
 ## H
 
@@ -173,6 +200,15 @@ See also: [[vault]], [[job]]
 
 ## P
 
+### payload declaration
+
+A payload declaration is a kind of [[follow-up declaration]] whose JSON provides a `followup` schedule block and a `messages` list (or an array/document form accepted by the parser) with one message per parent recipient. Each recipient gets the explicitly provided content for that step.
+
+Payload declarations must cover the parent recipients (no gaps) without naming extras, and have stricter constraints than campaign messages (for example no attachments and no template variables in declaration payload messages).
+
+More:
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
+
 ### provider
 
 A declaration of how to talk to a mail service: its hosts and ports, auth
@@ -218,6 +254,13 @@ inbox, only that the server took it.
 More: [job states](33-states.md)
 
 See also: [[job]], [[queued]]
+
+### shared declaration
+
+A shared declaration is a kind of [[follow-up declaration]] whose JSON defines the step schedule/condition and shared content (`text`/`html`, optional `subject`, `require_approval`) plus optional `overrides` keyed by parent message key. downcroc applies that shared content to eligible recipients, using any override for a specific recipient.
+
+More:
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
 
 ### suppressed
 
