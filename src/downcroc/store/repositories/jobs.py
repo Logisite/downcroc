@@ -187,6 +187,22 @@ class JobRepo(JobSenderRepo, JobStateRepo):
             )
             return {state: count for state, count in rows}
 
+    def last_activity(self, batch_ids: list[str]) -> dict[str, str]:
+        if not batch_ids:
+            return {}
+        moment = func.max(func.coalesce(JobRow.sent_at, JobRow.updated_at))
+        with self._sessions() as session:
+            rows = session.execute(
+                select(JobRow.batch_id, moment)
+                .where(JobRow.batch_id.in_(batch_ids))
+                .group_by(JobRow.batch_id)
+            )
+            return {
+                batch_id: value
+                for batch_id, value in rows
+                if isinstance(value, str) and value
+            }
+
     def account_counts(self, account_id: str) -> dict[str, int]:
         with self._sessions() as session:
             rows = session.execute(

@@ -114,6 +114,7 @@ def create_app(
     app.include_router(jobs.router)
     app.include_router(batches.router)
     app.include_router(followups.router)
+    app.include_router(followups.outlook_router)
     app.include_router(failed.router)
     app.include_router(failed.aliases)
     app.include_router(stats.router)

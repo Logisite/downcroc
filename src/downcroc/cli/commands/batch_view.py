@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from downcroc.cli import inputs, schema
+from downcroc.cli import inputs, reltime, schema
 from downcroc.cli import paths as path_tools
 from downcroc.cli.commands import when
 from downcroc.cli.output import json_out, record, table
@@ -72,6 +72,81 @@ def listing(rows: list[dict], ui: Ui) -> None:
     if waiting and not ui.quiet:
         print()
         print(f"next: downcroc review ({len(waiting)} waiting)")
+
+
+def listing_parents(rows: list[dict], ui: Ui) -> None:
+    table(
+        [
+            "batch",
+            "name",
+            "sent",
+            "replies",
+            "steps",
+            "last follow-up",
+            "pending",
+            "last activity",
+        ],
+        [
+            [
+                item["id"],
+                item["name"],
+                item["counts"].get("sent", 0),
+                item["counts"].get("replies", 0),
+                _steps(item),
+                _last_followup(item),
+                _pending(item),
+                reltime.ago(_last_activity(item)),
+            ]
+            for item in rows
+        ],
+    )
+    if not rows:
+        print("no batches match")
+        if not ui.quiet:
+            print("next: downcroc batch validate campaign.json")
+
+
+def _steps(batch: dict) -> str:
+    summary = batch.get("followups") or {}
+    steps = summary.get("steps") or []
+    return " ".join(str(step) for step in steps) if steps else "-"
+
+
+def _last_followup(batch: dict) -> str:
+    summary = batch.get("followups") or {}
+    last = summary.get("last")
+    if not last:
+        return "-"
+    return f"{last.get('step')} · {reltime.ago(last.get('at'))}"
+
+
+def _pending(batch: dict) -> str:
+    summary = batch.get("followups") or {}
+    pending = summary.get("pending") or {}
+    steps = pending.get("steps") or []
+    parts = []
+    for item in steps:
+        waiting = int(item.get("waiting") or 0)
+        state = str(item.get("state") or "")
+        if waiting > 0:
+            parts.append(f"{item.get('step')} {waiting}w")
+        elif state in {
+            "awaiting_approval",
+            "scheduled",
+            "sending",
+            "pending",
+            "deferred",
+        }:
+            parts.append(str(item.get("step")))
+    return " ".join(parts) if parts else "-"
+
+
+def _last_activity(batch: dict) -> str | None:
+    summary = batch.get("followups") or {}
+    activity = summary.get("last_activity")
+    if activity:
+        return str(activity)
+    return batch.get("approved_at") or batch.get("created_at")
 
 
 def _state(batch: dict) -> str:

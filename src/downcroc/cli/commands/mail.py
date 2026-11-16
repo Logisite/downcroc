@@ -7,7 +7,8 @@ from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, bytes_of, get, get_page, post
 from downcroc.cli.context import load
 from downcroc.cli.output import json_out, page_footer, record, table
-from downcroc.cli.ui import prompts
+from downcroc.cli.ui import card, prompts
+from downcroc.cli.ui.frame import columns
 from downcroc.cli.ui.menu import open_menu
 from downcroc.cli.ui.session import Ui, build
 
@@ -56,39 +57,11 @@ def _messages(rows: list[dict]) -> None:
     )
 
 
-def _message(message: dict) -> None:
-    record(
-        {
-            "id": message["id"],
-            "account": message["account_id"],
-            "folder": message["folder"],
-            "uid": message["uid"],
-            "message_id": message["message_id"],
-            "from": message["from_address"],
-            "to": ", ".join(message["to"]),
-            "subject": message["subject"],
-            "date": message["date"],
-            "reply": _reply(message["reply_state"]),
-            "thread": message["thread_id"],
-            "job": message["job_id"],
-            "dsn": message["is_dsn"],
-            "attachments": len(message["attachments"]),
-        }
-    )
-    for attachment in message["attachments"]:
-        print(
-            f"  {attachment['id']}  {attachment['filename']}  "
-            f"{attachment['size']} bytes"
-        )
-    body = message.get("body_text")
-    if body:
-        print()
-        print(body)
-        if message.get("body_truncated"):
-            print("[body truncated]")
-    else:
-        print()
-        print("(no text body)")
+def _message(message: dict, ui: Ui) -> None:
+    payload = {**message, "reply_label": _reply(message.get("reply_state"))}
+    width = max(1, columns(ui) - 1)
+    for line in card.mail_card(ui, payload, width):
+        print(line)
 
 
 def _threads(rows: list[dict]) -> None:
@@ -212,8 +185,13 @@ def _thread(client, args: object, ui: Ui) -> int:
             "last_seen": thread["last_seen"],
         }
     )
-    _messages(detail["messages"])
-    _explain(detail["messages"])
+    summaries = detail.get("messages") or []
+    for index, item in enumerate(summaries):
+        if index:
+            print()
+        full = get(client, f"/api/messages/{item['id']}")
+        _message(full, ui)
+    _explain(summaries)
     return 0
 
 
@@ -269,5 +247,5 @@ def run(args: object) -> int:
         if ui.json_mode:
             json_out(message)
         else:
-            _message(message)
+            _message(message, ui)
         return 0

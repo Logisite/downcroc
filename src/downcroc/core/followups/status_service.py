@@ -197,9 +197,12 @@ class StatusService:
             child_batch_id=child.id if child is not None else None,
             counts=counts,
             detail=detail,
+            next_due_at=evaluation.next_due_at if evaluation else None,
         )
 
     def _children(self, parent_id: str) -> list[Batch]:
+        if hasattr(self._batches, "list_children"):
+            return self._batches.list_children(parent_id)
         return [
             batch
             for batch in self._batches.list(limit=10_000)

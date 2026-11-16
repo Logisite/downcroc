@@ -268,6 +268,13 @@ class MessageRepo(InboundMixin):
             ).all()
             return _thread(row), [_summary(item, total) for item, total in messages]
 
+    def find_thread_by_root(self, root_message_id: str) -> Thread | None:
+        with self._sessions() as session:
+            row = session.scalar(
+                select(ThreadRow).where(ThreadRow.root_message_id == root_message_id)
+            )
+            return None if row is None else _thread(row)
+
     def activity_rows(self) -> list[tuple[str, str, bool, str, str | None]]:
         with self._sessions() as session:
             rows = session.execute(

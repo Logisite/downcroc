@@ -282,3 +282,47 @@ def test_submit_without_a_key_is_never_reused(stack: Stack) -> None:
     assert second["reused"] is False
     assert second["id"] != first["id"]
     assert len(stack.api.get("/api/batches")) == 2
+
+
+def test_batch_list_parents_shows_followup_summary(stack_factory) -> None:
+    from tests.harness.dispatch import dispatch_config
+    from tests.harness.followups import age_jobs, done, recipient_job, step
+    from tests.harness.inbound import cli_json
+
+    stack = stack_factory(accounts=["alice@local.test"], config_extra=dispatch_config())
+    account = stack.accounts[0]
+    batch = submit(
+        stack,
+        campaign_of(
+            2,
+            options={"approval": "auto"},
+            routing={"mode": "fixed", "account": account},
+            followups=[
+                {
+                    "key": "bump-1",
+                    "after_days": 1,
+                    "subject": "Bump one",
+                    "text": "Bump one body",
+                }
+            ],
+        ),
+        "parents.json",
+    )
+    done(stack, batch["id"])
+    first = recipient_job(batch, "person1@example.com")
+    second = recipient_job(batch, "person2@example.com")
+    age_jobs(stack, [first["id"], second["id"]], 3)
+
+    step_one = step(stack, batch["id"], "bump-1")
+    done(stack, step_one["id"])
+
+    rows = stack.api.get("/api/batches?parents=true")
+    assert [row["id"] for row in rows] == [batch["id"]]
+    summary = rows[0]["followups"]
+    assert summary["steps"] == ["bump-1"]
+    assert summary["last"]["step"] == "bump-1"
+    assert summary["last"]["at"]
+
+    listed = cli_json(stack, "batch", "list", "--parents", "--json")
+    assert listed[0]["id"] == batch["id"]
+    assert listed[0]["followups"]["last"]["step"] == "bump-1"

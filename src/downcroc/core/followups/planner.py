@@ -144,6 +144,7 @@ class Planner:
         candidates: list[Candidate] = []
         skipped: list[Skip] = []
         replied = bounced = suppressed = pending = not_due = broken = 0
+        next_due: datetime | None = None
         for parent in initial_jobs:
             reason = self._stopped_reason(declaration, step.when, parent, context)
             if reason is not None:
@@ -168,11 +169,14 @@ class Planner:
                 skipped.append(Skip(parent.id, step.key, "override"))
                 continue
             anchor = context.latest_sent(parent.id)
-            if anchor is None:
+            if anchor is None or anchor.sent_at is None:
                 skipped.append(Skip(parent.id, step.key, "parent_not_sent"))
                 continue
-            if not _due(anchor, step):
+            due_at = _due_at(anchor, step)
+            if due_at > datetime.now().astimezone():
                 not_due += 1
+                if next_due is None or due_at < next_due:
+                    next_due = due_at
                 continue
             try:
                 chain = build_chain(parent, anchor, context.chain(parent.id))
@@ -203,6 +207,7 @@ class Planner:
             pending=pending,
             not_due=not_due,
             broken=broken,
+            next_due_at=next_due.isoformat() if next_due is not None else None,
         )
 
     def immediate(
@@ -349,9 +354,8 @@ def _content(
     return Content(subject=subject, text=text, html=html)
 
 
-def _due(anchor: Job, step: FollowUpStep) -> bool:
+def _due_at(anchor: Job, step: FollowUpStep) -> datetime:
     if anchor.sent_at is None:
-        return False
+        return datetime.now().astimezone()
     local = parse_utc(anchor.sent_at).astimezone()
-    due = local + timedelta(days=step.after_days)
-    return due <= datetime.now().astimezone()
+    return local + timedelta(days=step.after_days)

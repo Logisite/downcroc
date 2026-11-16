@@ -179,6 +179,15 @@ class BatchRepo:
             )
             return [_to_batch(row) for row in rows]
 
+    def list_children(self, parent_id: str) -> list[Batch]:
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(BatchRow)
+                .where(BatchRow.parent_batch_id == parent_id)
+                .order_by(BatchRow.created_at, BatchRow.id)
+            )
+            return [_to_batch(row) for row in rows]
+
     def delete(self, batch_id: str) -> BatchDelete:
         with self._sessions.begin() as session:
             row = self._row(session, batch_id)

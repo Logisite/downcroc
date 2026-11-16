@@ -380,6 +380,23 @@ def logs(commands: argparse._SubParsersAction) -> None:
     common(parser)
 
 
+def followups(commands: argparse._SubParsersAction) -> None:
+    parser = commands.add_parser(
+        "followups",
+        help="see which follow-ups need attention",
+        epilog="example:\n  downcroc followups due --due 7d",
+    )
+    actions = parser.add_subparsers(dest="action", required=False)
+
+    due = actions.add_parser("due", help="list follow-ups that are due or upcoming")
+    due.add_argument(
+        "--due",
+        default="today",
+        help="window: today, 7d, Nd, or all",
+    )
+    common(due)
+
+
 def _log_limit(value: str) -> int:
     try:
         number = int(value)

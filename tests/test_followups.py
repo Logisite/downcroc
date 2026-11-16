@@ -357,3 +357,99 @@ def test_followup_inherits_the_parent_job_account(stack_factory) -> None:
     assert item["account_id"] == alice
     assert item["account_id"] != bob
     sent(stack, item["message_id"])
+
+
+def test_followups_outlook_lists_upcoming_steps(stack_factory) -> None:
+    from tests.harness.inbound import cli_json
+
+    stack = stack_factory(accounts=["alice@local.test"], config_extra=dispatch_config())
+    account = stack.accounts[0]
+    batch = submit(
+        stack,
+        campaign_of(
+            2,
+            options={"approval": "auto"},
+            routing={"mode": "fixed", "account": account},
+            followups=[
+                {
+                    "key": "bump-1",
+                    "after_days": 5,
+                    "subject": "Bump one",
+                    "text": "Bump one body",
+                }
+            ],
+        ),
+        "outlook.json",
+    )
+    done(stack, batch["id"])
+
+    outlook = stack.api.get("/api/followups/outlook?due=7d")
+    items = outlook["items"]
+    assert any(
+        item["batch_id"] == batch["id"]
+        and item["step"] == "bump-1"
+        and item["next_due_at"]
+        for item in items
+    )
+
+    listed = cli_json(stack, "followups", "due", "--due", "7d", "--json")
+    assert any(
+        item["batch_id"] == batch["id"] and item["step"] == "bump-1"
+        for item in listed["items"]
+    )
+
+
+def test_batch_thread_shows_steps_and_recipient_chain(stack_factory) -> None:
+    from tests.harness.inbound import cli_json
+
+    stack = stack_factory(accounts=["alice@local.test"], config_extra=dispatch_config())
+    account = stack.accounts[0]
+    batch = submit(
+        stack,
+        campaign_of(
+            2,
+            options={"approval": "auto"},
+            routing={"mode": "fixed", "account": account},
+            followups=[
+                {
+                    "key": "bump-1",
+                    "after_days": 1,
+                    "subject": "Bump one",
+                    "text": "Bump one body",
+                }
+            ],
+        ),
+        "thread.json",
+    )
+    done(stack, batch["id"])
+    first = recipient_job(batch, "person1@example.com")
+    second = recipient_job(batch, "person2@example.com")
+
+    reply(
+        stack,
+        account,
+        from_address="person1@example.com",
+        subject="Re: Subject 1",
+        in_reply_to=first["message_id"],
+        references=(first["message_id"],),
+        expected=1,
+    )
+    age_jobs(stack, [first["id"], second["id"]], 3)
+    step_one = step(stack, batch["id"], "bump-1")
+    done(stack, step_one["id"])
+
+    payload = stack.api.get(f"/api/batches/{batch['id']}/thread")
+    assert payload["batch"]["id"] == batch["id"]
+    assert any(item["step"] == "bump-1" for item in payload["steps"])
+
+    chain = stack.api.get(
+        f"/api/batches/{batch['id']}/thread?recipient=person1@example.com"
+    )
+    recipient = chain["recipient"]
+    assert recipient["recipient"] == "person1@example.com"
+    assert recipient["jobs"]
+    assert recipient["thread"] is not None
+    assert recipient["thread"]["messages"]
+
+    listed = cli_json(stack, "batch", "thread", batch["id"], "--json")
+    assert listed["batch"]["id"] == batch["id"]

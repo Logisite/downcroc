@@ -68,6 +68,31 @@ class BatchDeleteOut(BaseModel):
     dry_run: bool = False
 
 
+class FollowUpLastOut(BaseModel):
+    step: str
+    at: str
+
+
+class FollowUpPendingStepOut(BaseModel):
+    step: str
+    waiting: int
+    state: str
+
+
+class FollowUpPendingOut(BaseModel):
+    total: int
+    steps: list[FollowUpPendingStepOut] = Field(default_factory=list)
+
+
+class BatchFollowUpsOut(BaseModel):
+    steps: list[str] = Field(default_factory=list)
+    last: FollowUpLastOut | None = None
+    pending: FollowUpPendingOut = Field(
+        default_factory=lambda: FollowUpPendingOut(total=0, steps=[])
+    )
+    last_activity: str | None = None
+
+
 class BatchOut(BaseModel):
     id: str
     kind: str
@@ -90,6 +115,7 @@ class BatchOut(BaseModel):
     paused_at: str | None = None
     paused_reason: str | None = None
     eta: dict[str, object] | None = None
+    followups: BatchFollowUpsOut | None = None
 
     @classmethod
     def of(
@@ -97,6 +123,7 @@ class BatchOut(BaseModel):
         batch: Batch,
         counts: dict[str, int],
         eta: dict[str, object] | None = None,
+        followups: dict[str, object] | None = None,
     ) -> BatchOut:
         return cls(
             id=batch.id,
@@ -120,6 +147,7 @@ class BatchOut(BaseModel):
             paused_at=batch.paused_at,
             paused_reason=batch.paused_reason,
             eta=eta,
+            followups=BatchFollowUpsOut(**followups) if followups is not None else None,
         )
 
 

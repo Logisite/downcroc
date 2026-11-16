@@ -266,7 +266,9 @@ def check_pointers(pages: list[Page]) -> list[str]:
             resolved = (page.path.parent / raw).resolve()
             name = Path(raw).name
             alias_target = aliases.get(name)
-            alias_resolved = (part_ii / alias_target).resolve() if alias_target else None
+            alias_resolved = (
+                (part_ii / alias_target).resolve() if alias_target else None
+            )
             if not (
                 resolved.is_file()
                 or name in stubs
@@ -329,7 +331,6 @@ def check_part_i_caps(pages: list[Page]) -> list[str]:
                     errors.append(f"part I error-code table in {page.rel}")
                 break
     return errors
-
 
 
 LOG_EVENT_CALL = re.compile(
@@ -421,8 +422,8 @@ def check_config_reference() -> list[str]:
         fields = describe()
     except Exception as error:  # noqa: BLE001
         return [f"config reference check failed: {error}"]
-    for field in fields:
-        path = str(field.get("path") or "")
+    for item in fields:
+        path = str(item.get("path") or "")
         if not path:
             continue
         if f"`{path}`" not in text:

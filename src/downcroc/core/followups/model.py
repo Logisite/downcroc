@@ -45,3 +45,4 @@ class StepEvaluation:
     pending: int = 0
     not_due: int = 0
     broken: int = 0
+    next_due_at: str | None = None

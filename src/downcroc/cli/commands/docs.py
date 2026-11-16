@@ -80,15 +80,68 @@ def _list(ui: Ui, pages: list[model.Page]) -> int:
             ]
         )
         return 0
-    section = ""
+
+    root: dict[str, object] = {"dirs": {}, "pages": []}
+
+    def label(name: str) -> str:
+        raw = name.replace("_", "-").split("-", 1)
+        if raw[0].isdigit() and len(raw) > 1:
+            name = raw[1]
+        parts = name.replace("-", " ").split()
+        words = []
+        for part in parts:
+            if part.isdigit() or part.lower() in {"i", "ii", "iii", "iv", "v"}:
+                words.append(part.upper() if len(part) <= 4 else part.title())
+            else:
+                words.append(part.title())
+        return " ".join(words)
+
     for page in pages:
-        current = page.rel.split("/", 1)[0] if "/" in page.rel else ""
-        if current != section:
-            section = current
-            print(ui.bold(section.title() if section else page.title))
-        label = f"  {page.title}"
+        parts = page.rel.split("/")
+        node = root
+        for part in parts[:-1]:
+            dirs = node["dirs"]  # type: ignore[index]
+            if part not in dirs:
+                dirs[part] = {"dirs": {}, "pages": []}
+            node = dirs[part]
+        node["pages"].append(page)  # type: ignore[index]
+
+    def walk(node: dict[str, object], prefix: str) -> None:
+        dirs = node["dirs"]  # type: ignore[index]
+        leaves = node["pages"]  # type: ignore[index]
+        entries: list[tuple[str, str, object]] = []
+        for key in sorted(dirs):
+            entries.append(("dir", key, dirs[key]))
+        for page in leaves:
+            entries.append(("page", page.rel, page))
+        for index, (kind, key, value) in enumerate(entries):
+            last = index == len(entries) - 1
+            branch = "└─ " if last else "├─ "
+            child_prefix = prefix + ("   " if last else "│  ")
+            if kind == "dir":
+                print(f"{prefix}{branch}{ui.bold(label(str(key)))}")
+                walk(value, child_prefix)  # type: ignore[arg-type]
+            else:
+                page = value  # type: ignore[assignment]
+                line = f"{prefix}{branch}{page.title}"
+                summary = page.summary or page.description
+                if summary:
+                    line = f"{line}  {ui.dim(summary)}"
+                print(line)
+
+    index_pages = root["pages"]  # type: ignore[index]
+    if index_pages:
+        page = index_pages[0]
+        line = ui.bold(page.title)
         summary = page.summary or page.description
-        print(f"{label:<34} {ui.dim(summary)}" if summary else label)
+        if summary:
+            line = f"{line}  {ui.dim(summary)}"
+        print(line)
+        if root["dirs"]:
+            print()
+
+    tree_root = {"dirs": root["dirs"], "pages": []}
+    walk(tree_root, "")
     return 0
 
 

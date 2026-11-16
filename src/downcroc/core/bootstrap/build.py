@@ -63,6 +63,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         presence=foundation.presence,
         auth_preflight=auth_preflight,
         providers=foundation.providers,
+        jobs=foundation.jobs,
         messages=foundation.messages,
         content=foundation.content,
         policy=foundation.policy,

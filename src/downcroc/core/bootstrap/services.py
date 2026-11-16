@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from downcroc.providers.registry import ProviderRegistry
     from downcroc.store.content import ContentStore
     from downcroc.store.repositories.events import EventRepo
+    from downcroc.store.repositories.jobs import JobRepo
     from downcroc.store.repositories.messages import MessageRepo
     from downcroc.store.repositories.send_attempts import SendAttemptRepo
 
@@ -50,6 +51,7 @@ class Services:
     presence: CredentialPresence
     auth_preflight: AuthPreflight
     providers: ProviderRegistry
+    jobs: JobRepo
     messages: MessageRepo
     content: ContentStore
     policy: PolicyResolver

@@ -44,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     other.config(commands)
     other.sending(commands)
     other.stats(commands)
+    other.followups(commands)
     other.mail(commands)
     other.logs(commands)
     other.files(commands)

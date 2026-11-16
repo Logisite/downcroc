@@ -27,6 +27,7 @@ class FollowUpStepOut(BaseModel):
     child_batch_id: str | None
     counts: dict[str, int]
     detail: str | None = None
+    next_due_at: str | None = None
 
     @classmethod
     def of(cls, row: StepStatus) -> FollowUpStepOut:
@@ -41,6 +42,7 @@ class FollowUpStepOut(BaseModel):
             child_batch_id=row.child_batch_id,
             counts=row.counts,
             detail=row.detail,
+            next_due_at=getattr(row, "next_due_at", None),
         )
 
 
@@ -58,3 +60,21 @@ class FollowUpStatusOut(BaseModel):
             dry_run=report.dry_run,
             changed=report.changed,
         )
+
+
+class FollowUpOutlookItemOut(BaseModel):
+    batch_id: str
+    batch_name: str
+    step: str
+    state: str
+    kind: str
+    after_days: int
+    when: str
+    child_batch_id: str | None = None
+    counts: dict[str, int]
+    next_due_at: str | None = None
+    last_sent_at: str | None = None
+
+
+class FollowUpOutlookOut(BaseModel):
+    items: list[FollowUpOutlookItemOut]

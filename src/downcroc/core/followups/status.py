@@ -27,6 +27,7 @@ class StepStatus:
     child_batch_id: str | None = None
     counts: dict[str, int] = field(default_factory=dict)
     detail: str | None = None
+    next_due_at: str | None = None
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,8 @@
 ---
 title: batch inspect
 commands: [batch.list, batch.show, batch.suppression]
-flags: [--state, --limit, --offset, --all, batch.show batch_id, batch.suppression batch_id]
-concepts: [batch]
+flags: [--state, --limit, --offset, --all, batch.list --parents, batch.list --sort, batch.show batch_id, batch.suppression batch_id]
+concepts: [batch, follow_up_step]
 screens: []
 ---
 
@@ -13,7 +13,7 @@ screens: []
 ## Usage
 
 ```text
-downcroc batch list [--state STATE] [--limit LIMIT] [--offset OFFSET]
+downcroc batch list [--state STATE] [--limit LIMIT] [--offset OFFSET] [--parents] [--sort {recent,stale}]
 downcroc batch show <batch_id> [--all]
 downcroc batch suppression <batch_id>
 ```
@@ -26,15 +26,19 @@ Lists batches.
 
 ```text
 downcroc batch list [--state STATE] [--limit LIMIT] [--offset OFFSET]
+downcroc batch list --parents [--sort {recent,stale}]
 ```
 
 - `--state` filters by batch state: `awaiting_approval`, `sending`, `done`, `cancelled`.
 - `--limit` sets maximum rows (1–500, default 100). `--offset` skips rows for paging.
+- `--parents` shows parent batches only, folding follow-up child batches into each parent row with a follow-up summary: declared steps, last follow-up step and when it happened (relative time, e.g. `fu1 · 4d`), pending/waiting follow-up work, and last activity.
+- `--sort {recent,stale}` controls ordering for `--parents` (default `recent`). `stale` puts the oldest-touched/most neglected parents first so batches that need follow-up attention rise to the top.
 
 **Output**
 
 - Default: prints a table of batches (id, name, kind, state — marked paused when applicable, approval, sent count, replies, eta, created time) and a page footer when paged. If no batches match, it reports that and suggests validating an input; if batches are awaiting approval, it suggests `downcroc review`.
-- With `--json`: prints the batch list as JSON.
+- With `--parents`: prints a parent-focused table (batch, name, sent, replies, steps, last follow-up, pending, last activity) with relative times. With `--json`, each row may include a `followups` summary (`steps`, `last`, `pending`, `last_activity`).
+- With `--json`: prints the batch list (and summaries when `--parents`) as JSON.
 
 ### show
 
@@ -87,7 +91,9 @@ downcroc batch suppression <batch_id>
 - [approve.md](approve.md) — approve or cancel a batch
 - [holds.md](holds.md) — pause and resume batches
 - [reassign.md](reassign.md) — reassign or delete a batch
-- [followups.md](followups.md) — follow-up steps and status
+- [followups.md](followups.md) — declare and inspect follow-up steps
+- [due.md](due.md) — cross-batch follow-up outlook
+- [thread.md](thread.md) — visualize a batch's follow-up thread and replies
 - [../09-job/job.md](../09-job/job.md) — inspect individual jobs
 - [../13-review/review.md](../13-review/review.md) — review batches awaiting approval
 - [../part-i/03-keeping-it-running/stuck.md](../part-i/03-keeping-it-running/stuck.md) — when work is not moving

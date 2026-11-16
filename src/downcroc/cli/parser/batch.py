@@ -29,6 +29,17 @@ def batch(commands: argparse._SubParsersAction) -> None:
 
     listing = actions.add_parser("list", help="list batches")
     listing.add_argument("--state", choices=BATCH_STATES, help="batch state")
+    listing.add_argument(
+        "--parents",
+        action="store_true",
+        help="show parent batches with follow-up summary",
+    )
+    listing.add_argument(
+        "--sort",
+        choices=["recent", "stale"],
+        default="recent",
+        help="sort order for --parents (recent or stalest first)",
+    )
     limit(listing)
     common(listing)
 
@@ -202,6 +213,12 @@ def batch(commands: argparse._SubParsersAction) -> None:
     suppression = actions.add_parser("suppression", help="show suppressed recipients")
     suppression.add_argument("batch_id")
     common(suppression)
+
+    thread = actions.add_parser("thread", help="visualize a batch's follow-up thread")
+    thread.add_argument("batch_id")
+    thread.add_argument("--recipient", help="show one recipient's full chain")
+    thread.add_argument("--all", action="store_true", help="show every thread")
+    common(thread)
 
 
 def _source(parser: argparse.ArgumentParser) -> None:

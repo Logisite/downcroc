@@ -5,7 +5,7 @@ from pathlib import Path
 from downcroc.cli import inputs
 from downcroc.cli import paths as path_tools
 from downcroc.cli.client import api, delete, get, get_page, post
-from downcroc.cli.commands import batch_view, when
+from downcroc.cli.commands import batch_thread, batch_view, when
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.output import json_out, page_footer, record, table
@@ -73,6 +73,8 @@ def run(args: object) -> int:
             return batch_followups.run(client, args, ui)
         if action == "suppression":
             return _suppression(client, args, ui)
+        if action == "thread":
+            return _thread(client, args, ui)
         batch = get(client, f"/api/batches/{args.batch_id}")
     if ui.json_mode:
         json_out(batch)
@@ -108,17 +110,23 @@ def _validate(args: object, ui: Ui) -> int:
 
 
 def _listing(client, args: object, ui: Ui) -> int:
-    rows, total = get_page(
-        client,
-        "/api/batches",
-        state=getattr(args, "state", None),
-        limit=getattr(args, "limit", None) or 100,
-        offset=getattr(args, "offset", 0) or 0,
-    )
+    params = {
+        "state": getattr(args, "state", None),
+        "limit": getattr(args, "limit", None) or 100,
+        "offset": getattr(args, "offset", 0) or 0,
+    }
+    parents = bool(getattr(args, "parents", False))
+    if parents:
+        params["parents"] = "true"
+        params["sort"] = getattr(args, "sort", "recent") or "recent"
+    rows, total = get_page(client, "/api/batches", **params)
     if ui.json_mode:
         json_out(rows)
     else:
-        batch_view.listing(rows, ui)
+        if parents:
+            batch_view.listing_parents(rows, ui)
+        else:
+            batch_view.listing(rows, ui)
         page_footer(
             len(rows),
             total,
@@ -353,6 +361,21 @@ def _suppression(client, args: object, ui: Ui) -> int:
         ["address", "account", "reason"],
         [[item["address"], item["account_id"], item["reason"]] for item in rows],
     )
+    return 0
+
+
+def _thread(client, args: object, ui: Ui) -> int:
+    params = {}
+    recipient = getattr(args, "recipient", None)
+    if recipient:
+        params["recipient"] = recipient
+    if getattr(args, "all", False):
+        params["all"] = "true"
+    payload = get(client, f"/api/batches/{args.batch_id}/thread", **params)
+    if ui.json_mode:
+        json_out(payload)
+        return 0
+    batch_thread.show(payload, ui)
     return 0
 
 

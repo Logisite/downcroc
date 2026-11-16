@@ -211,6 +211,158 @@ class FollowUpService:
                 self._events.rejected(parent_id, step, error.code, error.message)
                 raise
 
+    def parent_summaries(self, parent_ids: list[str]) -> dict[str, dict[str, object]]:
+        if not parent_ids:
+            return {}
+        with self._lock:
+            return {
+                parent_id: self._parent_summary(parent_id) for parent_id in parent_ids
+            }
+
+    def _parent_summary(self, parent_id: str) -> dict[str, object]:
+        report = self._status.report(parent_id)
+        child_ids = [
+            step.child_batch_id for step in report.steps if step.child_batch_id
+        ]
+        activity = self._jobs.last_activity(child_ids)
+        step_keys = [step.step for step in report.steps]
+        last: dict[str, str] | None = None
+        last_at = ""
+        pending_steps: list[dict[str, object]] = []
+        pending_total = 0
+        for step in report.steps:
+            if step.child_batch_id:
+                at = activity.get(step.child_batch_id)
+                if at and at >= last_at:
+                    last_at = at
+                    last = {"step": step.step, "at": at}
+            waiting = _waiting(step)
+            if waiting > 0 or step.state in {
+                "awaiting_approval",
+                "scheduled",
+                "pending",
+                "sending",
+                "parent_not_sent",
+                "deferred",
+            }:
+                pending_steps.append(
+                    {"step": step.step, "waiting": waiting, "state": step.state}
+                )
+                pending_total += waiting
+        overall = last_at or None
+        return {
+            "steps": step_keys,
+            "last": last,
+            "pending": {"total": pending_total, "steps": pending_steps},
+            "last_activity": overall,
+        }
+
+    def outlook(self, due_within_days: int | None = None) -> list[dict[str, object]]:
+        with self._lock:
+            items: list[dict[str, object]] = []
+            parents = [
+                batch
+                for batch in self._batches.list(limit=10_000)
+                if batch.parent_batch_id is None
+            ]
+            for batch in parents:
+                report = self._status.report(batch.id)
+                if not report.steps:
+                    continue
+                for step in report.steps:
+                    if _skip_outlook(step):
+                        continue
+                    item = self._outlook_item(batch, step)
+                    if _within_due(item, due_within_days):
+                        items.append(item)
+            items.sort(key=_outlook_sort_key)
+            return items
+
+    def _outlook_item(self, batch, step) -> dict[str, object]:
+        last_sent = None
+        if step.child_batch_id:
+            activity = self._jobs.last_activity([step.child_batch_id])
+            last_sent = activity.get(step.child_batch_id)
+        return {
+            "batch_id": batch.id,
+            "batch_name": batch.name,
+            "step": step.step,
+            "state": step.state,
+            "kind": step.kind,
+            "after_days": step.after_days,
+            "when": step.when,
+            "child_batch_id": step.child_batch_id,
+            "counts": dict(step.counts or {}),
+            "next_due_at": step.next_due_at,
+            "last_sent_at": last_sent,
+        }
+
+
+def _skip_outlook(step) -> bool:
+    if step.state in {
+        "done",
+        "retired",
+        "cancelled_child",
+        "skipped",
+        "broken",
+        "partial",
+    }:
+        return (
+            step.counts.get("awaiting", 0) <= 0
+            and step.counts.get("candidates", 0) <= 0
+        )
+    return False
+
+
+def _within_due(item: dict[str, object], due_within_days: int | None) -> bool:
+    if due_within_days is None:
+        return True
+    if item["state"] in {"pending", "awaiting_approval", "sending"}:
+        return True
+    due_at = item.get("next_due_at")
+    if not due_at:
+        return due_within_days >= 0
+    try:
+        from datetime import UTC, datetime
+
+        moment = datetime.fromisoformat(str(due_at))
+    except ValueError:
+        return True
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    delta_days = (moment - datetime.now(UTC)).total_seconds() / 86400
+    return delta_days <= due_within_days
+
+
+def _outlook_sort_key(item: dict[str, object]) -> tuple[int, str, str, str]:
+    state = str(item.get("state") or "")
+    due_at = str(item.get("next_due_at") or "")
+    if state in {"pending", "awaiting_approval", "sending"}:
+        rank = 0
+        due = ""
+    elif due_at:
+        rank = 1
+        due = due_at
+    else:
+        rank = 2
+        due = "9999"
+    return (rank, due, str(item.get("batch_id") or ""), str(item.get("step") or ""))
+
+
+def _waiting(step) -> int:
+    counts = step.counts or {}
+    return int(
+        counts.get("not_due", 0)
+        + counts.get("pending", 0)
+        + counts.get("awaiting", 0)
+        + (
+            counts.get("candidates", 0)
+            if step.state in {"pending", "scheduled", "parent_not_sent", "deferred"}
+            and step.child_batch_id is None
+            else 0
+        )
+    )
+
 
 def _limits(settings: Settings) -> IntakeLimits:
     return IntakeLimits(

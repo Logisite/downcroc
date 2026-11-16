@@ -17,6 +17,8 @@
 08-batch/holds.md
 08-batch/reassign.md
 08-batch/followups.md
+08-batch/thread.md
+08-batch/due.md
 09-job/job.md
 10-failed/failed.md
 11-sending/sending.md
