@@ -7,15 +7,19 @@ cairosvg), ``export_gallery_text`` gives a quick ANSI text diff.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from rich.console import Console
 from rich.terminal_theme import TerminalTheme
 from rich.text import Text
 
+from downcroc.cli.design.doc_render import render_page
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import sample_panel, sample_shell
 from downcroc.cli.design.primitives.keybar import keybar
 from downcroc.cli.design.primitives.text import chip, heading, label, prose
 from downcroc.cli.design.theme import DEFAULT
+from downcroc.cli.docs import model
 
 FG = (201, 209, 217)
 
@@ -82,6 +86,15 @@ def gallery_console(width: int = 78) -> Console:
     console.print(sample_panel(DEFAULT))
     console.print()
     console.print(sample_shell(DEFAULT))
+    console.print()
+    console.print(label("markdown rendering (docs/)", DEFAULT))
+    docs_root = Path(__file__).resolve().parents[4] / "docs"
+    page_path = docs_root / "part-i/02-first-mail/one-email.md"
+    if page_path.is_file():
+        pages = model.load_pages(docs_root)
+        page = next((p for p in pages if p.path == page_path), None)
+        if page is not None:
+            console.print(render_page(page, DEFAULT, width=72))
     console.print()
     console.print(label("keybar", DEFAULT))
     console.print(keybar([("enter", "open"), ("?", "keys"), ("q", "quit")], DEFAULT))
