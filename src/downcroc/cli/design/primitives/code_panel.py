@@ -61,7 +61,7 @@ class CodePanel:
             out.append("copied ✓", style=theme.style("success", bold=True) + chrome)
         elif state == "disabled":
             out.append("[ copy ]", style=theme.style("fg_faint") + chrome)
-        elif state == "hover":
+        elif state == "hover" or state == "focus":
             out.append(
                 "[ copy ]", style=theme.style("accent_strong", bold=True) + chrome
             )

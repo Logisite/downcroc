@@ -56,11 +56,15 @@ def test_gallery_text_renders_bricks() -> None:
     assert "full-width aligned divider" in text
     assert "truncate end" in text
     assert "truncate middle" in text
+    assert "truncate start" in text
     assert "row styles (state tones)" in text
     assert "fixed rule width" in text
+    assert "compact toasts" in text
+    assert "focus copy state" in text
     plain = export_gallery_plain_text()
     assert "docs › reference › design › primitives › table" in plain
     assert "runtime/se…ecycle.py" in plain
+    assert "…runtime.lifecycle" in plain
     assert "A short quoted note without citation." in text
 
 
@@ -83,6 +87,7 @@ def test_text_primitives_targeted(snapshot) -> None:
     )
     console.print(truncate("a very long identifier name", 18, mode="end"))
     console.print(truncate("runtime/service/lifecycle.py", 20, mode="middle"))
+    console.print(truncate("downcroc.runtime.lifecycle", 18, mode="start"))
     console.print(breadcrumb(["docs", "design", "table"], DEFAULT))
     console.print(
         breadcrumb(
@@ -138,6 +143,42 @@ def test_table_and_key_value_targeted(snapshot) -> None:
             divider=True,
             rule_width=24,
             compact=True,
+        )
+    )
+    assert console.export_text() == snapshot
+
+
+def test_feedback_primitives_targeted(snapshot) -> None:
+    """Targeted feedback/nav/code/button states snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.button import Button
+    from downcroc.cli.design.primitives.callout import Callout
+    from downcroc.cli.design.primitives.code_panel import CodePanel
+    from downcroc.cli.design.primitives.nav import NavItem, TocItem
+    from downcroc.cli.design.primitives.toast import Toast
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=70, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(Button("Send", DEFAULT, variant="primary", state="focus"))
+    console.print(Button("Delete", DEFAULT, variant="danger", state="disabled"))
+    console.print(Callout("Note", "Compact body", DEFAULT, compact=True, width=40))
+    console.print(Toast("Saved", DEFAULT, tone="success", compact=True))
+    console.print(NavItem("Inbox", DEFAULT, icon="inbox", active=True, width=30))
+    console.print(NavItem("Drafts", DEFAULT, icon="folder", state="hover", width=30))
+    console.print(TocItem("Setup", DEFAULT, level=2, state="focus"))
+    console.print(
+        CodePanel(
+            "echo hi\n",
+            DEFAULT,
+            language="bash",
+            filename="x.sh",
+            width=40,
+            button_state="focus",
         )
     )
     assert console.export_text() == snapshot

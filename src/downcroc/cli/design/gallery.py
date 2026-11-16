@@ -229,6 +229,13 @@ def _text_section(theme: Theme) -> Group:
     )
     parts.append(
         Text(
+            "truncate start: "
+            + truncate("downcroc.runtime.lifecycle", 18, mode="start"),
+            style=theme.style("fg_muted"),
+        )
+    )
+    parts.append(
+        Text(
             f"truncate short: {truncate('tiny', 10)}",
             style=theme.style("fg_muted"),
         )
@@ -541,6 +548,18 @@ def _code_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
+    parts.append(Text("focus copy state", style=theme.style("fg_faint")))
+    parts.append(
+        CodePanel(
+            sample_shell(theme).source,
+            theme,
+            language="bash",
+            filename="deploy.sh",
+            width=72,
+            button_state="focus",
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     parts.append(Text("disabled copy state", style=theme.style("fg_faint")))
     parts.append(
         CodePanel(
@@ -617,6 +636,17 @@ def _feedback_nav_section(theme: Theme) -> Group:
     parts.append(label("toasts", theme))
     for message, tone in TOASTS:
         parts.append(Toast(message, theme, tone=tone))
+    parts.append(Text("compact toasts", style=theme.style("fg_faint")))
+    parts.append(
+        Columns(
+            [
+                Toast("Saved", theme, tone="success", compact=True),
+                Toast("Retrying", theme, tone="warning", compact=True),
+            ],
+            expand=False,
+            padding=(0, 1),
+        )
+    )
     parts.append(label("icons", theme))
     icons_line = Text()
     for name in ["account", "inbox", "sent", "search", "settings"]:

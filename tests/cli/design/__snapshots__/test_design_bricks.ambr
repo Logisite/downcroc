@@ -1,4 +1,20 @@
 # serializer version: 1
+# name: test_feedback_primitives_targeted
+  '''
+   ▏Send 
+   Delete 
+  ▎ 󰋽 Note                                
+     Compact body                         
+   󰄬 Saved 
+  ▌ 󰇮 Inbox                     
+  │ 󰉋 Drafts                    
+    · Setup
+    ● ● ●  x.sh   bash           [ copy ] 
+    1 echo hi                             
+                                          
+  
+  '''
+# ---
 # name: test_gallery_plain_text_snapshot
   '''
   downcroc design system
@@ -59,6 +75,7 @@
   link states: default  hover  focus
   truncate end: a very long ident…
   truncate middle: runtime/se…ecycle.py
+  truncate start: …runtime.lifecycle
   truncate short: tiny
   
   BADGES
@@ -258,6 +275,12 @@
     2 uv run downcroc logs --event watcher. --json | grep '"level": 30'   
                                                                           
   
+  focus copy state
+    ● ● ●  deploy.sh   bash                                      [ copy ] 
+    1 uv run downcroc service start                                       
+    2 uv run downcroc logs --event watcher. --json | grep '"level": 30'   
+                                                                          
+  
   disabled copy state
     ● ● ●  deploy.sh   bash                                      [ copy ] 
     1 uv run downcroc service start                                       
@@ -324,6 +347,9 @@
   
    󰋽 Sync info 
   
+  compact toasts
+   󰄬 Saved                                                                      
+   󰀪 Retrying                                                                   
   ICONS
   󰀄  󰇮  󰒊  󰍉  󰒓  ● online  ● syncing
   
@@ -374,6 +400,7 @@
   '''
   a very long ident…
   runtime/se…ecycle.py
+  …runtime.lifecycle
   docs › design › table
   docs › design › table
   

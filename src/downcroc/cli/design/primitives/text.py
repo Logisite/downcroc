@@ -84,7 +84,8 @@ def truncate(
 ) -> str:
     """Truncate plain text to max_width cells.
 
-    mode: "end" keeps the start, "middle" keeps start/end around ellipsis.
+    mode: "end" keeps the start, "middle" keeps start/end around ellipsis,
+    "start" keeps the end.
     """
     if max_width <= 0:
         return ""
@@ -99,6 +100,8 @@ def truncate(
         if right <= 0:
             return text[:left] + ellipsis
         return text[:left] + ellipsis + text[-right:]
+    if mode == "start":
+        return ellipsis + text[-(max_width - len(ellipsis)) :]
     return text[: max_width - len(ellipsis)] + ellipsis
 
 

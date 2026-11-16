@@ -19,11 +19,13 @@ class Toast:
         *,
         tone: str = "info",
         icon: str = "",
+        compact: bool = False,
     ) -> None:
         self.message = message
         self.theme = theme
         self.tone = tone
         self.icon = icon
+        self.compact = compact
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
@@ -48,4 +50,5 @@ class Toast:
         pill.append(self.message, style=f"{theme.fg_primary} on {dim}")
         pill.append(" ", style=f"{color} on {dim}")
         yield pill
-        yield Text("")
+        if not self.compact:
+            yield Text("")
