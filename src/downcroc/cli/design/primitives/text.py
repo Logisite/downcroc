@@ -1,26 +1,32 @@
-"""Text bricks: styled runs of glyphs, painted from theme tokens."""
+"""Text bricks: styled runs and blocks, painted from theme tokens."""
 
 from __future__ import annotations
 
+from rich.console import Console, ConsoleOptions, RenderResult
+from rich.style import Style
 from rich.text import Text
 
 from downcroc.cli.design.theme import Theme
 
 
 def heading(text: str, theme: Theme, *, level: int = 1) -> Text:
-    """Section heading: bold, primary fg, with a dim accent bar for h2+."""
-    if level <= 1:
+    """Section heading. h1: bold primary; h2: accent bar; h3: muted marker."""
+    level = max(1, min(level, 3))
+    if level == 1:
         return Text(text, style=theme.style("fg_primary", bold=True))
-    bar = Text("▏", style=theme.style("accent_dim"))
-    bar.append(" ", style=theme.style("bg_page"))
-    bar.append(text, style=theme.style("fg_primary", bold=True))
-    return bar
+    if level == 2:
+        bar = Text("▏", style=theme.style("accent_dim"))
+        bar.append(" ", style=theme.style("bg_page"))
+        bar.append(text, style=theme.style("fg_primary", bold=True))
+        return bar
+    out = Text("· ", style=theme.style("fg_faint"))
+    out.append(text, style=theme.style("fg_secondary", bold=True))
+    return out
 
 
-def label(text: str, theme: Theme) -> Text:
-    """Small caps-style label for nav and section markers."""
-    spaced = " ".join(text)
-    return Text(spaced.upper(), style=theme.style("fg_muted"))
+def label(text: str, theme: Theme, *, tone: str = "fg_muted") -> Text:
+    """UI label for nav and meta markers."""
+    return Text(text.upper(), style=theme.style(tone))
 
 
 def chip(text: str, theme: Theme, *, tone: str = "bg_raised") -> Text:
@@ -32,6 +38,85 @@ def chip(text: str, theme: Theme, *, tone: str = "bg_raised") -> Text:
     return out
 
 
-def prose(text: str, theme: Theme) -> Text:
-    """Body text: the 4-step fg discipline means never pure white."""
-    return Text(text, style=theme.style("fg_primary"))
+def inline_code(text: str, theme: Theme) -> Text:
+    """Inline code span on a raised background chip."""
+    return Text(f" {text} ", style=theme.style("accent_strong", on="bg_raised"))
+
+
+def link_text(text: str, theme: Theme, *, href: str | None = None) -> Text:
+    """A link-styled text span, optionally with an OSC 8 target."""
+    style = theme.style("fg_link", underline=True)
+    if href:
+        style = style + Style(link=href)
+    return Text(text, style=style)
+
+
+def strong(text: str, theme: Theme) -> Text:
+    return Text(text, style=theme.style("fg_primary", bold=True))
+
+
+def muted(text: str, theme: Theme) -> Text:
+    return Text(text, style=theme.style("fg_muted"))
+
+
+def truncate(text: str, max_width: int, *, ellipsis: str = "…") -> str:
+    """Truncate plain text to max_width cells, appending ellipsis if needed."""
+    if max_width <= 0:
+        return ""
+    if len(text) <= max_width:
+        return text
+    if max_width <= len(ellipsis):
+        return ellipsis[:max_width]
+    return text[: max_width - len(ellipsis)] + ellipsis
+
+
+def breadcrumb(items: list[str], theme: Theme, *, separator: str = " › ") -> Text:
+    """A breadcrumb trail: muted separators, primary final segment."""
+    out = Text()
+    for index, item in enumerate(items):
+        if index:
+            out.append(separator, style=theme.style("fg_faint"))
+        tone = "fg_primary" if index == len(items) - 1 else "fg_muted"
+        out.append(item, style=theme.style(tone))
+    return out
+
+
+class Prose:
+    """A wrapped body-text block.
+
+    Renders prose wrapped to the available console width (or ``width``),
+    using the fg scale so body text is never pure white.
+    """
+
+    def __init__(
+        self,
+        text: str,
+        theme: Theme,
+        *,
+        width: int | None = None,
+        tone: str = "fg_secondary",
+    ) -> None:
+        self.text = text
+        self.theme = theme
+        self.width = width
+        self.tone = tone
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        width = self.width or options.max_width
+        text = Text(self.text, style=self.theme.style(self.tone))
+        yield from text.wrap(console, width, overflow="fold", no_wrap=False)
+
+    def __rich_measure__(
+        self, console: Console, options: ConsoleOptions
+    ) -> tuple[int, int]:
+        width = self.width or options.max_width
+        return min(20, width), width
+
+
+def prose(
+    text: str, theme: Theme, *, width: int | None = None, tone: str = "fg_secondary"
+) -> Prose:
+    """Convenience constructor for a wrapped prose block."""
+    return Prose(text, theme, width=width, tone=tone)

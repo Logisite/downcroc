@@ -53,6 +53,10 @@ class CellCanvas:
         for col in range(x, x + width):
             self.set(col, y, glyph, style)
 
+    def vline(self, x: int, y: int, height: int, glyph: str, style: Style) -> None:
+        for row in range(y, y + height):
+            self.set(x, row, glyph, style)
+
     def rounded_rect(self, style: Style, *, fill: Style | None = None) -> None:
         """Draw a rounded hairline rect covering the whole canvas.
 

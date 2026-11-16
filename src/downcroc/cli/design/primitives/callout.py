@@ -13,12 +13,14 @@ TONES = {
     "warning": "warning",
     "danger": "danger",
     "example": "accent",
+    "info": "info",
+    "success": "success",
     "quote": "fg_muted",
 }
 
 
 class Callout:
-    """A callout: left accent bar, bold label, body text."""
+    """A callout: accent bar, label, and tinted body surface."""
 
     def __init__(
         self,
@@ -33,18 +35,19 @@ class Callout:
         self.theme = theme
         self.tone = tone
 
-    def _tone_color(self) -> str:
-        token = TONES.get(self.tone, "info")
-        return getattr(self.theme, token, self.theme.info)
+    def _tone_token(self) -> str:
+        return TONES.get(self.tone, "info")
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         theme = self.theme
-        color = self._tone_color()
-        bar = Text("▎ ", style=color)
-        title = Text(self.title, style=f"bold {color}")
+        token = self._tone_token()
+        color = theme.tone(token)
+        dim = getattr(theme, f"{token}_dim", color)
+        bar = Text("▎", style=f"{color} on {dim}")
+        title = Text(f" {self.title}", style=f"bold {color} on {dim}")
         yield Text.assemble(bar, title)
         for line in (self.body or "").splitlines() or [""]:
-            yield Text(f"  {line}", style=theme.style("fg_secondary"))
+            yield Text(f"  {line}  ", style=f"{theme.fg_secondary} on {dim}")
         yield Text("")

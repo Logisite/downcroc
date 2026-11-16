@@ -22,6 +22,11 @@ def blend(a: str, b: str, t: float) -> str:
     return f"#{r:02x}{g:02x}{bl:02x}"
 
 
+def tint(base: str, overlay: str, alpha: float) -> str:
+    """Blend an overlay onto a base by alpha (0 = base, 1 = overlay)."""
+    return blend(base, overlay, alpha)
+
+
 def gradient(text: str, start: str, end: str) -> str:
     """Produce markup that colors ``text`` with a left-to-right gradient.
 
