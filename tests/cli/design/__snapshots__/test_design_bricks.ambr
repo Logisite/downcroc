@@ -1,4 +1,15 @@
 # serializer version: 1
+# name: test_components_rhythm_targeted
+  '''
+   info 
+  ─────────── group ───────────
+  Details  meta
+  ────────────────
+  
+   ▏Save 
+  
+  '''
+# ---
 # name: test_feedback_primitives_targeted
   '''
    ▏Send 
@@ -349,25 +360,25 @@
   ▎ 󰋽 Note                                                  
      Useful context for the reader.                         
   
-  ▎ 󰋽 Info                                                  
+  ▎ Info                                                    
      Explicit info tone uses the info icon by default.      
   
   ▎ 󰄬 Tip                                                   
      A helpful suggestion.                                  
   
-  ▎ 󰄬 Success                                               
+  ▎ Success                                                 
      Operation completed successfully.                      
   
-  ▎ 󰀪 Warning                                               
+  ▎ Warning                                                 
      Something needs attention.                             
   
-  ▎ 󰅚 Danger                                                
+  ▎ Danger                                                  
      This action can cause data loss.                       
   
-  ▎ 󰋽 Example                                               
+  ▎ Example                                                 
      An illustrative example callout.                       
   
-  ▎ ● Quote                                                 
+  ▎ Quote                                                   
      Quoted or cited guidance.                              
   
   ▎ 󰋽 Compact info                                          
@@ -376,6 +387,8 @@
      Dense warning for tight layouts.                       
   ▎ 󰍉 Custom icon                                           
      Callout with an explicit icon override.                
+  ▎ No icon                                                 
+     Body-only callout without an icon glyph.               
   
   TOASTS
    󰄬 Connected to mailbox 

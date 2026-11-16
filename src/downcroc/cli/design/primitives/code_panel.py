@@ -55,7 +55,7 @@ class CodePanel:
         theme = self.theme
         chrome = theme.bg("code_chrome_bg")
         out = Text(style=chrome)
-        out.append(" ", style=chrome)
+        out.append(" " * theme.space_1, style=chrome)
         state = "copied" if self.copied else self.button_state
         if state == "copied":
             out.append("copied ✓", style=theme.style("success", bold=True) + chrome)
@@ -69,22 +69,22 @@ class CodePanel:
             out.append(
                 "[ copy ]", style=theme.style("code_button_fg", bold=True) + chrome
             )
-        out.append(" ", style=chrome)
+        out.append(" " * theme.space_1, style=chrome)
         return out
 
     def _chrome(self, width: int) -> Text:
         theme = self.theme
         chrome = theme.bg("code_chrome_bg")
         out = Text(style=chrome)
-        out.append("  ", style=chrome)
+        out.append(" " * theme.space_2, style=chrome)
         for dot, color in zip(range(3), (theme.danger, theme.warning, theme.success)):
             out.append("●", style=Style(color=color) + chrome)
-            out.append(" ", style=chrome)
+            out.append(" " * theme.space_1, style=chrome)
         if self.filename:
-            out.append(" ", style=chrome)
+            out.append(" " * theme.space_1, style=chrome)
             out.append(self.filename, style=theme.style("fg_secondary") + chrome)
         if self.show_badge and self.language:
-            out.append("  ", style=chrome)
+            out.append(" " * theme.space_2, style=chrome)
             out.append(
                 f" {self.language} ",
                 style=theme.style("fg_muted", on="bg_panel"),

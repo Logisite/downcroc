@@ -64,6 +64,7 @@ def test_gallery_text_renders_bricks() -> None:
     assert "compact toasts" in text
     assert "focus copy state" in text
     assert "Custom icon" in text
+    assert "No icon" in text
     assert "Inset panel with extra padding" in text
     assert "empty (no header)" in text
     plain = export_gallery_plain_text()
@@ -246,6 +247,28 @@ def test_lists_and_structure_targeted(snapshot) -> None:
     )
     console.print(Blockquote("Quoted text", DEFAULT, cite="ref"))
     console.print(TagList(["one", "two", "three"], DEFAULT))
+    assert console.export_text() == snapshot
+
+
+def test_components_rhythm_targeted(snapshot) -> None:
+    """Targeted badge/rule/section/button rhythm snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.badge import badge
+    from downcroc.cli.design.primitives.button import Button
+    from downcroc.cli.design.primitives.rule import divider
+    from downcroc.cli.design.primitives.section_header import SectionHeader
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=50, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(badge("info", DEFAULT, tone="info"))
+    console.print(divider(DEFAULT, width=30, label="group"))
+    console.print(SectionHeader("Details", DEFAULT, meta="meta"))
+    console.print(Button("Save", DEFAULT, variant="secondary", state="focus"))
     assert console.export_text() == snapshot
 
 

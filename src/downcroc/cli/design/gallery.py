@@ -687,6 +687,17 @@ def _feedback_nav_section(theme: Theme) -> Group:
             compact=True,
         )
     )
+    parts.append(
+        Callout(
+            "No icon",
+            "Body-only callout without an icon glyph.",
+            theme,
+            tone="note",
+            icon="",
+            width=58,
+            compact=True,
+        )
+    )
     parts.append(spacer(1, theme=theme))
     parts.append(label("toasts", theme))
     for message, tone in TOASTS:

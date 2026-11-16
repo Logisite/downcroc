@@ -84,7 +84,8 @@ class Button:
         fg, bg, bold = self._styles()
         text = Text()
         pad_style = f"{fg} on {bg}"
-        text.append(" ", style=pad_style)
+        pad = " " * self.theme.space_1
+        text.append(pad, style=pad_style)
         if self.state == "focus":
             text.append("▏", style=f"{self.theme.border_focus} on {bg}")
         if self.icon:
@@ -93,5 +94,5 @@ class Button:
                 style=("bold " if bold else "") + pad_style,
             )
         text.append(self.label, style=("bold " if bold else "") + pad_style)
-        text.append(" ", style=pad_style)
+        text.append(pad, style=pad_style)
         yield text

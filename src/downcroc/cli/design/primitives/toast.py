@@ -33,8 +33,9 @@ class Toast:
         theme = self.theme
         color = theme.tone(self.tone)
         dim = getattr(theme, f"{self.tone}_dim", theme.bg_raised)
+        pad = " " * theme.space_1
         pill = Text()
-        pill.append(" ", style=f"{color} on {dim}")
+        pill.append(pad, style=f"{color} on {dim}")
         default_icon = {
             "success": "success",
             "warning": "warning",
@@ -48,7 +49,7 @@ class Toast:
         )
         pill.append(f"{glyph} ", style=f"bold {color} on {dim}")
         pill.append(self.message, style=f"{theme.fg_primary} on {dim}")
-        pill.append(" ", style=f"{color} on {dim}")
+        pill.append(pad, style=f"{color} on {dim}")
         yield pill
         if not self.compact:
             yield Text("")

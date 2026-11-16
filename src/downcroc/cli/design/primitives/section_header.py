@@ -34,7 +34,7 @@ class SectionHeader:
         line = Text()
         line.append(self.title, style=theme.style("fg_secondary", bold=True))
         if self.meta:
-            line.append("  ", style=theme.style("bg_page"))
+            line.append(" " * theme.space_2, style=theme.style("bg_page"))
             line.append(self.meta, style=theme.style("fg_faint"))
         yield line
         if self.rule:

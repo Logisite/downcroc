@@ -30,7 +30,7 @@ class Callout:
         theme: Theme,
         *,
         tone: str = "note",
-        icon: str = "",
+        icon: str | None = None,
         width: int | None = None,
         compact: bool = False,
     ) -> None:
@@ -63,11 +63,8 @@ class Callout:
             "accent": "info",
             "fg_muted": "dot",
         }.get(token, "")
-        icon = (
-            resolve_icon(self.icon or default_icon)
-            if (self.icon or default_icon)
-            else ""
-        )
+        icon_name = default_icon if self.icon is None else self.icon
+        icon = resolve_icon(icon_name) if icon_name else ""
         label = f"{icon} {self.title}" if icon else self.title
         bar = Text("▎", style=f"{color} on {dim}")
         title = Text(f" {label}".ljust(inner), style=f"bold {color} on {dim}")

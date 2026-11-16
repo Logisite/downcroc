@@ -17,11 +17,12 @@ def badge(
     """A compact badge. variant: subtle|solid|outline."""
     color = theme.tone(tone)
     dim = getattr(theme, f"{tone}_dim", theme.bg_raised)
+    pad = " " * theme.space_1
     if variant == "solid":
-        return Text(f" {text} ", style=f"bold {theme.accent_fg} on {color}")
+        return Text(f"{pad}{text}{pad}", style=f"bold {theme.accent_fg} on {color}")
     if variant == "outline":
         out = Text("[", style=theme.style("border_strong"))
         out.append(text, style=f"bold {color}")
         out.append("]", style=theme.style("border_strong"))
         return out
-    return Text(f" {text} ", style=f"bold {color} on {dim}")
+    return Text(f"{pad}{text}{pad}", style=f"bold {color} on {dim}")
