@@ -1,9 +1,8 @@
-"""Card brick: a rounded card painted with background stepping."""
+"""Card brick: a surface painted with background stepping."""
 
 from __future__ import annotations
 
 from rich.console import Console, ConsoleOptions, RenderResult
-from rich.style import Style
 from rich.text import Text
 
 from downcroc.cli.design.paint.canvas import CellCanvas
@@ -11,12 +10,7 @@ from downcroc.cli.design.theme import Theme
 
 
 class Card:
-    """A card painted from tokens, never from stock Panel chrome.
-
-    The dark-web look is background stepping, not outlines: by default a card
-    is a borderless rectangle of stepped fill that reads from the bg change
-    plus padding. ``border="hairline"`` adds a barely-visible alpha hairline;
-    a full glyph border stays reserved for code panels and modals.
+    """A card surface: stepped fill by default, optional hairline border.
 
     Render is pure f(props, theme).
     """
@@ -28,7 +22,6 @@ class Card:
         theme: Theme,
         *,
         width: int = 40,
-        min_height: int = 4,
         fill: str = "bg_panel",
         border: str | None = None,
     ) -> None:
@@ -36,59 +29,66 @@ class Card:
         self.body = body
         self.theme = theme
         self.width = width
-        self.min_height = min_height
         self.fill = fill
         self.border = border
 
-    def _body_lines(self, inner_width: int) -> list[str]:
-        words = self.body.split()
+    def _wrap(self, text: str, width: int) -> list[str]:
+        words = text.split()
         lines: list[str] = []
         current = ""
         for word in words:
             candidate = f"{current} {word}".strip()
-            if len(candidate) > inner_width and current:
+            if len(candidate) > width and current:
                 lines.append(current)
                 current = word
             else:
                 current = candidate
         if current:
             lines.append(current)
-        return lines
+        return lines or [""]
 
-    def _paint_border(self, canvas: CellCanvas) -> None:
-        if self.border == "hairline":
-            canvas.rounded_rect(
-                self.theme.style("border_hairline"),
-                fill=self.theme.bg(self.fill),
+    def _render_plain(self, width: int) -> RenderResult:
+        theme = self.theme
+        panel = theme.bg(self.fill)
+        inner = max(width - 2, 10)
+        yield Text(" " * width, style=panel)
+        yield Text(
+            f" {self.title}".ljust(width),
+            style=theme.style("fg_primary", bold=True) + panel,
+        )
+        yield Text(" " * width, style=panel)
+        for line in self._wrap(self.body, inner):
+            yield Text(
+                f" {line}".ljust(width), style=theme.style("fg_secondary") + panel
             )
-        else:
-            canvas.fill(self.theme.bg(self.fill))
+        yield Text(" " * width, style=panel)
+
+    def _render_hairline(self, width: int) -> RenderResult:
+        theme = self.theme
+        panel = theme.bg(self.fill)
+        inner = max(width - 4, 10)
+        body_lines = self._wrap(self.body, inner)
+        height = 4 + len(body_lines)
+        canvas = CellCanvas(width, height)
+        canvas.rounded_rect(theme.style("border_hairline"), fill=panel)
+        # write text into canvas
+        title_style = theme.style("fg_primary", bold=True) + panel
+        for i, ch in enumerate(self.title[: inner + 1]):
+            canvas.set(2 + i, 1, ch, title_style)
+        body_style = theme.style("fg_secondary") + panel
+        for r, line in enumerate(body_lines):
+            for i, ch in enumerate(line):
+                canvas.set(2 + i, 3 + r, ch, body_style)
+        yield from canvas.segments()
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         width = min(self.width, options.max_width)
-        inset = 2 if self.border else 1
-        inner_width = width - inset * 2 - 1
-        body_lines = self._body_lines(inner_width)
-        frame = 2 if self.border else 0
-        height = max(self.min_height, frame + len(body_lines) + 3)
-        canvas = CellCanvas(width, height)
-        self._paint_border(canvas)
-        title_row = 1
-        panel = self.theme.bg(self.fill)
-        title_style = self.theme.style("fg_primary", bold=True) + panel
-        title = Text(self.title, style=title_style)
-        for offset, glyph in enumerate(title.plain):
-            canvas.set(inset + offset, title_row, glyph, title.style or Style())
-        body_style = self.theme.style("fg_secondary") + panel
-        for row, line in enumerate(body_lines):
-            body = Text(line, style=body_style)
-            for offset, glyph in enumerate(line):
-                canvas.set(
-                    inset + offset, title_row + 2 + row, glyph, body.style or Style()
-                )
-        yield from canvas.segments()
+        if self.border == "hairline":
+            yield from self._render_hairline(width)
+        else:
+            yield from self._render_plain(width)
 
     def __rich_measure__(
         self, console: Console, options: ConsoleOptions

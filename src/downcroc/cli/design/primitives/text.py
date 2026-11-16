@@ -15,7 +15,7 @@ def heading(text: str, theme: Theme, *, level: int = 1) -> Text:
     if level == 1:
         return Text(text, style=theme.style("fg_primary", bold=True))
     if level == 2:
-        bar = Text("▏", style=theme.style("accent_dim"))
+        bar = Text("▏", style=theme.style("accent"))
         bar.append(" ", style=theme.style("bg_page"))
         bar.append(text, style=theme.style("fg_primary", bold=True))
         return bar

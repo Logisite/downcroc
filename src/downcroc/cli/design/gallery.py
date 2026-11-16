@@ -69,9 +69,9 @@ EXPORT_THEME = TerminalTheme(
 def _swatch(name: str, token: str, theme: Theme) -> Text:
     color = getattr(theme, token)
     line = Text()
-    line.append("▕", style=theme.style("border_subtle"))
+    line.append("▕", style=theme.style("border_strong"))
     line.append("████", style=f"{color} on {color}")
-    line.append("▏", style=theme.style("border_subtle"))
+    line.append("▏", style=theme.style("border_strong"))
     line.append(f" {name:<14}", style=theme.style("fg_secondary"))
     line.append(color, style=theme.style("fg_faint"))
     return line

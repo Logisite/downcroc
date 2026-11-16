@@ -29,11 +29,13 @@ class Callout:
         theme: Theme,
         *,
         tone: str = "note",
+        width: int | None = None,
     ) -> None:
         self.title = title
         self.body = body
         self.theme = theme
         self.tone = tone
+        self.width = width
 
     def _tone_token(self) -> str:
         return TONES.get(self.tone, "info")
@@ -45,9 +47,18 @@ class Callout:
         token = self._tone_token()
         color = theme.tone(token)
         dim = getattr(theme, f"{token}_dim", color)
+        width = self.width or min(options.max_width, 60)
+        inner = max(width - 1, 10)
+
         bar = Text("▎", style=f"{color} on {dim}")
-        title = Text(f" {self.title}", style=f"bold {color} on {dim}")
+        title = Text(f" {self.title}".ljust(inner), style=f"bold {color} on {dim}")
         yield Text.assemble(bar, title)
-        for line in (self.body or "").splitlines() or [""]:
-            yield Text(f"  {line}  ", style=f"{theme.fg_secondary} on {dim}")
+
+        lines = (self.body or "").splitlines() or [""]
+        for line in lines:
+            body_text = f"  {line}".ljust(inner)
+            yield Text.assemble(
+                Text(" ", style=f"{color} on {dim}"),
+                Text(body_text, style=f"{theme.fg_secondary} on {dim}"),
+            )
         yield Text("")
