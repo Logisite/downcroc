@@ -43,7 +43,12 @@ class KeyValue:
             grid.add_row(key, value)
             if self.divider and index < len(self.items) - 1:
                 key_w = self.key_width or max(len(k) for k, _ in self.items)
-                sep_w = max(min(key_w, options.max_width), 8)
-                sep = Text("─" * sep_w, style=theme.style("border_hairline"))
-                grid.add_row(sep, Text(""))
+                val_w = max((len(v) for _, v in self.items), default=8)
+                sep_k = Text(
+                    "─" * max(min(key_w, 24), 8), style=theme.style("border_hairline")
+                )
+                sep_v = Text(
+                    "─" * max(min(val_w, 24), 8), style=theme.style("border_hairline")
+                )
+                grid.add_row(sep_k, sep_v)
         yield grid

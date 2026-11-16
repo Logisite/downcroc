@@ -186,8 +186,15 @@ def _text_section(theme: Theme) -> Group:
     badges.append_text(badge("warning", theme, tone="warning"))
     badges.append("  ")
     badges.append_text(badge("error", theme, tone="danger", variant="solid"))
+    badges2 = Text()
+    badges2.append_text(badge("beta", theme, tone="accent", variant="outline"))
+    badges2.append("  ")
+    badges2.append_text(badge("ok", theme, tone="success", variant="solid"))
+    badges2.append("  ")
+    badges2.append_text(badge("muted", theme, tone="fg_muted", variant="subtle"))
     parts.append(label("badges", theme))
     parts.append(badges)
+    parts.append(badges2)
     parts.append(spacer(1, theme=theme))
     parts.append(label("blockquote", theme))
     parts.append(
@@ -306,6 +313,18 @@ def _code_section(theme: Theme) -> Group:
             filename="runtime/service/lifecycle.py",
             width=72,
             highlight_lines={3},
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("copied state", style=theme.style("fg_faint")))
+    parts.append(
+        CodePanel(
+            sample_shell(theme).source,
+            theme,
+            language="bash",
+            filename="deploy.sh",
+            width=72,
+            copied=True,
         )
     )
     parts.append(spacer(1, theme=theme))

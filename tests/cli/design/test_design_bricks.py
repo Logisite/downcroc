@@ -31,6 +31,12 @@ def test_gallery_text_renders_bricks() -> None:
     assert "downcroc design system" in text
     assert "watcher" in text
     assert "enter" in text
+    assert "BUTTON STATES (PRIMARY)" in text
+    assert "CALLOUT TONES" in text
+    assert "NAV ITEMS" in text
+    assert "No data yet" in text
+    assert "disabled copy state" in text
+    assert "Figure: compact inset panel sample" in text
 
 
 @pytest.mark.parametrize("path_to_cli", [[], None])
