@@ -61,6 +61,8 @@ def load_pages(root: Path) -> list[Page]:
     pages = []
     paths = sorted(root.rglob("*.md"), key=lambda path: _nav_key(root, path))
     for path in paths:
+        if path.name.startswith("_"):
+            continue
         rel = path.relative_to(root).as_posix()
         text = path.read_text(encoding="utf-8")
         meta, body = frontmatter(text)

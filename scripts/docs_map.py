@@ -186,7 +186,11 @@ def stub_aliases() -> dict[str, str]:
 def glossary_slugs() -> set[str]:
     if not GLOSSARY_DIR.is_dir():
         return set()
-    return {path.stem for path in GLOSSARY_DIR.glob("*.md")}
+    slugs: set[str] = set()
+    paths = list(GLOSSARY_DIR.glob("_*.md")) or list(GLOSSARY_DIR.glob("*.md"))
+    for path in paths:
+        slugs.add(path.stem.removeprefix("_"))
+    return slugs
 
 
 def check_coverage(pages: list[Page]) -> list[str]:
