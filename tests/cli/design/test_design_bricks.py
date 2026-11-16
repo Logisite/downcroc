@@ -56,6 +56,8 @@ def test_gallery_text_renders_bricks() -> None:
     assert "full-width aligned divider" in text
     assert "truncate end" in text
     assert "truncate middle" in text
+    assert "row styles (state tones)" in text
+    assert "fixed rule width" in text
     plain = export_gallery_plain_text()
     assert "docs › reference › design › primitives › table" in plain
     assert "runtime/se…ecycle.py" in plain
@@ -85,6 +87,57 @@ def test_text_primitives_targeted(snapshot) -> None:
     console.print(
         breadcrumb(
             [("docs", "default"), ("design", "hover"), ("table", "focus")], DEFAULT
+        )
+    )
+    assert console.export_text() == snapshot
+
+
+def test_table_and_key_value_targeted(snapshot) -> None:
+    """Targeted table/key-value edge cases snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.key_value import KeyValue
+    from downcroc.cli.design.primitives.table_view import TableView
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=60, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(
+        TableView(
+            ["Check", "Result"],
+            [
+                (["lint", "ok"], False, f"{DEFAULT.success} on {DEFAULT.success_dim}"),
+                (
+                    ["tests", "failed"],
+                    False,
+                    f"{DEFAULT.danger} on {DEFAULT.danger_dim}",
+                ),
+            ],
+            DEFAULT,
+            zebra=False,
+            show_lines=False,
+        )
+    )
+    console.print(
+        TableView(
+            ["Field", "Value", "State"],
+            [],
+            DEFAULT,
+            compact=True,
+            empty_text="No data yet",
+            show_header_on_empty=True,
+        )
+    )
+    console.print(
+        KeyValue(
+            [("queue", "12"), ("workers", "3")],
+            DEFAULT,
+            divider=True,
+            rule_width=24,
+            compact=True,
         )
     )
     assert console.export_text() == snapshot

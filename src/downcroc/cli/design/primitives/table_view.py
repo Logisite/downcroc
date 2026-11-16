@@ -100,20 +100,40 @@ class TableView:
             )
         if not self.rows and self.show_header_on_empty:
             if self.headers:
-                empty_row = [
-                    Text(
-                        f"  {self.empty_text}",
-                        style=theme.style("fg_muted", italic=True),
-                    )
-                ] + [Text("", style=theme.style("fg_faint"))] * (len(self.headers) - 1)
+                empty_style = Style(
+                    color=theme.fg_muted, italic=True, bgcolor=theme.bg_panel
+                )
+                empty_row = [Text(f"  {self.empty_text}", style=empty_style)]
+                empty_row.extend(
+                    Text("", style=Style(bgcolor=theme.bg_panel))
+                    for _ in range(len(self.headers) - 1)
+                )
                 table.add_row(*empty_row)
             else:
                 table.caption = self.empty_text
                 table.caption_style = Style(color=theme.fg_faint)
         for row in self.rows:
-            if isinstance(row, tuple) and len(row) == 2:
-                cells, end_section = row
-                table.add_row(*cells, end_section=bool(end_section))
-            else:
-                table.add_row(*row)
+            if isinstance(row, tuple):
+                if len(row) == 3:
+                    cells, end_section, row_style = row
+                    table.add_row(
+                        *cells,
+                        end_section=bool(end_section),
+                        style=row_style,
+                    )
+                    continue
+                if len(row) == 2:
+                    first, second = row
+                    if (
+                        isinstance(second, (str, Style))
+                        and not isinstance(first, bool)
+                        and isinstance(first, list)
+                    ):
+                        # (cells, style)
+                        table.add_row(*first, style=second)
+                        continue
+                    cells, end_section = row
+                    table.add_row(*cells, end_section=bool(end_section))
+                    continue
+            table.add_row(*row)
         yield table

@@ -22,6 +22,7 @@ class KeyValue:
         divider: bool = False,
         stacked: bool = False,
         width: int | None = None,
+        rule_width: int | None = None,
     ) -> None:
         self.items = items
         self.theme = theme
@@ -30,6 +31,7 @@ class KeyValue:
         self.divider = divider
         self.stacked = stacked
         self.width = width
+        self.rule_width = rule_width
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
@@ -38,7 +40,8 @@ class KeyValue:
         pad = (0, 1) if self.compact else (0, 2)
         target_width = min(self.width or options.max_width, options.max_width)
 
-        rule_width = max(min(target_width, 72), 20)
+        rule_width = self.rule_width or max(min(target_width, 72), 20)
+        rule_width = max(rule_width, 8)
         if self.stacked:
             for index, (key, value) in enumerate(self.items):
                 yield Text(key, style=theme.style("fg_muted"))

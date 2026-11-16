@@ -162,12 +162,23 @@
   │ c    │ 3     │
   └──────┴───────┘
   
+  row styles (state tones)
+  ┌───────┬─────────┐
+  │ Check │ Result  │
+  ├───────┼─────────┤
+  │ lint  │ ok      │
+  ├───────┼─────────┤
+  │ tests │ failed  │
+  ├───────┼─────────┤
+  │ types │ pending │
+  └───────┴─────────┘
+  
   empty (header shown)
-  ┌───────────────┬───────┐
-  │ Field         │ Value │
-  ├───────────────┼───────┤
-  │   No data yet │       │
-  └───────────────┴───────┘
+  ┌───────────────┬───────┬───────┐
+  │ Field         │ Value │ State │
+  ├───────────────┼───────┼───────┤
+  │   No data yet │       │       │
+  └───────────────┴───────┴───────┘
   
   KEY-VALUE
   account  alice@example.com
@@ -185,6 +196,11 @@
   last_sync     2026-11-16 08:30:00
   ──────────────────────────────────────────────────────
   notes         healthy
+  
+  fixed rule width
+  queue      12
+  ────────────────────────────
+  workers    3
   
   stacked with divider
   endpoint
@@ -332,6 +348,25 @@
   KEYBAR
    enter  open    ?  keys    q  quit
   
+  
+  '''
+# ---
+# name: test_table_and_key_value_targeted
+  '''
+  ┌───────┬────────┐
+  │ Check │ Result │
+  ├───────┼────────┤
+  │ lint  │ ok     │
+  │ tests │ failed │
+  └───────┴────────┘
+  ┌───────────────┬───────┬───────┐
+  │ Field         │ Value │ State │
+  ├───────────────┼───────┼───────┤
+  │   No data yet │       │       │
+  └───────────────┴───────┴───────┘
+  queue 12
+  ────────────────────────
+  workers 3
   
   '''
 # ---

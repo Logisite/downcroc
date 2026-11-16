@@ -419,10 +419,24 @@ def _data_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
+    parts.append(Text("row styles (state tones)", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Check", "Result"],
+            [
+                (["lint", "ok"], False, f"{theme.success} on {theme.success_dim}"),
+                (["tests", "failed"], False, f"{theme.danger} on {theme.danger_dim}"),
+                ["types", "pending"],
+            ],
+            theme,
+            zebra=False,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     parts.append(Text("empty (header shown)", style=theme.style("fg_faint")))
     parts.append(
         TableView(
-            ["Field", "Value"],
+            ["Field", "Value", "State"],
             [],
             theme,
             compact=True,
@@ -439,6 +453,18 @@ def _data_section(theme: Theme) -> Group:
     parts.append(spacer(1, theme=theme))
     parts.append(Text("full-width aligned divider", style=theme.style("fg_faint")))
     parts.append(KeyValue(KV_WIDE, theme, key_width=12, divider=True, width=54))
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("fixed rule width", style=theme.style("fg_faint")))
+    parts.append(
+        KeyValue(
+            [("queue", "12"), ("workers", "3")],
+            theme,
+            key_width=10,
+            divider=True,
+            rule_width=28,
+            compact=True,
+        )
+    )
     parts.append(spacer(1, theme=theme))
     parts.append(Text("stacked with divider", style=theme.style("fg_faint")))
     parts.append(KeyValue(KV_STACKED, theme, stacked=True, divider=True, compact=True))
