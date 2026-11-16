@@ -63,5 +63,6 @@ dev = [
     "pyinstaller>=6.22.3",
     "pyte>=0.8.2",
     "pytest>=9.1.1",
+    "pytest-textual-snapshot>=1.0.0",
     "ruff>=0.17.1",
 ]
