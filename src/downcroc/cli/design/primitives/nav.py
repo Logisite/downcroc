@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.text import Text
 
+from downcroc.cli.design.primitives.icon import resolve_icon
 from downcroc.cli.design.theme import Theme
 
 
@@ -36,6 +37,7 @@ class NavItem:
         bg = "bg_selected" if self.active else "bg_page"
         fg = "accent_strong" if self.active else "fg_secondary"
         marker = "▌" if self.active else " "
+        width = options.max_width
         line = Text()
         line.append(pad, style=theme.bg(bg))
         line.append(
@@ -43,11 +45,14 @@ class NavItem:
         )
         line.append(" ", style=theme.bg(bg))
         if self.icon:
-            line.append(f"{self.icon} ", style=theme.style(fg, on=bg))
+            line.append(f"{resolve_icon(self.icon)} ", style=theme.style(fg, on=bg))
         line.append(self.label, style=theme.style(fg, bold=self.active, on=bg))
         if self.badge_text:
             line.append("  ", style=theme.bg(bg))
             line.append(self.badge_text, style=theme.style("fg_faint", on=bg))
+        fill = width - len(line.plain)
+        if fill > 0:
+            line.append(" " * fill, style=theme.bg(bg))
         yield line
 
 

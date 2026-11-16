@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.text import Text
 
+from downcroc.cli.design.primitives.icon import resolve_icon
 from downcroc.cli.design.theme import Theme
 
 TONES = {
@@ -52,7 +53,8 @@ class Callout:
         width = self.width or min(options.max_width, 60)
         inner = max(width - 1, 10)
 
-        label = f"{self.icon} {self.title}" if self.icon else self.title
+        icon = resolve_icon(self.icon) if self.icon else ""
+        label = f"{icon} {self.title}" if icon else self.title
         bar = Text("▎", style=f"{color} on {dim}")
         title = Text(f" {label}".ljust(inner), style=f"bold {color} on {dim}")
         yield Text.assemble(bar, title)

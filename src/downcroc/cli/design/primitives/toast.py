@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.text import Text
 
+from downcroc.cli.design.primitives.icon import resolve_icon
 from downcroc.cli.design.theme import Theme
 
 
@@ -32,8 +33,16 @@ class Toast:
         dim = getattr(theme, f"{self.tone}_dim", theme.bg_raised)
         pill = Text()
         pill.append(" ", style=f"{color} on {dim}")
-        glyph = self.icon or {"success": "✓", "warning": "!", "danger": "×"}.get(
-            self.tone, "i"
+        default_icon = {
+            "success": "success",
+            "warning": "warning",
+            "danger": "danger",
+            "info": "info",
+        }.get(self.tone, "info")
+        glyph = (
+            resolve_icon(self.icon or default_icon)
+            if (self.icon or default_icon)
+            else "i"
         )
         pill.append(f"{glyph} ", style=f"bold {color} on {dim}")
         pill.append(self.message, style=f"{theme.fg_primary} on {dim}")

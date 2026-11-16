@@ -28,10 +28,14 @@ ICONS: dict[str, str] = {
 }
 
 
+def resolve_icon(name: str) -> str:
+    """Resolve a known icon role to a glyph, or return the input as-is."""
+    return ICONS.get(name, name)
+
+
 def icon(name: str, theme: Theme, *, tone: str = "fg_muted") -> Text:
     """Return a themed glyph by role/name."""
-    glyph = ICONS.get(name, name)
-    return Text(glyph, style=theme.style(tone))
+    return Text(resolve_icon(name), style=theme.style(tone))
 
 
 def status_dot(theme: Theme, *, tone: str = "info") -> Text:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.text import Text
 
+from downcroc.cli.design.primitives.icon import resolve_icon
 from downcroc.cli.design.theme import Theme
 
 
@@ -87,7 +88,10 @@ class Button:
         if self.state == "focus":
             text.append("▏", style=f"{self.theme.border_focus} on {bg}")
         if self.icon:
-            text.append(f"{self.icon} ", style=("bold " if bold else "") + pad_style)
+            text.append(
+                f"{resolve_icon(self.icon)} ",
+                style=("bold " if bold else "") + pad_style,
+            )
         text.append(self.label, style=("bold " if bold else "") + pad_style)
         text.append(" ", style=pad_style)
         yield text

@@ -229,7 +229,7 @@ def gallery_console(width: int = 78) -> Console:
             "This is a sample callout brick with wrapped body text to show flow inside the tinted surface.",
             DEFAULT,
             tone="note",
-            icon="󰋽",
+            icon="info",
             width=58,
         )
     )
@@ -315,22 +315,24 @@ def gallery_console(width: int = 78) -> Console:
     console.print(EmptyState("Nothing selected", DEFAULT, compact=True))
     console.print(Text(""))
     console.print(label("buttons / icons / nav / toc / tags / feedback", DEFAULT))
-    console.print(
-        Columns(
-            [
-                Button("Send", DEFAULT, variant="primary", state=state)
-                for state in ["default", "hover", "focus", "pressed", "disabled"]
-            ],
-            expand=False,
-            padding=(0, 1),
+    for state in ["default", "hover", "focus", "pressed", "disabled"]:
+        console.print(
+            Columns(
+                [
+                    Text(f"primary/{state:<8}", style=DEFAULT.style("fg_faint")),
+                    Button("Send", DEFAULT, variant="primary", state=state),
+                ],
+                expand=False,
+                padding=(0, 1),
+            )
         )
-    )
     console.print(
         Columns(
             [
                 Button(variant.title(), DEFAULT, variant=variant)
                 for variant in ["secondary", "ghost", "danger"]
-            ],
+            ]
+            + [Button("Search", DEFAULT, variant="secondary", icon="search")],
             expand=False,
             padding=(0, 1),
         )
@@ -347,9 +349,9 @@ def gallery_console(width: int = 78) -> Console:
     icons_line.append(" syncing", style=DEFAULT.style("fg_muted"))
     console.print(icons_line)
     console.print(Text(""))
-    console.print(NavItem("Inbox", DEFAULT, icon="󰇮", active=True, badge_text="12"))
-    console.print(NavItem("Sent", DEFAULT, icon="󰒊"))
-    console.print(NavItem("Archive", DEFAULT, icon="󰉋", indent=1))
+    console.print(NavItem("Inbox", DEFAULT, icon="inbox", active=True, badge_text="12"))
+    console.print(NavItem("Sent", DEFAULT, icon="sent"))
+    console.print(NavItem("Archive", DEFAULT, icon="folder", indent=1))
     console.print(Text(""))
     console.print(TocItem("Overview", DEFAULT, level=1, active=True))
     console.print(TocItem("Setup", DEFAULT, level=1))
@@ -360,6 +362,7 @@ def gallery_console(width: int = 78) -> Console:
     console.print(Toast("Connected to mailbox", DEFAULT, tone="success"))
     console.print(Toast("Retry scheduled", DEFAULT, tone="warning"))
     console.print(Toast("Delivery failed", DEFAULT, tone="danger"))
+    console.print(Toast("Sync info", DEFAULT, tone="info"))
     console.print(label("keybar", DEFAULT))
     console.print(keybar([("enter", "open"), ("?", "keys"), ("q", "quit")], DEFAULT))
     console.print(Text(""))
