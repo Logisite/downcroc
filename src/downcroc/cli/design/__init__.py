@@ -6,9 +6,13 @@ segments over Textual's engine. See plan: downcroc-design-system.md.
 """
 
 from downcroc.cli.design.primitives import (
+    Callout,
     Card,
     CodePanel,
+    TableView,
     chip,
+    divider,
+    hairline,
     heading,
     keybar,
     keycap,
@@ -21,10 +25,14 @@ from downcroc.cli.design.theme import DEFAULT, Theme
 
 __all__ = [
     "DEFAULT",
+    "Callout",
     "Card",
     "CodePanel",
+    "TableView",
     "Theme",
     "chip",
+    "divider",
+    "hairline",
     "heading",
     "keybar",
     "keycap",
