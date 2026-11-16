@@ -34,6 +34,7 @@ from downcroc.cli.design.primitives.nav import NavItem, TocItem
 from downcroc.cli.design.primitives.panel import Panel
 from downcroc.cli.design.primitives.rule import divider
 from downcroc.cli.design.primitives.section_header import SectionHeader
+from downcroc.cli.design.primitives.spacer import spacer
 from downcroc.cli.design.primitives.table_view import TableView
 from downcroc.cli.design.primitives.tag_list import TagList
 from downcroc.cli.design.primitives.text import (
@@ -48,6 +49,22 @@ from downcroc.cli.design.primitives.text import (
     truncate,
 )
 from downcroc.cli.design.primitives.toast import Toast
+from downcroc.cli.design.samples.data_samples import (
+    KV_COMPACT,
+    KV_ITEMS,
+    LIST_ITEMS,
+    ORDERED_ITEMS,
+    TABLE_ALIGN,
+    TABLE_HEADERS,
+    TABLE_ROWS,
+    TASK_ITEMS,
+)
+from downcroc.cli.design.samples.feedback_samples import (
+    CALLOUTS,
+    NAV_ITEMS,
+    TOASTS,
+    TOC_ITEMS,
+)
 from downcroc.cli.design.samples.text_samples import (
     BREADCRUMB_SAMPLE,
     HEADING_SAMPLES,
@@ -96,7 +113,9 @@ def _swatch(name: str, token: str, theme: Theme) -> Text:
 
 
 def _token_section(theme: Theme) -> Group:
-    parts: list[object] = [label("tokens", theme), Text("")]
+    parts: list[object] = [
+        SectionHeader("Tokens", theme, meta="surfaces, text, accents")
+    ]
     for name, token in [
         ("page", "bg_page"),
         ("panel", "bg_panel"),
@@ -104,7 +123,7 @@ def _token_section(theme: Theme) -> Group:
         ("inset", "bg_inset"),
     ]:
         parts.append(_swatch(name, token, theme))
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
     for name, token in [
         ("primary", "fg_primary"),
         ("secondary", "fg_secondary"),
@@ -112,7 +131,7 @@ def _token_section(theme: Theme) -> Group:
         ("faint", "fg_faint"),
     ]:
         parts.append(_swatch(name, token, theme))
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
     for name, token in [
         ("accent", "accent"),
         ("success", "success"),
@@ -121,21 +140,26 @@ def _token_section(theme: Theme) -> Group:
         ("info", "info"),
     ]:
         parts.append(_swatch(name, token, theme))
+    parts.append(spacer(1, theme=theme))
     return Group(*parts)
 
 
 def _text_section(theme: Theme) -> Group:
-    parts: list[object] = [label("text primitives", theme), Text("")]
+    parts: list[object] = [
+        SectionHeader("Text primitives", theme, meta="hierarchy, inline, prose")
+    ]
+    parts.append(label("breadcrumb / headings / labels", theme))
     parts.append(breadcrumb(BREADCRUMB_SAMPLE, theme))
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
     for level, text in HEADING_SAMPLES:
         parts.append(heading(text, theme, level=level))
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
     for text, tone in LABEL_SAMPLES:
         parts.append(label(text, theme, tone=tone))
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("prose and inline", theme))
     parts.append(prose(PROSE_SAMPLE, theme, width=62))
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
     inline = Text()
     inline.append("Body with ", style=theme.style("fg_secondary"))
     inline.append_text(inline_code("inline_code()", theme))
@@ -153,7 +177,7 @@ def _text_section(theme: Theme) -> Group:
             style=theme.style("fg_muted"),
         )
     )
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
     badges = Text()
     badges.append_text(badge("queued", theme, tone="info"))
     badges.append("  ")
@@ -162,8 +186,10 @@ def _text_section(theme: Theme) -> Group:
     badges.append_text(badge("warning", theme, tone="warning"))
     badges.append("  ")
     badges.append_text(badge("error", theme, tone="danger", variant="solid"))
+    parts.append(label("badges", theme))
     parts.append(badges)
-    parts.append(Text(""))
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("blockquote", theme))
     parts.append(
         Blockquote(
             "Queued means written down and waiting. Nothing has gone to the mail server yet.",
@@ -171,6 +197,204 @@ def _text_section(theme: Theme) -> Group:
             cite="docs",
         )
     )
+    return Group(*parts)
+
+
+def _surfaces_section(theme: Theme) -> Group:
+    parts: list[object] = [
+        SectionHeader("Surfaces / structure", theme, meta="card, panel, figure, rule")
+    ]
+    parts.append(label("cards", theme))
+    parts.append(
+        Card(
+            "watcher",
+            "The inbound watcher hands work to the ingester.",
+            theme,
+            width=44,
+        )
+    )
+    parts.append(
+        Card(
+            "hairline variant",
+            "Same card, barely-visible alpha border.",
+            theme,
+            width=44,
+            border="hairline",
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("panel + figure", theme))
+    parts.append(Panel("A generic panel surface for grouped content.", theme, width=48))
+    parts.append(
+        Figure(
+            Panel("Figure content block", theme, width=36, fill="bg_inset"),
+            theme,
+            caption="Figure: compact inset panel sample",
+        )
+    )
+    parts.append(divider(theme, width=44, label="section divider"))
+    parts.append(spacer(1, theme=theme))
+    return Group(*parts)
+
+
+def _data_section(theme: Theme) -> Group:
+    parts: list[object] = [
+        SectionHeader(
+            "Data & collections", theme, meta="table, key-value, lists, empty"
+        )
+    ]
+    parts.append(label("tables", theme))
+    parts.append(TableView(TABLE_HEADERS, TABLE_ROWS, theme, align=TABLE_ALIGN))
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("compact, zebra off", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Field", "Value"],
+            [["mode", "compact"], ["zebra", "off"]],
+            theme,
+            compact=True,
+            zebra=False,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("empty (header shown)", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Field", "Value"],
+            [],
+            theme,
+            compact=True,
+            empty_text="No data yet",
+            show_header_on_empty=True,
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("key-value", theme))
+    parts.append(KeyValue(KV_ITEMS, theme))
+    parts.append(KeyValue(KV_COMPACT, theme, compact=True, divider=True))
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("lists", theme))
+    parts.append(ListBlock(LIST_ITEMS, theme))
+    parts.append(spacer(1, theme=theme))
+    parts.append(ListBlock(ORDERED_ITEMS, theme, ordered=True))
+    parts.append(spacer(1, theme=theme))
+    parts.append(ListBlock(TASK_ITEMS, theme, task=True))
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("empty states", theme))
+    parts.append(
+        EmptyState(
+            "No batches yet",
+            theme,
+            body="Create one to get started.",
+            hint="Press b to create a batch",
+        )
+    )
+    parts.append(EmptyState("Nothing selected", theme, compact=True))
+    return Group(*parts)
+
+
+def _code_section(theme: Theme) -> Group:
+    parts: list[object] = [
+        SectionHeader("Code panels", theme, meta="chrome, states, highlight")
+    ]
+    parts.append(Text("default (highlighted line)", style=theme.style("fg_faint")))
+    parts.append(
+        CodePanel(
+            sample_panel(theme).source,
+            theme,
+            language="python",
+            filename="runtime/service/lifecycle.py",
+            width=72,
+            highlight_lines={3},
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("disabled copy state", style=theme.style("fg_faint")))
+    parts.append(
+        CodePanel(
+            sample_shell(theme).source,
+            theme,
+            language="bash",
+            filename="deploy.sh",
+            width=72,
+            button_state="disabled",
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    return Group(*parts)
+
+
+def _feedback_nav_section(theme: Theme) -> Group:
+    parts: list[object] = [
+        SectionHeader(
+            "Buttons, feedback & navigation", theme, meta="states and variants"
+        )
+    ]
+    parts.append(label("button states (primary)", theme))
+    for state in ["default", "hover", "focus", "pressed", "disabled"]:
+        parts.append(
+            Columns(
+                [
+                    Text(f"primary/{state:<8}", style=theme.style("fg_faint")),
+                    Button("Send", theme, variant="primary", state=state),
+                ],
+                expand=False,
+                padding=(0, 1),
+            )
+        )
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("button variants", theme))
+    parts.append(
+        Columns(
+            [
+                Button("Secondary", theme, variant="secondary"),
+                Button("Ghost", theme, variant="ghost"),
+                Button("Danger", theme, variant="danger"),
+                Button("Search", theme, variant="secondary", icon="search"),
+            ],
+            expand=False,
+            padding=(0, 1),
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("callout tones", theme))
+    for title, tone, icon_name, body in CALLOUTS:
+        parts.append(Callout(title, body, theme, tone=tone, icon=icon_name, width=58))
+    parts.append(label("toasts", theme))
+    for message, tone in TOASTS:
+        parts.append(Toast(message, theme, tone=tone))
+    parts.append(label("icons", theme))
+    icons_line = Text()
+    for name in ["account", "inbox", "sent", "search", "settings"]:
+        icons_line.append_text(icon(name, theme, tone="fg_muted"))
+        icons_line.append("  ", style=theme.style("bg_page"))
+    icons_line.append_text(status_dot(theme, tone="success"))
+    icons_line.append(" online  ", style=theme.style("fg_muted"))
+    icons_line.append_text(status_dot(theme, tone="warning"))
+    icons_line.append(" syncing", style=theme.style("fg_muted"))
+    parts.append(icons_line)
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("nav items", theme))
+    for nav_label, nav_icon, active, indent, nav_badge in NAV_ITEMS:
+        parts.append(
+            NavItem(
+                nav_label,
+                theme,
+                icon=nav_icon,
+                active=active,
+                indent=indent,
+                badge_text=nav_badge,
+                width=56,
+            )
+        )
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("toc items", theme))
+    for toc_label, level, active in TOC_ITEMS:
+        parts.append(TocItem(toc_label, theme, level=level, active=active))
+    parts.append(spacer(1, theme=theme))
+    parts.append(label("tags", theme))
+    parts.append(TagList(["mailbox", "sync", "beta"], theme))
+    parts.append(spacer(1, theme=theme))
     return Group(*parts)
 
 
@@ -184,210 +408,22 @@ def gallery_console(width: int = 78) -> Console:
         file=io.StringIO(),
     )
     console.print(heading("downcroc design system", DEFAULT))
-    console.print(Text(""))
+    console.print(
+        Text(
+            "primitives-first gallery — in-package samples, screenshot/critique loop",
+            style=DEFAULT.style("fg_muted"),
+        )
+    )
+    console.print(spacer(1, theme=DEFAULT))
     console.print(_token_section(DEFAULT))
-    console.print(Text(""))
     console.print(_text_section(DEFAULT))
-    console.print(Text(""))
-    console.print(label("surfaces", DEFAULT))
-    console.print(
-        Card(
-            "watcher",
-            "The inbound watcher hands work to the ingester.",
-            DEFAULT,
-            width=44,
-        )
-    )
-    console.print(
-        Card(
-            "hairline variant",
-            "Same card, barely-visible alpha border.",
-            DEFAULT,
-            width=44,
-            border="hairline",
-        )
-    )
-    console.print(Text(""))
-    console.print(label("code panels", DEFAULT))
-    console.print(
-        CodePanel(
-            sample_panel(DEFAULT).source,
-            DEFAULT,
-            language="python",
-            filename="runtime/service/lifecycle.py",
-            width=72,
-            highlight_lines={3},
-        )
-    )
-    console.print(Text(""))
-    console.print(
-        CodePanel(
-            sample_shell(DEFAULT).source,
-            DEFAULT,
-            language="bash",
-            filename="deploy.sh",
-            width=72,
-            button_state="disabled",
-        )
-    )
-    console.print(Text(""))
-    console.print(label("rule / callout / table", DEFAULT))
-    console.print(divider(DEFAULT, width=44, label="section"))
-    console.print(
-        Callout(
-            "Note",
-            "This is a sample callout brick with wrapped body text to show flow inside the tinted surface.",
-            DEFAULT,
-            tone="note",
-            icon="info",
-            width=58,
-        )
-    )
-    console.print(
-        TableView(
-            ["Field", "Value", "Count"],
-            [["account", "alice@example.com", "12"], ["status", "queued", "3"]],
-            DEFAULT,
-            align=["left", "left", "right"],
-        )
-    )
-    console.print(
-        TableView(
-            ["Field", "Value"],
-            [["mode", "compact"], ["zebra", "off"]],
-            DEFAULT,
-            compact=True,
-            zebra=False,
-        )
-    )
-    console.print(
-        TableView(
-            ["Field", "Value"],
-            [],
-            DEFAULT,
-            compact=True,
-            empty_text="No data yet",
-            show_header_on_empty=True,
-        )
-    )
-    console.print(Text(""))
-    console.print(label("panel / key-value / lists / empty", DEFAULT))
-    console.print(
-        Panel("A generic panel surface for grouped content.", DEFAULT, width=48)
-    )
-    console.print(Text(""))
-    console.print(
-        KeyValue(
-            [
-                ("account", "alice@example.com"),
-                ("mailbox", "inbox"),
-                ("state", "connected"),
-            ],
-            DEFAULT,
-        )
-    )
-    console.print(
-        KeyValue(
-            [("mode", "compact"), ("sync", "idle")],
-            DEFAULT,
-            compact=True,
-            divider=True,
-        )
-    )
-    console.print(Text(""))
-    console.print(
-        ListBlock(
-            [
-                "Queued and waiting",
-                "Accepted by server and visible in sent folder history for later review",
-                "Visible in sent folder",
-            ],
-            DEFAULT,
-        )
-    )
-    console.print(
-        ListBlock(["Create job", "Review batch", "Send"], DEFAULT, ordered=True)
-    )
-    console.print(
-        ListBlock(
-            [
-                ("Connect mailbox", 0, True),
-                ("Send first email", 0, False),
-                ("Check logs", 0, False),
-            ],
-            DEFAULT,
-            task=True,
-        )
-    )
-    console.print(
-        EmptyState(
-            "No batches yet",
-            DEFAULT,
-            body="Create one to get started.",
-            hint="Press b to create a batch",
-        )
-    )
-    console.print(EmptyState("Nothing selected", DEFAULT, compact=True))
-    console.print(Text(""))
-    console.print(label("buttons / icons / nav / toc / tags / feedback", DEFAULT))
-    for state in ["default", "hover", "focus", "pressed", "disabled"]:
-        console.print(
-            Columns(
-                [
-                    Text(f"primary/{state:<8}", style=DEFAULT.style("fg_faint")),
-                    Button("Send", DEFAULT, variant="primary", state=state),
-                ],
-                expand=False,
-                padding=(0, 1),
-            )
-        )
-    console.print(
-        Columns(
-            [
-                Button(variant.title(), DEFAULT, variant=variant)
-                for variant in ["secondary", "ghost", "danger"]
-            ]
-            + [Button("Search", DEFAULT, variant="secondary", icon="search")],
-            expand=False,
-            padding=(0, 1),
-        )
-    )
-    console.print(Text(""))
-    console.print(SectionHeader("Mailbox status", DEFAULT, meta="3 accounts"))
-    console.print(
-        Figure(
-            Panel("Figure content block", DEFAULT, width=36, fill="bg_inset"),
-            DEFAULT,
-            caption="Figure: compact inset panel sample",
-        )
-    )
-    icons_line = Text()
-    for name in ["account", "inbox", "sent", "search", "settings"]:
-        icons_line.append_text(icon(name, DEFAULT, tone="fg_muted"))
-        icons_line.append("  ", style=DEFAULT.style("bg_page"))
-    icons_line.append_text(status_dot(DEFAULT, tone="success"))
-    icons_line.append(" online  ", style=DEFAULT.style("fg_muted"))
-    icons_line.append_text(status_dot(DEFAULT, tone="warning"))
-    icons_line.append(" syncing", style=DEFAULT.style("fg_muted"))
-    console.print(icons_line)
-    console.print(Text(""))
-    console.print(NavItem("Inbox", DEFAULT, icon="inbox", active=True, badge_text="12"))
-    console.print(NavItem("Sent", DEFAULT, icon="sent"))
-    console.print(NavItem("Archive", DEFAULT, icon="folder", indent=1))
-    console.print(Text(""))
-    console.print(TocItem("Overview", DEFAULT, level=1, active=True))
-    console.print(TocItem("Setup", DEFAULT, level=1))
-    console.print(TocItem("Troubleshooting", DEFAULT, level=2))
-    console.print(Text(""))
-    console.print(TagList(["mailbox", "sync", "beta"], DEFAULT))
-    console.print(Text(""))
-    console.print(Toast("Connected to mailbox", DEFAULT, tone="success"))
-    console.print(Toast("Retry scheduled", DEFAULT, tone="warning"))
-    console.print(Toast("Delivery failed", DEFAULT, tone="danger"))
-    console.print(Toast("Sync info", DEFAULT, tone="info"))
+    console.print(_surfaces_section(DEFAULT))
+    console.print(_data_section(DEFAULT))
+    console.print(_code_section(DEFAULT))
+    console.print(_feedback_nav_section(DEFAULT))
     console.print(label("keybar", DEFAULT))
     console.print(keybar([("enter", "open"), ("?", "keys"), ("q", "quit")], DEFAULT))
-    console.print(Text(""))
+    console.print(spacer(1, theme=DEFAULT))
     return console
 
 

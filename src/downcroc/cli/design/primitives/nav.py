@@ -36,15 +36,14 @@ class NavItem:
     ) -> RenderResult:
         theme = self.theme
         pad = "  " * max(self.indent, 0)
-        bg = "bg_selected" if self.active else "bg_page"
+        bg = "bg_selected" if self.active else "bg_panel"
         fg = "accent_strong" if self.active else "fg_secondary"
-        marker = "▌" if self.active else " "
+        marker = "▌" if self.active else "│"
+        marker_tone = "accent" if self.active else "border_subtle"
         width = min(self.width or options.max_width, options.max_width)
         left = Text()
         left.append(pad, style=theme.bg(bg))
-        left.append(
-            marker, style=theme.style("accent" if self.active else "fg_faint", on=bg)
-        )
+        left.append(marker, style=theme.style(marker_tone, on=bg))
         left.append(" ", style=theme.bg(bg))
         icon_slot = f"{resolve_icon(self.icon)} " if self.icon else "  "
         left.append(icon_slot, style=theme.style(fg, on=bg))
