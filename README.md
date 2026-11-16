@@ -170,18 +170,14 @@ Configuration is read at runtime; account-level policy overrides take precedence
 
 ## Architecture (high level)
 
-```text
- campaign file / CSV / CLI input
-                 |
-                 v
-        parse -> validate -> snapshot -> route -> jobs
-                                                 |
-                                                 v
-                                dispatcher (window, quota, holds,
-                                lease, transport, attempts, reconcile)
-                                                 |
-                                                 v
-                      local SQLite + content store + structured JSONL logs
+```mermaid
+flowchart TD
+    A[Campaign file / CSV / CLI input] --> B[Parse, validate, snapshot, route]
+    B --> C[Jobs]
+    C --> D[Dispatcher\nwindow · quota · holds · lease · transport · attempts · reconcile]
+    D --> E[(Local SQLite)]
+    D --> F[Content store]
+    D --> G[Structured JSONL logs]
 ```
 
 The CLI communicates with the daemon over loopback HTTP. The daemon owns state and orchestrates sending, inbound processing, and follow-up planning.
