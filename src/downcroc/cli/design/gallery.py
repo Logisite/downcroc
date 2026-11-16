@@ -160,6 +160,24 @@ def _text_section(theme: Theme) -> Group:
     parts.append(label("prose and inline", theme))
     parts.append(prose(PROSE_SAMPLE, theme, width=62))
     parts.append(spacer(1, theme=theme))
+    parts.append(Text("prose tones", style=theme.style("fg_faint")))
+    parts.append(
+        prose(
+            "Muted supporting text for secondary context.",
+            theme,
+            width=62,
+            tone="fg_muted",
+        )
+    )
+    parts.append(
+        prose(
+            "Primary lead text for emphasis in a block.",
+            theme,
+            width=62,
+            tone="fg_primary",
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     inline = Text()
     inline.append("Body with ", style=theme.style("fg_secondary"))
     inline.append_text(inline_code("inline_code()", theme))
@@ -204,9 +222,20 @@ def _text_section(theme: Theme) -> Group:
     badges2.append_text(badge("ok", theme, tone="success", variant="solid"))
     badges2.append("  ")
     badges2.append_text(badge("muted", theme, tone="fg_muted", variant="subtle"))
+    badges2 = Text()
+    badges2.append_text(badge("beta", theme, tone="accent", variant="outline"))
+    badges2.append("  ")
+    badges2.append_text(badge("ok", theme, tone="success", variant="solid"))
+    badges2.append("  ")
+    badges2.append_text(badge("muted", theme, tone="fg_muted", variant="subtle"))
+    badges3 = Text()
+    for tone in ["info", "success", "warning", "danger", "accent"]:
+        badges3.append_text(badge(tone, theme, tone=tone))
+        badges3.append(" ")
     parts.append(label("badges", theme))
     parts.append(badges)
     parts.append(badges2)
+    parts.append(badges3)
     parts.append(spacer(1, theme=theme))
     parts.append(label("blockquote", theme))
     parts.append(

@@ -43,6 +43,10 @@
   it, retry it if something goes wrong, and never wonder whether
   it left.
   
+  prose tones
+  Muted supporting text for secondary context.
+  Primary lead text for emphasis in a block.
+  
   Body with  inline_code() , a link, strong, and muted.
   link states: default  hover  focus
   truncate: a very long ident…
@@ -50,6 +54,7 @@
   BADGES
    queued    sent    warning    error 
   [beta]   ok    muted 
+   info   success   warning   danger   accent  
   
   BLOCKQUOTE
   ▎ Queued means written down and waiting. Nothing has gone to the mail server 
@@ -116,19 +121,19 @@
   └──────────────────┴──────────────────────────────┴────────┘
   
   empty (header shown)
-  ┌───────┬───────┐
-  │ Field │ Value │
-  ├───────┼───────┤
-  └───────┴───────┘
-   No data yet
+  ┌─────────────┬───────┐
+  │ Field       │ Value │
+  ├─────────────┼───────┤
+  │ No data yet │       │
+  └─────────────┴───────┘
   
   KEY-VALUE
   account  alice@example.com
   mailbox  inbox            
   state    connected        
-  mode     compact                                 
-  ──────── ────────────────────────────────────────
-  sync     idle                                    
+  mode compact
+  ────────────────
+  sync idle
   
   LISTS
   •  Queued and waiting

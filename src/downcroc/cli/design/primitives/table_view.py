@@ -80,8 +80,13 @@ class TableView:
                 overflow=overflow,
                 no_wrap=col_no_wrap,
             )
+        if not self.rows and self.show_header_on_empty:
+            if self.headers:
+                empty_row = [self.empty_text] + [""] * (len(self.headers) - 1)
+                table.add_row(*empty_row)
+            else:
+                table.caption = self.empty_text
+                table.caption_style = Style(color=theme.fg_faint)
         for row in self.rows:
             table.add_row(*row)
         yield table
-        if not self.rows and self.show_header_on_empty:
-            yield Text(f" {self.empty_text}", style=theme.style("fg_faint"))
