@@ -29,6 +29,7 @@
   BREADCRUMB / HEADINGS / LABELS
   docs › inbound › watcher
   docs › reference › design › primitives › table
+  docs › design › primitives › table
   
   Send one email
   ▏ Reading what comes back
@@ -57,6 +58,7 @@
   Body with  inline_code() , a link, strong, italic, strike, and muted.
   link states: default  hover  focus
   truncate end: a very long ident…
+  truncate middle: runtime/se…ecycle.py
   truncate short: tiny
   
   BADGES
@@ -330,6 +332,15 @@
   KEYBAR
    enter  open    ?  keys    q  quit
   
+  
+  '''
+# ---
+# name: test_text_primitives_targeted
+  '''
+  a very long ident…
+  runtime/se…ecycle.py
+  docs › design › table
+  docs › design › table
   
   '''
 # ---

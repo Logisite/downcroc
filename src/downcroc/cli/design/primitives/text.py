@@ -79,25 +79,57 @@ def strike(text: str, theme: Theme) -> Text:
     return Text(text, style=theme.style("fg_faint", strike=True))
 
 
-def truncate(text: str, max_width: int, *, ellipsis: str = "…") -> str:
-    """Truncate plain text to max_width cells, appending ellipsis if needed."""
+def truncate(
+    text: str, max_width: int, *, ellipsis: str = "…", mode: str = "end"
+) -> str:
+    """Truncate plain text to max_width cells.
+
+    mode: "end" keeps the start, "middle" keeps start/end around ellipsis.
+    """
     if max_width <= 0:
         return ""
     if len(text) <= max_width:
         return text
     if max_width <= len(ellipsis):
         return ellipsis[:max_width]
+    if mode == "middle":
+        remaining = max_width - len(ellipsis)
+        left = (remaining + 1) // 2
+        right = remaining - left
+        if right <= 0:
+            return text[:left] + ellipsis
+        return text[:left] + ellipsis + text[-right:]
     return text[: max_width - len(ellipsis)] + ellipsis
 
 
-def breadcrumb(items: list[str], theme: Theme, *, separator: str = " › ") -> Text:
-    """A breadcrumb trail: muted separators, primary final segment."""
+def breadcrumb(
+    items: list[str] | list[tuple[str, str]],
+    theme: Theme,
+    *,
+    separator: str = " › ",
+) -> Text:
+    """A breadcrumb trail.
+
+    Items may be plain strings or ``(label, state)`` pairs where state is
+    default/active/hover/focus for renderable variants.
+    """
     out = Text()
-    for index, item in enumerate(items):
+    for index, raw in enumerate(items):
         if index:
             out.append(separator, style=theme.style("fg_faint"))
-        tone = "fg_primary" if index == len(items) - 1 else "fg_muted"
-        out.append(item, style=theme.style(tone))
+        if isinstance(raw, tuple):
+            item, state = raw
+        else:
+            item, state = raw, "active" if index == len(items) - 1 else "default"
+        if state == "active":
+            tone, bold = "fg_primary", True
+        elif state == "hover":
+            tone, bold = "fg_secondary", False
+        elif state == "focus":
+            tone, bold = "accent_strong", False
+        else:
+            tone, bold = "fg_muted", False
+        out.append(item, style=theme.style(tone, bold=bold))
     return out
 
 

@@ -161,6 +161,17 @@ def _text_section(theme: Theme) -> Group:
     parts.append(
         breadcrumb(["docs", "reference", "design", "primitives", "table"], theme)
     )
+    parts.append(
+        breadcrumb(
+            [
+                ("docs", "default"),
+                ("design", "hover"),
+                ("primitives", "focus"),
+                ("table", "active"),
+            ],
+            theme,
+        )
+    )
     parts.append(spacer(1, theme=theme))
     for level, text in HEADING_SAMPLES:
         parts.append(heading(text, theme, level=level))
@@ -206,6 +217,13 @@ def _text_section(theme: Theme) -> Group:
     parts.append(
         Text(
             f"truncate end: {truncate('a very long identifier name', 18)}",
+            style=theme.style("fg_muted"),
+        )
+    )
+    parts.append(
+        Text(
+            "truncate middle: "
+            + truncate("runtime/service/lifecycle.py", 20, mode="middle"),
             style=theme.style("fg_muted"),
         )
     )

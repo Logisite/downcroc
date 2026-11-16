@@ -55,14 +55,39 @@ def test_gallery_text_renders_bricks() -> None:
     assert "narrow / ellipsis" in text
     assert "full-width aligned divider" in text
     assert "truncate end" in text
+    assert "truncate middle" in text
     plain = export_gallery_plain_text()
     assert "docs › reference › design › primitives › table" in plain
+    assert "runtime/se…ecycle.py" in plain
     assert "A short quoted note without citation." in text
 
 
 def test_gallery_plain_text_snapshot(snapshot) -> None:
     """Stable text snapshot of the full gallery structure/content."""
     assert export_gallery_plain_text() == snapshot
+
+
+def test_text_primitives_targeted(snapshot) -> None:
+    """Targeted text primitive variants/states snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.text import breadcrumb, truncate
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=60, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(truncate("a very long identifier name", 18, mode="end"))
+    console.print(truncate("runtime/service/lifecycle.py", 20, mode="middle"))
+    console.print(breadcrumb(["docs", "design", "table"], DEFAULT))
+    console.print(
+        breadcrumb(
+            [("docs", "default"), ("design", "hover"), ("table", "focus")], DEFAULT
+        )
+    )
+    assert console.export_text() == snapshot
 
 
 @pytest.mark.parametrize("path_to_cli", [[], None])
