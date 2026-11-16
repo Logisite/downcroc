@@ -11,4 +11,4 @@ A mailbox's send policy sets a minimum and maximum gap, and downcroc chooses a
 wait in that range between sends.
 
 More:
-- [../part-ii/15-sending.md](../part-ii/15-sending.md)
+- [../part-ii/11-sending/sending.md](../part-ii/11-sending/sending.md)

@@ -116,7 +116,7 @@ The next page walks one failure from beginning to end, so the first time you
 meet a real one it is already familiar.
 
 ⤷ every check the status panel can show, and what each state means:
-  10a-status.md
+  [status](../../part-ii/02-status/status.md)
 ⤷ the complete list of failure codes, what each means, and every option on
-  the failed screen: 24-failed.md
+  [failed](../../part-ii/10-failed/failed.md)
 ⤷ the whole story of a login that expired: [gmail.md](../01-starting/gmail.md)

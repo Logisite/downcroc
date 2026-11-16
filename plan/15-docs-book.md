@@ -38,7 +38,7 @@ docs/
     jobs.md
     attempts.md
     holds.md
-    smtp-seats.md
+    # (superseded by part-iii/31-seats-and-threads.md)
     followups.md
     threading.md
   operations/
@@ -198,7 +198,7 @@ Command surface:
 downcroc docs --list
 downcroc docs --list --json
 downcroc docs smtp-seats
-downcroc docs concepts/smtp-seats
+downcroc docs 31-seats-and-threads
 downcroc docs --search "seat failover"
 downcroc docs smtp-seats --raw
 downcroc docs smtp-seats --no-pager
@@ -293,7 +293,7 @@ Terminal search is offline and prebuilt:
 
 ```json
 {
-  "page": "concepts/smtp-seats.md",
+  "page": "part-iii/31-seats-and-threads.md",
   "title": "SMTP seats",
   "summary": "Seats are transport reservations, not account status.",
   "tags": ["smtp", "seats", "capacity"],

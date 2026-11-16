@@ -30,7 +30,7 @@ allowance, it does not error; it waits until your local midnight and starts
 again. Give two mailboxes different allowances and the daemon spreads work
 between them by itself.
 
-More: [mailboxes](../part-ii/12-account.md), [sending](../part-ii/15-sending.md)
+More: [mailboxes](../part-ii/07-account/account.md), [sending](../part-ii/11-sending/sending.md)
 
 ### approval
 
@@ -49,7 +49,7 @@ See also: [[batch]], [[job]]
 A group of jobs created together from one file or one campaign. The batch is
 how you see and steer work as a group: approve it, pause it, read its totals.
 
-More: [batches](../part-ii/14c-show-list.md), [approve](../part-ii/14b-approve.md)
+More: [batches](../part-ii/08-batch/inspect.md), [approve](../part-ii/08-batch/approve.md)
 
 See also: [[job]]
 
@@ -70,7 +70,7 @@ See also: [[batch]], [[job]]
 
 The one-word reason a send failed, as the failed screen shows it. Every code
 has a plain meaning; the complete list lives in the
-[failed command chapter](../part-ii/24-failed.md).
+[failed command chapter](../part-ii/10-failed/failed.md).
 
 See also: [[failed]]
 
@@ -94,7 +94,7 @@ A send that could not be delivered, with the reason recorded. A failed job is
 kept, not thrown away, and it will try again on its own within the retry
 rules unless the reason says the mailbox or the address made that pointless.
 
-More: [the failed command](../part-ii/24-failed.md), [why things fail](32-failures.md)
+More: [the failed command](../part-ii/10-failed/failed.md), [why things fail](32-failures.md)
 
 See also: [[job]], [[code]]
 
@@ -162,7 +162,7 @@ A mailbox's send policy sets a minimum and maximum gap, and downcroc chooses a
 wait in that range between sends.
 
 More:
-- [../part-ii/15-sending.md](../part-ii/15-sending.md)
+- [../part-ii/11-sending/sending.md](../part-ii/11-sending/sending.md)
 
 ### job
 
@@ -171,7 +171,7 @@ needs: the recipient, the subject, the body, and the record of what happened
 when it tried. A job is the unit you create, watch, and cancel. It exists
 before it is sent and after, so the history is always readable.
 
-More: [jobs](../part-ii/14d-jobs.md)
+More: [jobs](../part-ii/09-job/job.md)
 
 See also: [[queued]], [[sent]], [[failed]], [[batch]]
 
@@ -184,7 +184,7 @@ time. Keeping this low spaces work out; raising it allows more sends to run in
 parallel for that mailbox, within the limits of how sending is configured.
 
 More:
-- [../part-ii/15-sending.md](../part-ii/15-sending.md)
+- [../part-ii/11-sending/sending.md](../part-ii/11-sending/sending.md)
 
 ## N
 
@@ -194,7 +194,7 @@ A mailbox that downcroc can no longer sign in to with the credential it has.
 The address and your messages are still there, but the permission to send has
 expired or been taken away. Nothing sends from it until you connect it again.
 
-More: [broken mailboxes](../part-ii/12-account.md), [connecting Gmail](../part-i/01-starting/gmail.md)
+More: [broken mailboxes](../part-ii/07-account/account.md), [connecting Gmail](../part-i/01-starting/gmail.md)
 
 See also: [[vault]], [[job]]
 
@@ -243,7 +243,7 @@ You can use a window to keep mail going out at sensible times of day rather
 than around the clock.
 
 More:
-- [../part-ii/15-sending.md](../part-ii/15-sending.md)
+- [../part-ii/11-sending/sending.md](../part-ii/11-sending/sending.md)
 
 ### sent
 
@@ -296,7 +296,7 @@ In downcroc, a follow-up is sent as a reply on the same thread as the original
 message to that person.
 
 More:
-- [../part-ii/19-followups.md](../part-ii/19-followups.md)
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)
 
 ### transport
 
@@ -316,4 +316,4 @@ The encrypted store that holds your mailboxes' credentials. It is locked when
 the daemon is not running, unlocked while it works, and locked again on a
 clean stop. A locked vault is normal; nothing sends until it is unlocked.
 
-More: [vault commands](../part-ii/11-vault.md)
+More: [vault commands](../part-ii/04-vault/vault.md)

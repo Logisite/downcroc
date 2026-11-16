@@ -11,4 +11,4 @@ In downcroc, a follow-up is sent as a reply on the same thread as the original
 message to that person.
 
 More:
-- [../part-ii/19-followups.md](../part-ii/19-followups.md)
+- [../part-ii/08-batch/followups.md](../part-ii/08-batch/followups.md)

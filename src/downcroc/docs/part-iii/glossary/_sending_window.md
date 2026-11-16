@@ -11,4 +11,4 @@ You can use a window to keep mail going out at sensible times of day rather
 than around the clock.
 
 More:
-- [../part-ii/15-sending.md](../part-ii/15-sending.md)
+- [../part-ii/11-sending/sending.md](../part-ii/11-sending/sending.md)

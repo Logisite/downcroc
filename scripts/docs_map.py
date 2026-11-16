@@ -521,10 +521,15 @@ def run_check() -> int:
         aliases = 0
         for raw in stub_file.read_text(encoding="utf-8").splitlines():
             line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
             if "->" in line:
                 aliases += 1
         if aliases:
-            print(f"note: {aliases} legacy Part II alias(es) defined in part-ii/_stubs.txt", file=sys.stderr)
+            print(
+                f"note: {aliases} legacy Part II alias(es) defined in part-ii/_stubs.txt",
+                file=sys.stderr,
+            )
     print(f"ok: {len(pages)} pages checked")
     return 0
 

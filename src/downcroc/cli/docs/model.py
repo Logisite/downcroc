@@ -10,14 +10,10 @@ ADMONITION = re.compile(r'^!!!\s+([a-z]+)(?:\s+"([^"]*)")?\s*$')
 IMAGE = re.compile(r"^!\[([^\]]*)\]\(([^)]+)\)\s*$")
 NAV = {
     "": 0,
-    "getting-started": 1,
-    "concepts": 2,
-    "operations": 3,
-    "cli": 4,
-    "reference": 5,
-    "security": 6,
-    "troubleshooting": 7,
-    "release-notes": 8,
+    "part-i": 1,
+    "part-ii": 2,
+    "part-iii": 3,
+    "release-notes": 4,
 }
 
 

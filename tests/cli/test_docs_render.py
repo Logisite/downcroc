@@ -29,26 +29,28 @@ def test_docs_list_search_and_render(stack_factory) -> None:
     listed = _cli(stack, "docs", "--list", "--json")
     assert listed.returncode == 0, listed.stderr
     pages = json.loads(listed.stdout)
-    assert any(page["path"] == "concepts/smtp-seats.md" for page in pages)
+    assert any(page["path"] == "part-iii/31-seats-and-threads.md" for page in pages)
 
     found = _cli(stack, "docs", "--search", "seat")
     assert found.returncode == 0, found.stderr
-    assert "SMTP seats" in found.stdout
+    assert "Seats and threads" in found.stdout
 
-    rendered = _cli(stack, "docs", "smtp-seats", "--width", "60", "--no-pager")
+    rendered = _cli(
+        stack, "docs", "31-seats-and-threads", "--width", "60", "--no-pager"
+    )
     assert rendered.returncode == 0, rendered.stderr
+    assert "Seats and threads" in rendered.stdout
     assert "SMTP seats" in rendered.stdout
-    assert "downcroc doctor capacity" in rendered.stdout
-    assert "# SMTP seats" not in rendered.stdout
+    assert "# Seats and threads" not in rendered.stdout
     assert "\x1b[" not in rendered.stdout
     assert max(len(line) for line in rendered.stdout.splitlines()) <= 60
 
 
 def test_docs_raw_matches_the_source(stack_factory) -> None:
     stack = stack_factory(accounts=["alice@local.test"])
-    result = _cli(stack, "docs", "smtp-seats", "--raw")
+    result = _cli(stack, "docs", "31-seats-and-threads", "--raw")
     assert result.returncode == 0, result.stderr
-    source = (ROOT / "docs" / "concepts" / "smtp-seats.md").read_text()
+    source = (ROOT / "docs" / "part-iii" / "31-seats-and-threads.md").read_text()
     assert result.stdout == source
 
 
@@ -66,7 +68,7 @@ def test_docs_browser_opens_and_searches(stack_factory) -> None:
         session.wait_for(b"downcroc docs")
         session.write(b"/", 0.4)
         session.write(b"seat\r", 0.8)
-        assert "SMTP seats" in "\n".join(session.screen())
+        assert "Seats and threads" in "\n".join(session.screen())
     finally:
         session.write(b"\x03")
         session.close()
