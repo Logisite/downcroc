@@ -13,6 +13,7 @@ from downcroc.core.followups.status import (
     derive_state,
 )
 from downcroc.domain.batches import Batch
+from downcroc.domain.campaign import FollowUpStep
 from downcroc.domain.errors import DomainError, FollowUpPayloadMissing
 from downcroc.domain.followups import (
     DeclarationState,
@@ -112,6 +113,7 @@ class StatusService:
             )
             if declaration.state is DeclarationState.ACTIVE and detail is None:
                 earlier.append(planned)
+        rows.extend(self._ad_hoc_rows(parent, children, rows, initial))
         return StatusReport(
             batch_id=parent.id,
             steps=tuple(rows),
@@ -208,6 +210,64 @@ class StatusService:
             for batch in self._batches.list(limit=10_000)
             if batch.parent_batch_id == parent_id
         ]
+
+    def _ad_hoc_rows(
+        self,
+        parent: Batch,
+        children: list[Batch],
+        rows: list[StepStatus],
+        initial: list[Job],
+    ) -> list[StepStatus]:
+        seen = {row.step for row in rows} | {
+            str(row.child_batch_id) for row in rows if row.child_batch_id is not None
+        }
+        extras: list[StepStatus] = []
+        for child in children:
+            if child.id in seen:
+                continue
+            options = _options(child)
+            step_key = options.get("step")
+            if not isinstance(step_key, str) or not step_key or step_key in seen:
+                continue
+            seen.add(step_key)
+            planned = PlannedStep(
+                step=FollowUpStep(
+                    key=step_key,
+                    after_days=int(options.get("after_days") or 0),
+                    when=str(options.get("when") or "manual"),
+                    subject=None,
+                    text="",
+                    html=None,
+                    require_approval=child.approval == "review",
+                ),
+                overrides={},
+            )
+            counts = child_counts(self._jobs.counts(child.id))
+            derived = derive_state(
+                declaration_state=None,
+                child_state=child.state,
+                counts=counts,
+                evaluation=None,
+                deferred=(parent.id, step_key) in self.deferred,
+                parent_sent=bool(initial),
+            )
+            kind = options.get("kind")
+            extras.append(
+                StepStatus(
+                    step=step_key,
+                    kind=str(kind) if kind else "ad_hoc",
+                    state=derived,
+                    after_days=planned.step.after_days,
+                    when=planned.step.when,
+                    require_approval=planned.step.require_approval,
+                    version=None,
+                    child_batch_id=child.id,
+                    counts=counts,
+                    detail=None,
+                    next_due_at=None,
+                )
+            )
+        return extras
 
 
 def _options(batch: Batch) -> dict[str, object]:
