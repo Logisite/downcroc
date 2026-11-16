@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.segment import Segment
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.text import Text
@@ -28,6 +29,7 @@ class CodePanel:
         filename: str = "",
         width: int | None = None,
         copied: bool = False,
+        show_badge: bool = True,
     ) -> None:
         self.source = source.rstrip("\n")
         self.theme = theme
@@ -35,6 +37,7 @@ class CodePanel:
         self.filename = filename
         self.width = width
         self.copied = copied
+        self.show_badge = show_badge
 
     def copy(self) -> bool:
         """Copy the source to the clipboard and flip the button state."""
@@ -68,6 +71,12 @@ class CodePanel:
         if self.filename:
             out.append(" ", style=chrome)
             out.append(self.filename, style=theme.style("fg_secondary") + chrome)
+        if self.show_badge and self.language:
+            out.append("  ", style=chrome)
+            out.append(
+                self.language,
+                style=theme.style("fg_faint") + chrome,
+            )
         button = self._button()
         gap = width - len(out) - len(button)
         if gap > 0:
@@ -83,7 +92,7 @@ class CodePanel:
         theme = self.theme
         width = min(self.width or options.max_width, options.max_width)
         yield self._chrome(width)
-        yield Syntax(
+        syntax = Syntax(
             self.source,
             self.language or "text",
             theme="ansi_dark",
@@ -92,7 +101,13 @@ class CodePanel:
             line_numbers=True,
             indent_guides=True,
         )
-        yield Text("", style=theme.bg("code_bg"))
+        render_opts = options.update_width(width)
+        for line in console.render_lines(
+            syntax, render_opts, pad=True, new_lines=False
+        ):
+            yield from line
+            yield Segment.line()
+        yield Text(" " * width, style=theme.bg("code_bg"))
 
 
 def sample_panel(theme: Theme) -> CodePanel:
@@ -108,6 +123,7 @@ def stop(self, timeout: float = 5.0) -> None:
         theme,
         language="python",
         filename="runtime/service/lifecycle.py",
+        width=72,
     )
 
 
@@ -122,4 +138,5 @@ uv run downcroc logs --event watcher. --json | grep '"level": 30'
         theme,
         language="bash",
         filename="deploy.sh",
+        width=72,
     )

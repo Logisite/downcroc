@@ -18,7 +18,11 @@ from downcroc.cli.design.primitives.blockquote import Blockquote
 from downcroc.cli.design.primitives.callout import Callout
 from downcroc.cli.design.primitives.card import Card
 from downcroc.cli.design.primitives.code_panel import sample_panel, sample_shell
+from downcroc.cli.design.primitives.empty_state import EmptyState
+from downcroc.cli.design.primitives.key_value import KeyValue
 from downcroc.cli.design.primitives.keybar import keybar
+from downcroc.cli.design.primitives.list_block import ListBlock
+from downcroc.cli.design.primitives.panel import Panel
 from downcroc.cli.design.primitives.rule import divider
 from downcroc.cli.design.primitives.table_view import TableView
 from downcroc.cli.design.primitives.text import (
@@ -210,6 +214,45 @@ def gallery_console(width: int = 78) -> Console:
         )
     )
     console.print(Text(""))
+    console.print(label("panel / key-value / lists / empty", DEFAULT))
+    console.print(
+        Panel("A generic panel surface for grouped content.", DEFAULT, width=48)
+    )
+    console.print(Text(""))
+    console.print(
+        KeyValue(
+            [
+                ("account", "alice@example.com"),
+                ("mailbox", "inbox"),
+                ("state", "connected"),
+            ],
+            DEFAULT,
+        )
+    )
+    console.print(Text(""))
+    console.print(
+        ListBlock(
+            ["Queued and waiting", "Accepted by server", "Visible in sent folder"],
+            DEFAULT,
+        )
+    )
+    console.print(
+        ListBlock(["Create job", "Review batch", "Send"], DEFAULT, ordered=True)
+    )
+    console.print(
+        ListBlock(
+            [
+                ("Connect mailbox", 0, True),
+                ("Send first email", 0, False),
+                ("Check logs", 0, False),
+            ],
+            DEFAULT,
+            task=True,
+        )
+    )
+    console.print(
+        EmptyState("No batches yet", DEFAULT, body="Create one to get started.")
+    )
     console.print(label("keybar", DEFAULT))
     console.print(keybar([("enter", "open"), ("?", "keys"), ("q", "quit")], DEFAULT))
     console.print(Text(""))
