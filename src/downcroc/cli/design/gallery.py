@@ -264,6 +264,21 @@ def _data_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
+    parts.append(Text("column widths / no-wrap", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Key", "Description", "State"],
+            [
+                ["sync.interval", "How often the watcher polls IMAP", "ok"],
+                ["retry.backoff", "Exponential backoff ceiling value", "warn"],
+            ],
+            theme,
+            col_widths=[16, 28, 6],
+            no_wrap=[True, False, True],
+            align=["left", "left", "center"],
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     parts.append(Text("empty (header shown)", style=theme.style("fg_faint")))
     parts.append(
         TableView(
@@ -313,6 +328,18 @@ def _code_section(theme: Theme) -> Group:
             filename="runtime/service/lifecycle.py",
             width=72,
             highlight_lines={3},
+        )
+    )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("hover state", style=theme.style("fg_faint")))
+    parts.append(
+        CodePanel(
+            sample_shell(theme).source,
+            theme,
+            language="bash",
+            filename="deploy.sh",
+            width=72,
+            button_state="hover",
         )
     )
     parts.append(spacer(1, theme=theme))
@@ -467,3 +494,9 @@ def export_gallery_svg(path: str) -> str:
 def export_gallery_text() -> str:
     console = gallery_console()
     return console.export_text(styles=True)
+
+
+def export_gallery_plain_text() -> str:
+    """Plain text export for stable snapshot diffs (no ANSI styles)."""
+    console = gallery_console()
+    return console.export_text(styles=False)

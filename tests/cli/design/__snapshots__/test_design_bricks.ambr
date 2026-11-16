@@ -1,0 +1,241 @@
+# serializer version: 1
+# name: test_gallery_plain_text_snapshot
+  '''
+  downcroc design system
+  primitives-first gallery — in-package samples, screenshot/critique loop
+  
+  Tokens  surfaces, text, accents
+  ───────────────────────────────
+  
+  ▕████▏ page          #000000
+  ▕████▏ panel         #16161e
+  ▕████▏ raised        #1f1f2a
+  ▕████▏ inset         #0a0a10
+  
+  ▕████▏ primary       #c9d1d9
+  ▕████▏ secondary     #8b949e
+  ▕████▏ muted         #626c7a
+  ▕████▏ faint         #3d4451
+  
+  ▕████▏ accent        #7c6cf0
+  ▕████▏ success       #3fb950
+  ▕████▏ warning       #d29922
+  ▕████▏ danger        #f85149
+  ▕████▏ info          #58a6ff
+  
+  Text primitives  hierarchy, inline, prose
+  ─────────────────────────────────────────
+  
+  BREADCRUMB / HEADINGS / LABELS
+  docs › inbound › watcher
+  
+  Send one email
+  ▏ Reading what comes back
+  · Queued means written down
+  
+  ON THIS PAGE
+  SECTION
+  DANGER
+  
+  PROSE AND INLINE
+  downcroc writes the message down, gives it a name, and only 
+  then sends it. Once the message is written down, you can see 
+  it, retry it if something goes wrong, and never wonder whether
+  it left.
+  
+  Body with  inline_code() , a link, strong, and muted.
+  truncate: a very long ident…
+  
+  BADGES
+   queued    sent    warning    error 
+  [beta]   ok    muted 
+  
+  BLOCKQUOTE
+  ▎ Queued means written down and waiting. Nothing has gone to the mail server 
+  ▎ yet.
+    — docs
+  
+  Surfaces / structure  card, panel, figure, rule
+  ───────────────────────────────────────────────
+  
+  CARDS
+                                              
+   watcher                                    
+                                              
+   The inbound watcher hands work to the      
+   ingester.                                  
+                                              
+  ╭──────────────────────────────────────────╮
+  │ hairline variant                         │
+  │                                          │
+  │ Same card, barely-visible alpha border.  │
+  ╰──────────────────────────────────────────╯
+  
+  PANEL + FIGURE
+                                                  
+   A generic panel surface for grouped content.   
+                                                  
+                                      
+   Figure content block               
+                                      
+  Figure: compact inset panel sample
+  
+  ───────────── section divider ─────────────
+  
+  Data & collections  table, key-value, lists, empty
+  ──────────────────────────────────────────────────
+  
+  TABLES
+  Field   │ Value             │ Count
+  ────────┼───────────────────┼──────
+  account │ alice@example.com │    12
+  ────────┼───────────────────┼──────
+  status  │ queued            │     3
+  
+  compact, zebra off
+  Field │ Value  
+  ──────┼────────
+  mode  │ compact
+  ──────┼────────
+  zebra │ off    
+  
+  column widths / no-wrap
+  Key              │ Description                  │ State 
+  ─────────────────┼──────────────────────────────┼───────
+  sync.interval    │ How often the watcher polls  │   ok  
+                   │ IMAP                         │       
+  ─────────────────┼──────────────────────────────┼───────
+  retry.backoff    │ Exponential backoff ceiling  │  warn 
+                   │ value                        │       
+  
+  empty (header shown)
+  Field │ Value
+  ──────┼──────
+   No data yet
+  
+  KEY-VALUE
+  account  alice@example.com
+  mailbox  inbox            
+  state    connected        
+  mode     compact                                 
+  ──────── ────────────────────────────────────────
+  sync     idle                                    
+  
+  LISTS
+  •  Queued and waiting
+  •  Accepted by server and visible in sent folder history for later review
+  •  Visible in sent folder
+  
+  1. Create job
+  2. Review batch
+  3. Send
+  
+  ☑  Connect mailbox
+  ☐  Send first email
+  ☐  Check logs
+  
+  EMPTY STATES
+  ∅ No batches yet
+    Create one to get started.
+    Press b to create a batch
+  
+  ∅ Nothing selected
+  Code panels  chrome, states, highlight
+  ──────────────────────────────────────
+  
+  default (highlighted line)
+    ● ● ●  runtime/service/lifecycle.py   python                 [ copy ] 
+    1 def stop(self, timeout: float = 5.0) -> None:                       
+    2 │   """Stop the daemon and release its lock."""                     
+  ❱ 3 │   self._workers.stop(timeout=timeout)                             
+    4 │   self._lock.release()                                            
+                                                                          
+  
+  hover state
+    ● ● ●  deploy.sh   bash                                      [ copy ] 
+    1 uv run downcroc service start                                       
+    2 uv run downcroc logs --event watcher. --json | grep '"level": 30'   
+                                                                          
+  
+  copied state
+    ● ● ●  deploy.sh   bash                                      copied ✓ 
+    1 uv run downcroc service start                                       
+    2 uv run downcroc logs --event watcher. --json | grep '"level": 30'   
+                                                                          
+  
+  disabled copy state
+    ● ● ●  deploy.sh   bash                                      [ copy ] 
+    1 uv run downcroc service start                                       
+    2 uv run downcroc logs --event watcher. --json | grep '"level": 30'   
+                                                                          
+  
+  Buttons, feedback & navigation  states and variants
+  ───────────────────────────────────────────────────
+  
+  BUTTON STATES (PRIMARY)
+  primary/default                                                               
+   Send                                                                         
+  primary/hover                                                                 
+   Send                                                                         
+  primary/focus                                                                 
+   ▏Send                                                                        
+  primary/pressed                                                               
+   Send                                                                         
+  primary/disabled                                                              
+   Send                                                                         
+  
+  BUTTON VARIANTS
+   Secondary                                                                    
+   Ghost                                                                        
+   Danger                                                                       
+   󰍉 Search                                                                     
+  
+  CALLOUT TONES
+  ▎ 󰋽 Note                                                  
+     Useful context for the reader.                         
+  
+  ▎ 󰄬 Tip                                                   
+     A helpful suggestion.                                  
+  
+  ▎ 󰀪 Warning                                               
+     Something needs attention.                             
+  
+  ▎ 󰅚 Danger                                                
+     This action can cause data loss.                       
+  
+  TOASTS
+   󰄬 Connected to mailbox 
+  
+   󰀪 Retry scheduled 
+  
+   󰅚 Delivery failed 
+  
+   󰋽 Sync info 
+  
+  ICONS
+  󰀄  󰇮  󰒊  󰍉  󰒓  ● online  ● syncing
+  
+  NAV ITEMS / STATES
+  ▌ 󰇮 Inbox                                            12 
+  │ 󰒊 Sent                                                
+    │ 󰉋 Archive                                           
+  │ 󰉋 Drafts                                              
+  │ 󰒓 Settings                                            
+  │ 󰉋 Disabled                                            
+  
+  TOC ITEMS / STATES
+  ▸ Overview
+  · Setup
+    · Troubleshooting
+  · Advanced
+    · Keyboard
+  
+  TAGS
+   mailbox   sync   beta 
+  
+  KEYBAR
+   enter  open    ?  keys    q  quit
+  
+  
+  '''
+# ---

@@ -9,7 +9,10 @@ from __future__ import annotations
 import pytest
 from syrupy.extensions.image import PNGImageSnapshotExtension  # noqa: F401
 
-from downcroc.cli.design.gallery import export_gallery_text
+from downcroc.cli.design.gallery import (
+    export_gallery_plain_text,
+    export_gallery_text,
+)
 from downcroc.cli.design.paint.color import blend, gradient
 from downcroc.cli.design.playground import PlaygroundApp
 
@@ -33,10 +36,16 @@ def test_gallery_text_renders_bricks() -> None:
     assert "enter" in text
     assert "BUTTON STATES (PRIMARY)" in text
     assert "CALLOUT TONES" in text
-    assert "NAV ITEMS" in text
+    assert "NAV ITEMS / STATES" in text
     assert "No data yet" in text
     assert "disabled copy state" in text
+    assert "copied state" in text
     assert "Figure: compact inset panel sample" in text
+
+
+def test_gallery_plain_text_snapshot(snapshot) -> None:
+    """Stable text snapshot of the full gallery structure/content."""
+    assert export_gallery_plain_text() == snapshot
 
 
 @pytest.mark.parametrize("path_to_cli", [[], None])
