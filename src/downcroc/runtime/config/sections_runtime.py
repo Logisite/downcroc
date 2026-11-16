@@ -398,3 +398,84 @@ class CliSettings(BaseModel):
             "when the terminal is too narrow for the grid."
         ),
     )
+
+
+class BackfillSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(
+        default=True,
+        description="Whether the Gmail provider thread id backfill worker runs.",
+    )
+    page_size: int = Field(
+        default=50,
+        ge=1,
+        le=10_000,
+        description="Holes pulled from the database per drain turn.",
+    )
+    max_accounts: int = Field(
+        default=1,
+        ge=1,
+        le=64,
+        description="Accounts drained in parallel lanes.",
+    )
+    max_concurrency: int = Field(
+        default=2,
+        ge=1,
+        le=16,
+        description="In-flight lookups within one account.",
+    )
+    jitter_s: float = Field(
+        default=2.0,
+        ge=0,
+        le=3600,
+        description="Minimum seconds between API or IMAP calls on one lane.",
+    )
+    jitter_max_s: float = Field(
+        default=5.0,
+        ge=0,
+        le=3600,
+        description="Upper bound of the call jitter.",
+    )
+    retry_after_days: int = Field(
+        default=7,
+        ge=0,
+        le=365,
+        description="Days after the first strike before a hole can be marked missing.",
+    )
+    recheck_s: float = Field(
+        default=3600.0,
+        ge=0.05,
+        le=86_400,
+        description="Idle-mode hole re-check interval.",
+    )
+    imap_chunk: int = Field(
+        default=500,
+        ge=1,
+        le=10_000,
+        description="UIDs per IMAP FETCH chunk in the bulk sweep.",
+    )
+    imap_min_holes: int = Field(
+        default=5,
+        ge=1,
+        le=100_000,
+        description="Below this hole count, skip the IMAP sweep and use API search.",
+    )
+    startup_delay_s: float = Field(
+        default=30.0,
+        ge=0,
+        le=3600,
+        description="Daemon-start stagger before the first hole count.",
+    )
+    pass_cooldown_s: float = Field(
+        default=300.0,
+        ge=0,
+        le=86_400,
+        description="Wait between passes while unmarked holes remain.",
+    )
+
+    @model_validator(mode="after")
+    def ordered_jitter(self) -> BackfillSettings:
+        if self.jitter_max_s < self.jitter_s:
+            raise ValueError("jitter_max_s must be at least jitter_s")
+        return self

@@ -101,12 +101,15 @@ def list_messages(
     timeout_s: float,
     page_token: str | None = None,
     max_results: int = 100,
+    label_ids: tuple[str, ...] = (),
     project_id: str | None = None,
 ) -> GmailListPage:
     _require_api(spec)
     params: dict[str, Any] = {"q": query, "maxResults": max(1, max_results)}
     if page_token:
         params["pageToken"] = page_token
+    if label_ids:
+        params["labelIds"] = list(label_ids)
     response = api._request(
         spec,
         "GET",
@@ -135,6 +138,32 @@ def list_messages(
         result_size_estimate=estimate
         if isinstance(estimate, int) and not isinstance(estimate, bool)
         else 0,
+    )
+
+
+def find_sent_thread_id(
+    spec: ProviderSpec,
+    access_token: str,
+    message_id: str,
+    *,
+    timeout_s: float,
+    project_id: str | None = None,
+) -> GmailListPage:
+    """Search the account's Sent folder for one RFC Message-ID.
+
+    The list response carries only ``id`` and ``threadId`` per message, which is
+    everything the backfill needs. Callers classify on the result count.
+    """
+
+    cleaned = message_id.strip().strip("<>")
+    return list_messages(
+        spec,
+        access_token,
+        f"rfc822msgid:<{cleaned}>",
+        timeout_s=timeout_s,
+        max_results=50,
+        label_ids=("SENT",),
+        project_id=project_id,
     )
 
 

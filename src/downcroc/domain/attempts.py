@@ -35,6 +35,17 @@ class ConnectAttempt:
 
 
 @dataclass(frozen=True)
+class ThreadHole:
+    """A sent attempt whose Gmail provider thread id is still missing."""
+
+    attempt_id: str
+    job_id: str
+    account_id: str
+    message_id: str
+    started_at: str
+
+
+@dataclass(frozen=True)
 class SendAttempt:
     id: str
     job_id: str

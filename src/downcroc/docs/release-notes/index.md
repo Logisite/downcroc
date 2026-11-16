@@ -4,13 +4,19 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.2.post4
+since: 1.3.2.post5
 order: 0
 terminal:
-  summary: Current release is 1.3.2.post4.
+  summary: Current release is 1.3.2.post5.
 ---
 
 # Release notes
+
+## 1.3.2.post5
+
+Describe this release.
+
+See the full note in `release-notes/v1.3.2.post5.md` at the repository root.
 
 ## 1.3.2.post4
 

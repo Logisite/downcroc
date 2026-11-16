@@ -13,6 +13,7 @@ from downcroc.runtime.config.sections_mail import (
     VaultSettings,
 )
 from downcroc.runtime.config.sections_runtime import (
+    BackfillSettings,
     CliSettings,
     DaemonSettings,
     DispatchSettings,
@@ -23,6 +24,7 @@ from downcroc.runtime.config.sections_runtime import (
 )
 
 __all__ = [
+    "BackfillSettings",
     "CliSettings",
     "ConfigSettings",
     "ConnectSettings",
@@ -104,4 +106,8 @@ class Settings(BaseModel):
     connectivity: ConnectivitySettings = Field(
         default_factory=ConnectivitySettings,
         description="Internet reachability watchdog.",
+    )
+    backfill: BackfillSettings = Field(
+        default_factory=BackfillSettings,
+        description="Gmail provider thread id backfill worker settings.",
     )

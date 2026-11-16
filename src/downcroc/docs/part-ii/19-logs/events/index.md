@@ -33,6 +33,7 @@ Credential-like fields (passwords, tokens, secrets, authorization material) are 
 - [inbound-watcher.md](inbound-watcher.md) — mailbox watching, sync, sweeps, and inbound source selection.
 - [policy-config.md](policy-config.md) — send policy and configuration changes.
 - [system.md](system.md) — backup/restore, API/SSE, quota, snapshots, and other operational events.
+- [backfill.md](backfill.md) — Gmail thread id backfill lifecycle, lookups, and retries.
 
 ## Notes
 

@@ -78,6 +78,7 @@ def create_app(
         services.dispatcher.start()
         services.retention.start()
         services.config.start()
+        services.backfill.start()
         log.info(
             "daemon.ready",
             port=settings.daemon.port,
@@ -89,6 +90,7 @@ def create_app(
             await services.config.stop()
             await services.retention.stop()
             await services.dispatcher.stop()
+            await services.backfill.stop()
             await services.auth_preflight.stop()
             await services.outbound.close_sessions("shutdown")
             services.inbound.stop_all("shutdown")

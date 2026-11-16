@@ -201,6 +201,24 @@ Internet reachability watchdog.
 - `connectivity.confirm_failures` (default `3`, 1–20): Consecutive failed probes needed to call the internet down.
 - `connectivity.confirm_successes` (default `3`, 1–20): Consecutive successful probes needed to resume after an outage.
 
+## backfill
+
+Gmail provider thread id backfill worker settings. This worker fills missing
+thread ids on older Gmail messages so threads can be grouped correctly.
+
+- `backfill.enabled` (default `true`): Whether the Gmail provider thread id backfill worker runs.
+- `backfill.page_size` (default `50`, 1–10000): Holes pulled from the database per drain turn.
+- `backfill.max_accounts` (default `1`, 1–64): Accounts drained in parallel lanes.
+- `backfill.max_concurrency` (default `2`, 1–16): In-flight lookups within one account.
+- `backfill.jitter_s` (default `2.0`, 0–3600): Minimum seconds between API or IMAP calls on one lane.
+- `backfill.jitter_max_s` (default `5.0`, 0–3600): Upper bound of the call jitter. Must be at least `jitter_s`.
+- `backfill.retry_after_days` (default `7`, 0–365): Days after the first strike before a hole can be marked missing.
+- `backfill.recheck_s` (default `3600.0`, 0.05–86400): Idle-mode hole re-check interval.
+- `backfill.imap_chunk` (default `500`, 1–10000): UIDs per IMAP FETCH chunk in the bulk sweep.
+- `backfill.imap_min_holes` (default `5`, 1–100000): Below this hole count, skip the IMAP sweep and use API search.
+- `backfill.startup_delay_s` (default `30.0`, 0–3600): Daemon-start stagger before the first hole count.
+- `backfill.pass_cooldown_s` (default `300.0`, 0–86400): Wait between passes while unmarked holes remain.
+
 ## See also
 
 - [../part-ii/17-config/config.md](../part-ii/17-config/config.md) — view and set configuration from the CLI

@@ -16,6 +16,7 @@ from downcroc.core.bootstrap.scheduling import (
 from downcroc.core.bootstrap.services import Services
 from downcroc.core.bootstrap.support import build_support
 from downcroc.core.bootstrap.transports import build_transports
+from downcroc.core.outbound.backfill import ThreadBackfillWorker
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
@@ -52,6 +53,14 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         eligibility,
     )
     support = build_support(foundation, operations.followups)
+    backfill = ThreadBackfillWorker(
+        foundation.settings.backfill,
+        foundation.accounts,
+        foundation.providers,
+        foundation.tokens,
+        foundation.send_attempts,
+        foundation.log,
+    )
     return Services(
         engine=foundation.engine,
         sessions=foundation.sessions,
@@ -70,6 +79,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         policy_overrides=foundation.policy_service,
         inbound=inbound,
         outbound=outbound,
+        backfill=backfill,
         batches=batches,
         capacity=capacity,
         holds=holds,

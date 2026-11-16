@@ -114,9 +114,11 @@ def test_smtp_quota_and_policy_change_binding_health(stack_factory) -> None:
     assert updated["old"]["health"] != updated["new"]["health"]
 
 
-def _gmail_account(stack_factory, gmail: FakeGmail) -> tuple[Stack, str]:
+def _gmail_account(
+    stack_factory, gmail: FakeGmail, *, config_extra: str = ""
+) -> tuple[Stack, str]:
     stack = stack_factory(
-        config_extra=dispatch_config(),
+        config_extra=dispatch_config() + config_extra,
         accounts=[],
         extra_providers=lambda fakes: gmail.provider_toml(fakes),
     )

@@ -3,29 +3,14 @@ from __future__ import annotations
 import base64
 import json
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from .fakes import FakeMailServers
-
-API = "/gmail/v1/users/me"
-
-
-@dataclass
-class FakeMessage:
-    id: str
-    raw: bytes
-    labels: tuple[str, ...]
-    history_id: int
-
-    @property
-    def message_id(self) -> str | None:
-        header = b"Message-ID: "
-        for line in self.raw.splitlines():
-            if line.lower().startswith(header.lower()):
-                return line[len(header) :].decode().strip().strip("<>")
-        return None
+from .gmail_store import API, RFC822MSGID, FakeMessage, _sender, _wire
 
 
 @dataclass
@@ -35,9 +20,12 @@ class FakeGmail:
     _history: int = 100
     _expired_before: int | None = None
     _send_failure: tuple[int, dict[str, object], dict[str, str]] | None = None
+    _omit_thread_id: bool = False
     _server: ThreadingHTTPServer | None = None
     _thread: threading.Thread | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    sent_sink: Callable[[str, bytes, int], None] | None = None
+    sent_unsink: Callable[[str, str], bool] | None = None
 
     @property
     def port(self) -> int:
@@ -78,17 +66,49 @@ class FakeGmail:
         raw: bytes,
         *,
         labels: tuple[str, ...] = ("INBOX",),
+        thread_id: str | None = None,
     ) -> str:
         with self._lock:
             self._history += 1
             message = FakeMessage(
-                id=f"gm{len(self._messages) + 1}",
+                id=f"{self._history:x}",
                 raw=raw,
                 labels=labels,
                 history_id=self._history,
+                thread_id=thread_id,
             )
             self._messages.append(message)
             return message.id
+
+    def omit_thread_ids(self, enabled: bool = True) -> None:
+        """Simulate the pre-fix daemon: send responses carry no threadId."""
+
+        with self._lock:
+            self._omit_thread_id = enabled
+
+    def delete(self, message_id: str) -> bool:
+        """Drop one stored message (by RFC Message-ID) from the mailbox."""
+
+        wanted = message_id.strip().strip("<>")
+        with self._lock:
+            for message in list(self._messages):
+                if message.message_id != wanted:
+                    continue
+                self._messages.remove(message)
+                break
+            else:
+                return False
+        if self.sent_unsink is not None:
+            return self.sent_unsink(_sender(message.raw), wanted)
+        return True
+
+    def thread_of(self, message_id: str) -> str | None:
+        wanted = message_id.strip().strip("<>")
+        with self._lock:
+            for message in self._messages:
+                if message.message_id == wanted:
+                    return message.thread
+        return None
 
     def expire_history(self) -> None:
         with self._lock:
@@ -163,7 +183,7 @@ class FakeGmail:
                             {
                                 "message": {
                                     "id": message.id,
-                                    "threadId": message.id,
+                                    "threadId": message.thread,
                                     "labelIds": list(message.labels),
                                 }
                             }
@@ -188,15 +208,20 @@ class FakeGmail:
             labels = {"INBOX"}
         elif "in:sent" in text:
             labels = {"SENT"}
+        wanted_labels = {item for item in query.get("labelIds", []) if item}
+        rfc = RFC822MSGID.search(text)
+        wanted_id = rfc.group(1).strip().strip("<>") if rfc else None
         with self._lock:
             messages = [
                 {
                     "id": message.id,
-                    "threadId": message.id,
+                    "threadId": message.thread,
                 }
                 for message in self._messages
                 if (labels is None or labels & set(message.labels))
                 and not (excluded & set(message.labels))
+                and wanted_labels.issubset(set(message.labels))
+                and (wanted_id is None or message.message_id == wanted_id)
             ]
         self._json(
             handler,
@@ -221,7 +246,7 @@ class FakeGmail:
         fmt = query.get("format", ["full"])[0]
         payload: dict[str, object] = {
             "id": message.id,
-            "threadId": message.id,
+            "threadId": message.thread,
             "labelIds": list(message.labels),
             "sizeEstimate": len(message.raw),
             "internalDate": "0",
@@ -258,20 +283,52 @@ class FakeGmail:
                 status, payload, headers = failure
                 self._json(handler, status, payload, headers)
                 return
-            payload = {}
+            payload: dict = {}
             if body:
                 try:
                     payload = json.loads(body.decode())
                 except json.JSONDecodeError, UnicodeDecodeError:
                     payload = {}
-            thread_id = payload.get("threadId") if isinstance(payload, dict) else None
+            raw = _wire(payload) if isinstance(payload, dict) else b""
             with self._lock:
                 self._history += 1
-                message_id = f"gm-sent-{self._history}"
-                thread_id = thread_id or message_id
-            self._json(handler, 200, {"id": message_id, "threadId": thread_id})
+                message_id = f"{self._history:x}"
+                thread_id = (
+                    payload.get("threadId") if isinstance(payload, dict) else None
+                ) or self._referenced_thread(raw)
+                thread_id = str(thread_id or message_id)
+                stored = FakeMessage(
+                    id=message_id,
+                    raw=raw,
+                    labels=("SENT",),
+                    history_id=self._history,
+                    thread_id=thread_id,
+                )
+                self._messages.append(stored)
+                omit = self._omit_thread_id
+            if self.sent_sink is not None and raw:
+                self.sent_sink(_sender(raw), raw, stored.thrid)
+            response: dict[str, object] = {"id": message_id}
+            if not omit:
+                response["threadId"] = thread_id
+            self._json(handler, 200, response)
             return
         self._json(handler, 404, {"error": {"message": "not found"}})
+
+    def _referenced_thread(self, raw: bytes) -> str | None:
+        if not raw:
+            return None
+        head = BytesParser().parsebytes(raw, headersonly=True)
+        wanted = {
+            item.strip().strip("<>")
+            for header in ("In-Reply-To", "References")
+            for item in (head.get(header) or "").split()
+            if item.strip()
+        }
+        for message in self._messages:
+            if message.message_id in wanted:
+                return message.thread
+        return None
 
     @staticmethod
     def _json(

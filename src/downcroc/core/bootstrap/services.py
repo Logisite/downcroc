@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from downcroc.core.inbound import InboundService
     from downcroc.core.oauth_clients import OAuthClientService
     from downcroc.core.outbound import OutboundService
+    from downcroc.core.outbound.backfill import ThreadBackfillWorker
     from downcroc.core.policy import PolicyResolver
     from downcroc.core.policy.service import PolicyService
     from downcroc.core.portability import PortabilityService
@@ -58,6 +59,7 @@ class Services:
     policy_overrides: PolicyService
     inbound: InboundService
     outbound: OutboundService
+    backfill: ThreadBackfillWorker
     batches: BatchesService
     capacity: CapacityService
     holds: HoldsService

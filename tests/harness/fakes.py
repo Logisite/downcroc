@@ -1,26 +1,13 @@
 from __future__ import annotations
 
 import email
-import re
-import shlex
 import socketserver
 import threading
 from dataclasses import dataclass, field
 from email.message import Message
 
-MESSAGE_ID = re.compile(r'HEADER\s+"?Message-ID"?\s+"?<?([^"\s>]+)', re.IGNORECASE)
-
-
-class _Threaded(socketserver.ThreadingTCPServer):
-    allow_reuse_address = True
-    daemon_threads = True
-
-
-@dataclass
-class _Mailbox:
-    uidvalidity: int = 100
-    uidnext: int = 1
-    messages: list[tuple[int, bytes]] = field(default_factory=list)
+from .imap_fake import _ImapHandler
+from .mail_objects import _Mailbox, _Threaded
 
 
 class _SmtpHandler(socketserver.StreamRequestHandler):
@@ -83,146 +70,6 @@ class _SmtpHandler(socketserver.StreamRequestHandler):
         self._send("250 2.0.0 queued")
 
 
-class _ImapHandler(socketserver.StreamRequestHandler):
-    user = ""
-    selected = "INBOX"
-
-    def _send(self, text: str) -> None:
-        self.wfile.write((text + "\r\n").encode())
-        self.wfile.flush()
-
-    def _box(self) -> _Mailbox:
-        return self.server.owner.mailbox(self.user)  # type: ignore[attr-defined]
-
-    def _search(self, criteria: str) -> None:
-        if self.selected != "INBOX":
-            match = MESSAGE_ID.search(criteria)
-            found = bool(
-                match and self.server.owner.has_sent(match.group(1))  # type: ignore[attr-defined]
-            )
-            self._send("* SEARCH 1" if found else "* SEARCH")
-            return
-        box = self._box()
-        uids = [uid for uid, _ in box.messages]
-        ranged = re.search(r"UID\s+(\d+):(\*|\d+)", criteria, re.IGNORECASE)
-        if ranged:
-            start = int(ranged.group(1))
-            end = None if ranged.group(2) == "*" else int(ranged.group(2))
-            uids = [uid for uid in uids if uid >= start and (end is None or uid <= end)]
-        elif "HEADER" in criteria.upper():
-            match = MESSAGE_ID.search(criteria)
-            wanted = match.group(1).strip().strip("<>") if match else ""
-            uids = [
-                uid for uid, raw in box.messages if wanted and wanted.encode() in raw
-            ]
-        self._send("* SEARCH" + (" " + " ".join(map(str, uids)) if uids else ""))
-
-    def _fetch(self, argument: str) -> None:
-        token = argument.split(" ", 1)[0]
-        wanted = [int(item) for item in token.split(",") if item.isdigit()]
-        box = self._box()
-        messages = dict(box.messages)
-        for uid in wanted:
-            raw = messages.get(uid)
-            if raw is None:
-                continue
-            raw = _crlf(raw)
-            self.wfile.write(
-                (
-                    f"* {uid} FETCH (UID {uid} FLAGS (\\Seen) "
-                    f"RFC822.SIZE {len(raw)} BODY[] {{{len(raw)}}}\r\n"
-                ).encode()
-            )
-            self.wfile.write(raw)
-            self.wfile.write(b")\r\n")
-            self.wfile.flush()
-
-    def handle(self) -> None:
-        self._send("* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN] local ready")
-        while True:
-            line = self.rfile.readline()
-            if not line:
-                return
-            text = line.decode("utf-8", "replace").rstrip("\r\n")
-            if not text:
-                continue
-            parts = text.split(" ", 2)
-            if len(parts) < 2:
-                continue
-            tag, command = parts[0], parts[1].upper()
-            argument = parts[2] if len(parts) > 2 else ""
-            if command == "CAPABILITY":
-                self._send("* CAPABILITY IMAP4rev1 AUTH=PLAIN")
-                self._send(f"{tag} OK CAPABILITY completed")
-            elif command == "LOGIN":
-                arguments = shlex.split(argument)
-                self.user = arguments[0].lower() if arguments else ""
-                if self.server.owner.login_rejected(self.user):  # type: ignore[attr-defined]
-                    self._send(f"{tag} NO [AUTHENTICATIONFAILED] invalid credentials")
-                    continue
-                self._send(f"{tag} OK LOGIN completed")
-            elif command == "AUTHENTICATE":
-                self._send("+ ")
-                self.rfile.readline()
-                if self.server.owner.login_rejected(self.user):  # type: ignore[attr-defined]
-                    self._send(f"{tag} NO [AUTHENTICATIONFAILED] invalid credentials")
-                    continue
-                self._send(f"{tag} OK AUTHENTICATE completed")
-            elif command == "NAMESPACE":
-                self._send('* NAMESPACE (("" "/")) NIL NIL')
-                self._send(f"{tag} OK NAMESPACE completed")
-            elif command == "LIST":
-                self._send('* LIST (\\HasNoChildren) "/" "INBOX"')
-                self._send('* LIST (\\HasNoChildren) "/" "Sent"')
-                self._send(f"{tag} OK LIST completed")
-            elif command in ("SELECT", "EXAMINE"):
-                self.selected = _folder(argument).upper()
-                box = self._box()
-                count = 0 if self.selected != "INBOX" else len(box.messages)
-                uidnext = 1 if self.selected != "INBOX" else box.uidnext
-                uidvalidity = 1 if self.selected != "INBOX" else box.uidvalidity
-                self._send("* FLAGS (\\Seen)")
-                self._send(f"* {count} EXISTS")
-                self._send(f"* OK [UIDVALIDITY {uidvalidity}] UIDs valid")
-                self._send(f"* OK [UIDNEXT {uidnext}] next")
-                mode = "READ-ONLY" if command == "EXAMINE" else "READ-WRITE"
-                self._send(f"{tag} OK [{mode}] {command} completed")
-            elif command == "STATUS":
-                folder = _folder(argument)
-                box = self._box()
-                if folder.upper() == "INBOX":
-                    values = (
-                        f"UIDVALIDITY {box.uidvalidity} "
-                        f"UIDNEXT {box.uidnext} MESSAGES {len(box.messages)}"
-                    )
-                else:
-                    values = "UIDVALIDITY 1 UIDNEXT 1 MESSAGES 0"
-                self._send(f"* STATUS {folder} ({values})")
-                self._send(f"{tag} OK STATUS completed")
-            elif command == "UID":
-                subcommand, _, rest = argument.partition(" ")
-                if subcommand.upper() == "SEARCH":
-                    self._search(rest)
-                elif subcommand.upper() == "FETCH":
-                    self._fetch(rest)
-                self._send(f"{tag} OK UID completed")
-            elif command == "IDLE":
-                self._send("+ idling")
-                while True:
-                    line = self.rfile.readline()
-                    if not line or line.strip().upper() == b"DONE":
-                        break
-                self._send(f"{tag} OK IDLE completed")
-            elif command in ("CLOSE", "UNSELECT", "NOOP"):
-                self._send(f"{tag} OK {command} completed")
-            elif command == "LOGOUT":
-                self._send("* BYE logging out")
-                self._send(f"{tag} OK LOGOUT completed")
-                return
-            else:
-                self._send(f"{tag} OK {command} completed")
-
-
 @dataclass
 class FakeMailServers:
     host: str = "127.0.0.1"
@@ -232,6 +79,8 @@ class FakeMailServers:
     _sent_ids: set[str] = field(default_factory=set)
     _rcpt_counts: dict[str, int] = field(default_factory=dict)
     _inboxes: dict[str, _Mailbox] = field(default_factory=dict)
+    _sent_boxes: dict[str, _Mailbox] = field(default_factory=dict)
+    _gm_extensions: bool = True
     _rejected: set[str] = field(default_factory=set)
     _smtp_responses: dict[str, str] = field(default_factory=dict)
     _smtp_auth_rejected: bool = False
@@ -276,6 +125,41 @@ class FakeMailServers:
             box.uidnext += 1
             box.messages.append((uid, raw))
             return uid
+
+    def deliver_sent(self, address: str, raw: bytes, thrid: int) -> int:
+        with self._lock:
+            box = self._sent_boxes.setdefault(address.strip().lower(), _Mailbox())
+            uid = box.uidnext
+            box.uidnext += 1
+            box.messages.append((uid, raw))
+            box.thrids[uid] = thrid
+            return uid
+
+    def sent_mailbox(self, address: str) -> _Mailbox:
+        key = address.strip().lower()
+        with self._lock:
+            return self._sent_boxes.setdefault(key, _Mailbox())
+
+    def delete_sent(self, address: str, message_id: str) -> bool:
+        wanted = message_id.strip().strip("<>").encode()
+        with self._lock:
+            box = self._sent_boxes.get(address.strip().lower())
+            if box is None:
+                return False
+            for uid, raw in list(box.messages):
+                if wanted in raw:
+                    box.messages.remove((uid, raw))
+                    box.thrids.pop(uid, None)
+                    return True
+            return False
+
+    def set_gm_extensions(self, enabled: bool) -> None:
+        with self._lock:
+            self._gm_extensions = enabled
+
+    def gm_extensions_enabled(self) -> bool:
+        with self._lock:
+            return self._gm_extensions
 
     def inbox(self, address: str) -> list[tuple[int, bytes]]:
         with self._lock:
@@ -343,6 +227,8 @@ class FakeMailServers:
             self._sent_ids.clear()
             self._rcpt_counts.clear()
             self._inboxes.clear()
+            self._sent_boxes.clear()
+            self._gm_extensions = True
             self._rejected.clear()
             self._smtp_responses.clear()
             self._smtp_auth_rejected = False
@@ -364,13 +250,3 @@ class FakeMailServers:
             "requires_user_agent = false\n"
             "attachment_max_bytes = 26214400\n"
         )
-
-
-def _folder(argument: str) -> str:
-    parts = shlex.split(argument)
-    return parts[0] if parts else "INBOX"
-
-
-def _crlf(raw: bytes) -> bytes:
-    normalized = raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
-    return normalized if normalized.endswith(b"\r\n") else normalized + b"\r\n"
