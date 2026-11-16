@@ -393,7 +393,7 @@ def _feedback_nav_section(theme: Theme) -> Group:
     icons_line.append(" syncing", style=theme.style("fg_muted"))
     parts.append(icons_line)
     parts.append(spacer(1, theme=theme))
-    parts.append(label("nav items", theme))
+    parts.append(label("nav items / states", theme))
     for nav_label, nav_icon, active, indent, nav_badge in NAV_ITEMS:
         parts.append(
             NavItem(
@@ -406,10 +406,15 @@ def _feedback_nav_section(theme: Theme) -> Group:
                 width=56,
             )
         )
+    parts.append(NavItem("Drafts", theme, icon="folder", state="hover", width=56))
+    parts.append(NavItem("Settings", theme, icon="settings", state="focus", width=56))
+    parts.append(NavItem("Disabled", theme, icon="folder", state="disabled", width=56))
     parts.append(spacer(1, theme=theme))
-    parts.append(label("toc items", theme))
+    parts.append(label("toc items / states", theme))
     for toc_label, level, active in TOC_ITEMS:
         parts.append(TocItem(toc_label, theme, level=level, active=active))
+    parts.append(TocItem("Advanced", theme, level=1, state="hover"))
+    parts.append(TocItem("Keyboard", theme, level=2, state="focus"))
     parts.append(spacer(1, theme=theme))
     parts.append(label("tags", theme))
     parts.append(TagList(["mailbox", "sync", "beta"], theme))

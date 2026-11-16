@@ -48,21 +48,22 @@ class TableView:
         if not self.rows and not self.show_header_on_empty:
             yield Text(self.empty_text, style=theme.style("fg_faint"))
             return
-        padding = (0, 0) if self.compact else (0, 1)
+        padding = (0, 1)
         row_styles = [Style(color=theme.fg_secondary)]
         if self.zebra:
             row_styles.append(Style(color=theme.fg_secondary, bgcolor=theme.bg_panel))
         table = Table(
-            box=box.SIMPLE_HEAD,
+            box=box.SQUARE,
             show_edge=False,
             pad_edge=False,
+            show_lines=True,
             expand=bool(self.width),
             width=self.width,
             padding=padding,
             header_style=Style(
                 color=theme.fg_primary, bold=True, bgcolor=theme.bg_raised
             ),
-            border_style=Style(color=theme.border_subtle),
+            border_style=Style(color=theme.border_strong),
             row_styles=row_styles,
         )
         for index, header in enumerate(self.headers):
