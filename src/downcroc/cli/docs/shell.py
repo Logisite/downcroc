@@ -914,13 +914,16 @@ class TopBar(Header):
         nodes = []
         last = len(crumbs) - 1
         crumb_routes = crumb_routes or [None] * len(crumbs)
-        # Breadcrumb ellipsis for deep paths (shadcn-style)
-        collapsed = len(crumbs) > 3
-        display_indices = [0, last] if collapsed else list(range(len(crumbs)))
+        # Breadcrumb ellipsis only for very deep paths (shadcn-style)
+        collapsed = len(crumbs) > 4
+        if collapsed:
+            display_indices = [0, 1, last]
+        else:
+            display_indices = list(range(len(crumbs)))
         for pos, i in enumerate(display_indices):
             if pos > 0:
                 nodes.append(BreadcrumbSeparator(label(" › ", theme, tone="fg_faint")))
-            if collapsed and pos == 1 and last > 1:
+            if collapsed and pos == 2 and last > 2:
                 nodes.append(BreadcrumbItem(label("…", theme, tone="fg_faint")))
                 nodes.append(BreadcrumbSeparator(label(" › ", theme, tone="fg_faint")))
             crumb = crumbs[i]
@@ -989,36 +992,6 @@ class DocsShell(Vertical):
         super().__init__(*children, id=id, **kwargs)
         self._anchor_ids: list[tuple[str | None, str]] = []
         self._section_mount_seq = 0
-
-    def _toggle_sidebar(self) -> None:
-        try:
-            sidebar = self.query_one("#dc-sidebar")
-            sidebar.display = not sidebar.display
-        except NoMatches:
-            pass
-
-    def on_sidebar_toggle(self, event: SidebarToggle) -> None:
-        self._toggle_sidebar()
-        event.stop()
-
-    def on_click(self, event: events.Click) -> None:
-        wid = getattr(event.widget, "id", "") or ""
-        if "dc-sidebar-trigger" in wid or wid == "sidebar-trigger":
-            self._toggle_sidebar()
-            event.stop()
-
-    def on_key(self, event: events.Key) -> None:
-        try:
-            focused = self.screen.focused
-        except AttributeError, RuntimeError:
-            focused = None
-        fid = getattr(focused, "id", "") or ""
-        if ("dc-sidebar-trigger" in fid or fid == "sidebar-trigger") and event.key in {
-            "enter",
-            "space",
-        }:
-            self._toggle_sidebar()
-            event.stop()
 
     def compose(self) -> ComposeResult:
         yield TopBar(id="dc-topbar")

@@ -47,7 +47,7 @@ def _inline_text(inlines: tuple[Inline, ...]) -> str:
     parts: list[str] = []
     for node in inlines:
         if node.kind in {"text", "code", "wikilink"}:
-            parts.append(node.text)
+            parts.append(str(node.text).replace("\n", " "))
         elif node.kind == "link":
             parts.append(_inline_text(node.children) or node.text or node.href)
         elif node.kind in {"strong", "em", "strike"}:
@@ -61,11 +61,22 @@ def _inline_text(inlines: tuple[Inline, ...]) -> str:
     return "".join(parts)
 
 
+def _clickable_link(label_text: str, href: str, theme: Theme) -> Text:
+    """Render a link as Textual markup with a click action (tappable in TUI)."""
+    href = str(href).strip()
+    safe = href.replace("\\", "").replace("'", "").replace("[", "(").replace("]", ")")
+    label = str(label_text).replace("\n", " ") or href
+    markup = f"[@click=app.open_link('{safe}')]{label}[/]"
+    return Text.from_markup(markup, style=theme.style("fg_link", underline=True))
+
+
 def render_inlines(inlines: tuple[Inline, ...], theme: Theme = DEFAULT) -> Text:
     out = Text()
     for node in inlines:
         if node.kind == "text":
-            out.append(node.text, style=theme.style("fg_secondary"))
+            out.append(
+                str(node.text).replace("\n", " "), style=theme.style("fg_secondary")
+            )
         elif node.kind == "softbreak":
             out.append(" ")
         elif node.kind == "hardbreak":
@@ -88,14 +99,19 @@ def render_inlines(inlines: tuple[Inline, ...], theme: Theme = DEFAULT) -> Text:
             out.append_text(child)
         elif node.kind == "link":
             label_text = _inline_text(node.children) or node.text or node.href
-            link = Text(label_text, style=theme.style("fg_link", underline=True))
             if node.href:
-                link.stylize(f"link {node.href}")
-            out.append_text(link)
+                out.append_text(_clickable_link(label_text, node.href, theme))
+            else:
+                out.append_text(
+                    Text(label_text, style=theme.style("fg_link", underline=True))
+                )
         elif node.kind == "wikilink":
             target = node.href or node.text
             label_text = node.text or target
-            out.append(label_text, style=theme.style("accent", underline=True))
+            if target:
+                out.append_text(_clickable_link(label_text, target, theme))
+            else:
+                out.append(label_text, style=theme.style("accent", underline=True))
         elif node.kind == "image":
             label_text = node.text or node.href or "image"
             out.append(f"[image: {label_text}]", style=theme.style("fg_muted"))

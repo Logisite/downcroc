@@ -30,6 +30,7 @@ from downcroc.cli.docs.shell import (
     HeadingCopyLink,
     PagerNavigate,
     SidebarNavigate,
+    SidebarToggle,
     TopbarActionActivate,
     fill_nav,
     fill_toc,
@@ -424,8 +425,8 @@ class DocsApp(App[None]):
         routes: list[str | None] = [None] * len(crumbs)
         if not crumbs:
             return routes
-        # "docs" -> home/index route
-        routes[0] = self._route(self.pages[0]) if self.pages else ""
+        # "docs" -> home/index route (resolvable id)
+        routes[0] = "index"
         # last crumb is current page
         routes[-1] = self._route(page)
         # try map intermediate section labels to first page in that section
@@ -602,6 +603,33 @@ class DocsApp(App[None]):
                 page = found
         if page is not None:
             self._navigate(page)
+
+    def on_sidebar_toggle(self, event: SidebarToggle) -> None:
+        # hamburger trigger: always open the nav dropdown menu
+        self._overlay_open = True
+        self.shell.set_overlay(True)
+        self.push_screen(NavScreen(self.pages), self._on_nav_modal)
+        event.stop()
+
+    def action_open_link(self, href: str) -> None:
+        """Open a markdown link: internal route/anchor navigates, URL opens browser."""
+        href = (href or "").strip()
+        if not href:
+            return
+        if href.startswith(("http://", "https://")):
+            self.open_url(href)
+            return
+        anchor = ""
+        if "#" in href:
+            base, anchor = href.split("#", 1)
+        else:
+            base = href
+        base = base.removeprefix("/").removesuffix(".md").removesuffix(".html")
+        base = base.rstrip("/") or ""
+        if base:
+            self._navigate_to_route(base)
+        if anchor:
+            self.shell.scroll_to_anchor(anchor)
 
     def action_menu(self) -> None:
         if self.size.width >= MEDIUM:

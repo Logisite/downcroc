@@ -46,7 +46,7 @@ class SidebarMenu(Vertical):
     """shadcn SidebarMenu"""
 
 
-class SidebarMenuItem(Horizontal):
+class SidebarMenuItem(Vertical):
     """shadcn SidebarMenuItem"""
 
 
@@ -70,7 +70,7 @@ class SidebarMenuSub(Vertical):
     """shadcn SidebarMenuSub"""
 
 
-class SidebarMenuSubItem(Horizontal):
+class SidebarMenuSubItem(Vertical):
     """shadcn SidebarMenuSubItem"""
 
 

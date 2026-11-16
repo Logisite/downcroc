@@ -66,11 +66,17 @@ class NavItem:
         left.append(" " * theme.space_1, style=theme.bg(bg))
         icon_slot = f"{resolve_icon(self.icon)} " if self.icon else "  "
         left.append(icon_slot, style=theme.style(fg, on=bg))
-        left.append(self.label, style=theme.style(fg, bold=bold, on=bg))
         right = Text()
         if self.badge_text:
             right.append(self.badge_text, style=theme.style("fg_faint", on=bg))
             right.append(" " * theme.space_1, style=theme.bg(bg))
+        # truncate label so the row stays on one line (no unindented wraps)
+        label_text = str(self.label)
+        avail = width - len(left.plain) - len(right.plain)
+        avail = max(avail, 3)
+        if len(label_text) > avail:
+            label_text = label_text[: max(avail - 1, 1)] + "…"
+        left.append(label_text, style=theme.style(fg, bold=bold, on=bg))
         fill = width - len(left.plain) - len(right.plain)
         fill = max(fill, 1)
         line = Text()
