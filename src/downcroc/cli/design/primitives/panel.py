@@ -18,7 +18,7 @@ class Panel:
         *,
         width: int | None = None,
         fill: str = "bg_panel",
-        padding: int = 1,
+        padding: int | None = None,
     ) -> None:
         self.body = body
         self.theme = theme
@@ -50,17 +50,18 @@ class Panel:
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
+        theme = self.theme
         width = min(self.width or options.max_width, options.max_width)
-        pad = max(self.padding, 0)
+        pad = theme.space_1 if self.padding is None else max(int(self.padding), 0)
         inner = max(width - pad * 2, 8)
-        panel = self.theme.bg(self.fill)
+        panel = theme.bg(self.fill)
         blank = Text(" " * width, style=panel)
         for _ in range(pad):
             yield blank
         for line in self._wrap(self.body, inner):
             yield Text(
                 (" " * pad + line).ljust(width),
-                style=self.theme.style("fg_secondary") + panel,
+                style=theme.style("fg_secondary") + panel,
             )
         for _ in range(pad):
             yield blank

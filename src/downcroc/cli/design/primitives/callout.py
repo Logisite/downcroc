@@ -75,8 +75,10 @@ class Callout:
 
         body_style = f"{theme.fg_secondary} on {dim}"
         body = Text(self.body or "", style=body_style)
-        for line in body.wrap(console, max(inner - 2, 8), overflow="fold"):
-            padded = Text("  ", style=body_style)
+        indent = " " * theme.space_2
+        wrap_width = max(inner - (theme.space_2 + 1), 8)
+        for line in body.wrap(console, wrap_width, overflow="fold"):
+            padded = Text(indent, style=body_style)
             padded.append_text(line)
             pad_len = inner - len(padded.plain)
             if pad_len > 0:

@@ -322,6 +322,15 @@ def _surfaces_section(theme: Theme) -> Group:
     parts.append(label("panel + figure", theme))
     parts.append(Panel("A generic panel surface for grouped content.", theme, width=48))
     parts.append(
+        Panel(
+            "Inset panel with extra padding for emphasis.",
+            theme,
+            width=48,
+            fill="bg_inset",
+            padding=2,
+        )
+    )
+    parts.append(
         Figure(
             Panel("Figure content block", theme, width=36, fill="bg_inset"),
             theme,

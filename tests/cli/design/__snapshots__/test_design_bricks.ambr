@@ -111,6 +111,11 @@
                                                   
    A generic panel surface for grouped content.   
                                                   
+                                                  
+                                                  
+    Inset panel with extra padding for emphasis.  
+                                                  
+                                                  
                                       
    Figure content block               
                                       
@@ -405,6 +410,18 @@
   KEYBAR
    enter  open    ?  keys    q  quit
   
+  
+  '''
+# ---
+# name: test_surfaces_targeted
+  '''
+                                
+                                
+    Token padded panel          
+                                
+                                
+  ▎ 󰄬 Tip                                 
+     Body uses tokenized indent spacing.  
   
   '''
 # ---

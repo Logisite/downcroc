@@ -64,6 +64,7 @@ def test_gallery_text_renders_bricks() -> None:
     assert "compact toasts" in text
     assert "focus copy state" in text
     assert "Custom icon" in text
+    assert "Inset panel with extra padding" in text
     plain = export_gallery_plain_text()
     assert "docs › reference › design › primitives › table" in plain
     assert "runtime/se…ecycle.py" in plain
@@ -182,6 +183,33 @@ def test_feedback_primitives_targeted(snapshot) -> None:
             filename="x.sh",
             width=40,
             button_state="focus",
+        )
+    )
+    assert console.export_text() == snapshot
+
+
+def test_surfaces_targeted(snapshot) -> None:
+    """Targeted panel/callout rhythm snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.callout import Callout
+    from downcroc.cli.design.primitives.panel import Panel
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=50, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(Panel("Token padded panel", DEFAULT, width=30, padding=2))
+    console.print(
+        Callout(
+            "Tip",
+            "Body uses tokenized indent spacing.",
+            DEFAULT,
+            tone="tip",
+            width=40,
+            compact=True,
         )
     )
     assert console.export_text() == snapshot
