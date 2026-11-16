@@ -65,7 +65,10 @@ def test_gallery_text_renders_bricks() -> None:
     assert "focus copy state" in text
     assert "Custom icon" in text
     assert "Inset panel with extra padding" in text
+    assert "empty (no header)" in text
     plain = export_gallery_plain_text()
+    assert "selected" in plain
+    assert "No rows" in plain
     assert "docs › reference › design › primitives › table" in plain
     assert "runtime/se…ecycle.py" in plain
     assert "…runtime.lifecycle" in plain
@@ -124,6 +127,11 @@ def test_table_and_key_value_targeted(snapshot) -> None:
                     False,
                     f"{DEFAULT.danger} on {DEFAULT.danger_dim}",
                 ),
+                (
+                    ["sync", "selected"],
+                    False,
+                    f"{DEFAULT.accent_strong} on {DEFAULT.bg_selected}",
+                ),
             ],
             DEFAULT,
             zebra=False,
@@ -140,6 +148,7 @@ def test_table_and_key_value_targeted(snapshot) -> None:
             show_header_on_empty=True,
         )
     )
+    console.print(TableView([], [], DEFAULT))
     console.print(
         KeyValue(
             [("queue", "12"), ("workers", "3")],

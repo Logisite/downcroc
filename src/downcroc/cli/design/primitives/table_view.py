@@ -58,7 +58,7 @@ class TableView:
         if not self.rows and not self.show_header_on_empty:
             yield Text(self.empty_text, style=theme.style("fg_faint"))
             return
-        padding = (0, 1)
+        padding = (0, theme.space_1)
         base_row_styles: list[str | Style] = [Style(color=theme.fg_secondary)]
         if self.zebra:
             base_row_styles.append(

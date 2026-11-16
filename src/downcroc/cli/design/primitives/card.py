@@ -50,16 +50,18 @@ class Card:
     def _render_plain(self, width: int) -> RenderResult:
         theme = self.theme
         panel = theme.bg(self.fill)
-        inner = max(width - 2, 10)
+        pad = theme.space_1
+        inner = max(width - (pad * 2), 10)
         yield Text(" " * width, style=panel)
         yield Text(
-            f" {self.title}".ljust(width),
+            ((" " * pad) + self.title).ljust(width),
             style=theme.style("fg_primary", bold=True) + panel,
         )
         yield Text(" " * width, style=panel)
         for line in self._wrap(self.body, inner):
             yield Text(
-                f" {line}".ljust(width), style=theme.style("fg_secondary") + panel
+                ((" " * pad) + line).ljust(width),
+                style=theme.style("fg_secondary") + panel,
             )
         yield Text(" " * width, style=panel)
 

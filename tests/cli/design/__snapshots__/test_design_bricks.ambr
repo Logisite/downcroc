@@ -185,19 +185,19 @@
   └──────┴───────┘
   
   row styles (state tones)
-  ┌───────┬─────────┐
-  │ Check │ Result  │
-  ├───────┼─────────┤
-  │ lint  │ ok      │
-  ├───────┼─────────┤
-  │ tests │ failed  │
-  ├───────┼─────────┤
-  │ sync  │ active  │
-  ├───────┼─────────┤
-  │ queue │ hovered │
-  ├───────┼─────────┤
-  │ types │ pending │
-  └───────┴─────────┘
+  ┌───────┬──────────┐
+  │ Check │ Result   │
+  ├───────┼──────────┤
+  │ lint  │ ok       │
+  ├───────┼──────────┤
+  │ tests │ failed   │
+  ├───────┼──────────┤
+  │ sync  │ selected │
+  ├───────┼──────────┤
+  │ queue │ hovered  │
+  ├───────┼──────────┤
+  │ types │ pending  │
+  └───────┴──────────┘
   
   empty (header shown)
   ┌───────────────┬───────┬───────┐
@@ -205,6 +205,9 @@
   ├───────────────┼───────┼───────┤
   │   No data yet │       │       │
   └───────────────┴───────┴───────┘
+  
+  empty (no header)
+  No rows
   
   KEY-VALUE
   account  alice@example.com
@@ -427,17 +430,19 @@
 # ---
 # name: test_table_and_key_value_targeted
   '''
-  ┌───────┬────────┐
-  │ Check │ Result │
-  ├───────┼────────┤
-  │ lint  │ ok     │
-  │ tests │ failed │
-  └───────┴────────┘
+  ┌───────┬──────────┐
+  │ Check │ Result   │
+  ├───────┼──────────┤
+  │ lint  │ ok       │
+  │ tests │ failed   │
+  │ sync  │ selected │
+  └───────┴──────────┘
   ┌───────────────┬───────┬───────┐
   │ Field         │ Value │ State │
   ├───────────────┼───────┼───────┤
   │   No data yet │       │       │
   └───────────────┴───────┴───────┘
+  No rows
   queue 12
   ────────────────────────
   workers 3

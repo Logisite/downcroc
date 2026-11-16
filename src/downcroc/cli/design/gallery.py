@@ -443,7 +443,7 @@ def _data_section(theme: Theme) -> Group:
                 (["lint", "ok"], False, f"{theme.success} on {theme.success_dim}"),
                 (["tests", "failed"], False, f"{theme.danger} on {theme.danger_dim}"),
                 (
-                    ["sync", "active"],
+                    ["sync", "selected"],
                     False,
                     f"{theme.accent_strong} on {theme.bg_selected}",
                 ),
@@ -470,6 +470,9 @@ def _data_section(theme: Theme) -> Group:
             show_header_on_empty=True,
         )
     )
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("empty (no header)", style=theme.style("fg_faint")))
+    parts.append(TableView([], [], theme))
     parts.append(spacer(1, theme=theme))
     parts.append(label("key-value", theme))
     parts.append(KeyValue(KV_ITEMS, theme))

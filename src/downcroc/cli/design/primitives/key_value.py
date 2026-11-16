@@ -40,8 +40,14 @@ class KeyValue:
         pad = (0, theme.space_1) if self.compact else (0, theme.space_2)
         target_width = min(self.width or options.max_width, options.max_width)
 
-        rule_width = self.rule_width or max(min(target_width, 72), 20)
-        rule_width = max(rule_width, 8)
+        if self.rule_width is not None:
+            rule_width = max(self.rule_width, 8)
+        else:
+            gap = pad[1]
+            key_w = self.key_width or max((len(k) for k, _ in self.items), default=8)
+            val_w = max((len(v) for _, v in self.items), default=8)
+            content_w = key_w + gap + val_w
+            rule_width = max(min(max(target_width, content_w), 72), 20)
         if self.stacked:
             for index, (key, value) in enumerate(self.items):
                 yield Text(key, style=theme.style("fg_muted"))
