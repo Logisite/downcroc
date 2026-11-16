@@ -23,6 +23,12 @@ KV_STACKED = [
     ("token", "••••••••••••"),
 ]
 
+KV_WIDE = [
+    ("service", "downcroc watcher"),
+    ("last_sync", "2026-11-16 08:30:00"),
+    ("notes", "healthy"),
+]
+
 LIST_ITEMS = [
     "Queued and waiting",
     "Accepted by server and visible in sent folder history for later review",

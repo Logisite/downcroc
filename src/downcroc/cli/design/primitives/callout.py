@@ -51,7 +51,7 @@ class Callout:
         theme = self.theme
         token = self._tone_token()
         color = theme.tone(token)
-        dim = getattr(theme, f"{token}_dim", color)
+        dim = getattr(theme, f"{token}_dim", theme.bg_panel)
         width = self.width or min(options.max_width, 60)
         inner = max(width - 1, 10)
 
@@ -73,13 +73,14 @@ class Callout:
         title = Text(f" {label}".ljust(inner), style=f"bold {color} on {dim}")
         yield Text.assemble(bar, title)
 
-        body = Text(self.body or "", style=f"{theme.fg_secondary} on {dim}")
+        body_style = f"{theme.fg_secondary} on {dim}"
+        body = Text(self.body or "", style=body_style)
         for line in body.wrap(console, max(inner - 2, 8), overflow="fold"):
-            padded = Text("  ", style=f"{theme.fg_secondary} on {dim}")
+            padded = Text("  ", style=body_style)
             padded.append_text(line)
             pad_len = inner - len(padded.plain)
             if pad_len > 0:
-                padded.append(" " * pad_len, style=f"{theme.fg_secondary} on {dim}")
+                padded.append(" " * pad_len, style=body_style)
             yield Text.assemble(Text(" ", style=f"{color} on {dim}"), padded)
         if not self.compact:
             yield Text("")

@@ -52,6 +52,12 @@ def test_gallery_text_renders_bricks() -> None:
     assert "Search returned nothing" in text
     assert "italic" in text
     assert "strike" in text
+    assert "narrow / ellipsis" in text
+    assert "full-width aligned divider" in text
+    assert "truncate end" in text
+    plain = export_gallery_plain_text()
+    assert "docs › reference › design › primitives › table" in plain
+    assert "A short quoted note without citation." in text
 
 
 def test_gallery_plain_text_snapshot(snapshot) -> None:

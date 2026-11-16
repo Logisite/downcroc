@@ -55,6 +55,7 @@ from downcroc.cli.design.samples.data_samples import (
     KV_COMPACT,
     KV_ITEMS,
     KV_STACKED,
+    KV_WIDE,
     LIST_ITEMS,
     NESTED_LIST_ITEMS,
     ORDERED_ITEMS,
@@ -157,6 +158,9 @@ def _text_section(theme: Theme) -> Group:
     ]
     parts.append(label("breadcrumb / headings / labels", theme))
     parts.append(breadcrumb(BREADCRUMB_SAMPLE, theme))
+    parts.append(
+        breadcrumb(["docs", "reference", "design", "primitives", "table"], theme)
+    )
     parts.append(spacer(1, theme=theme))
     for level, text in HEADING_SAMPLES:
         parts.append(heading(text, theme, level=level))
@@ -167,9 +171,9 @@ def _text_section(theme: Theme) -> Group:
     parts.append(label("prose and inline", theme))
     parts.append(prose(PROSE_SAMPLE, theme, width=62))
     parts.append(spacer(1, theme=theme))
-    parts.append(Text("prose tones", style=theme.style("fg_faint")))
+    parts.append(Text("prose tones / widths", style=theme.style("fg_faint")))
     parts.append(prose(PROSE_LEAD_SAMPLE, theme, width=62, tone="fg_primary"))
-    parts.append(prose(PROSE_SAMPLE, theme, width=62, tone="fg_secondary"))
+    parts.append(prose(PROSE_SAMPLE, theme, width=48, tone="fg_secondary"))
     parts.append(prose(PROSE_MUTED_SAMPLE, theme, width=62, tone="fg_muted"))
     parts.append(spacer(1, theme=theme))
     inline = Text()
@@ -201,7 +205,13 @@ def _text_section(theme: Theme) -> Group:
     parts.append(link_states)
     parts.append(
         Text(
-            f"truncate: {truncate('a very long identifier name', 18)}",
+            f"truncate end: {truncate('a very long identifier name', 18)}",
+            style=theme.style("fg_muted"),
+        )
+    )
+    parts.append(
+        Text(
+            f"truncate short: {truncate('tiny', 10)}",
             style=theme.style("fg_muted"),
         )
     )
@@ -249,6 +259,13 @@ def _text_section(theme: Theme) -> Group:
             "Queued means written down and waiting. Nothing has gone to the mail server yet.",
             theme,
             cite="docs",
+        )
+    )
+    parts.append(
+        Blockquote(
+            "A short quoted note without citation.",
+            theme,
+            width=42,
         )
     )
     return Group(*parts)
@@ -344,6 +361,23 @@ def _data_section(theme: Theme) -> Group:
         )
     )
     parts.append(spacer(1, theme=theme))
+    parts.append(Text("narrow / ellipsis", style=theme.style("fg_faint")))
+    parts.append(
+        TableView(
+            ["Name", "Description"],
+            [
+                [
+                    "very-long-service-name",
+                    "This description should ellipsize in a narrow column",
+                ]
+            ],
+            theme,
+            width=40,
+            col_widths=[12, 20],
+            no_wrap=[True, True],
+        )
+    )
+    parts.append(spacer(1, theme=theme))
     parts.append(Text("caption and sections", style=theme.style("fg_faint")))
     parts.append(
         TableView(
@@ -384,6 +418,9 @@ def _data_section(theme: Theme) -> Group:
     parts.append(spacer(1, theme=theme))
     parts.append(Text("compact divider", style=theme.style("fg_faint")))
     parts.append(KeyValue(KV_COMPACT, theme, compact=True, divider=True))
+    parts.append(spacer(1, theme=theme))
+    parts.append(Text("full-width aligned divider", style=theme.style("fg_faint")))
+    parts.append(KeyValue(KV_WIDE, theme, key_width=12, divider=True, width=54))
     parts.append(spacer(1, theme=theme))
     parts.append(Text("stacked with divider", style=theme.style("fg_faint")))
     parts.append(KeyValue(KV_STACKED, theme, stacked=True, divider=True, compact=True))

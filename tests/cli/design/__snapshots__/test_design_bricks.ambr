@@ -28,6 +28,7 @@
   
   BREADCRUMB / HEADINGS / LABELS
   docs › inbound › watcher
+  docs › reference › design › primitives › table
   
   Send one email
   ▏ Reading what comes back
@@ -43,18 +44,20 @@
   it, retry it if something goes wrong, and never wonder whether
   it left.
   
-  prose tones
+  prose tones / widths
   Lead prose establishes context before the detailed steps 
   follow.
-  downcroc writes the message down, gives it a name, and only 
-  then sends it. Once the message is written down, you can see 
-  it, retry it if something goes wrong, and never wonder whether
+  downcroc writes the message down, gives it a 
+  name, and only then sends it. Once the message 
+  is written down, you can see it, retry it if 
+  something goes wrong, and never wonder whether 
   it left.
   Muted prose can carry secondary guidance without competing.
   
   Body with  inline_code() , a link, strong, italic, strike, and muted.
   link states: default  hover  focus
-  truncate: a very long ident…
+  truncate end: a very long ident…
+  truncate short: tiny
   
   BADGES
    queued    sent    warning    error 
@@ -66,6 +69,8 @@
   ▎ Queued means written down and waiting. Nothing has gone to the mail server 
   ▎ yet.
     — docs
+  
+  ▎ A short quoted note without citation.
   
   Surfaces / structure  card, panel, figure, rule
   ───────────────────────────────────────────────
@@ -127,6 +132,13 @@
   │                  │ value for failing sends        │        │
   └──────────────────┴────────────────────────────────┴────────┘
   
+  narrow / ellipsis
+  ┌───────────────┬──────────────────────┐
+  │ Name          │ Description          │
+  ├───────────────┼──────────────────────┤
+  │ very-long-se… │ This description sh… │
+  └───────────────┴──────────────────────┘
+  
   caption and sections
   ┌──────────┬─────────┬──────┐
   │ Service  │ Status  │ Jobs │
@@ -149,11 +161,11 @@
   └──────┴───────┘
   
   empty (header shown)
-  ┌─────────────┬───────┐
-  │ Field       │ Value │
-  ├─────────────┼───────┤
-  │ No data yet │       │
-  └─────────────┴───────┘
+  ┌───────────────┬───────┐
+  │ Field         │ Value │
+  ├───────────────┼───────┤
+  │   No data yet │       │
+  └───────────────┴───────┘
   
   KEY-VALUE
   account  alice@example.com
@@ -164,6 +176,13 @@
   mode compact
   ────────────────────────────────────────────────────────────────────────
   sync idle
+  
+  full-width aligned divider
+  service       downcroc watcher
+  ──────────────────────────────────────────────────────
+  last_sync     2026-11-16 08:30:00
+  ──────────────────────────────────────────────────────
+  notes         healthy
   
   stacked with divider
   endpoint

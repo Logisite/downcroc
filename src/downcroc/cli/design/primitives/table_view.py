@@ -100,9 +100,12 @@ class TableView:
             )
         if not self.rows and self.show_header_on_empty:
             if self.headers:
-                empty_row = [Text(self.empty_text, style=theme.style("fg_faint"))] + [
-                    Text("")
-                ] * (len(self.headers) - 1)
+                empty_row = [
+                    Text(
+                        f"  {self.empty_text}",
+                        style=theme.style("fg_muted", italic=True),
+                    )
+                ] + [Text("", style=theme.style("fg_faint"))] * (len(self.headers) - 1)
                 table.add_row(*empty_row)
             else:
                 table.caption = self.empty_text
