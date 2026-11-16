@@ -23,8 +23,9 @@ class TagList:
     ) -> RenderResult:
         theme = self.theme
         line = Text()
+        gap = " " * theme.space_1
         for index, tag in enumerate(self.tags):
             if index:
-                line.append(" ")
+                line.append(gap)
             line.append(f" {tag} ", style=theme.style("fg_secondary", on=self.tone))
         yield line

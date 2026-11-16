@@ -416,6 +416,18 @@
   
   '''
 # ---
+# name: test_lists_and_structure_targeted
+  '''
+  •  Parent
+    •  Child item
+  •  Second
+  ▎ Quoted text
+    — ref
+  
+   one   two   three 
+  
+  '''
+# ---
 # name: test_surfaces_targeted
   '''
                                 

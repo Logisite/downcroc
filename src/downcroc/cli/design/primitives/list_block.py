@@ -30,7 +30,8 @@ class ListItem:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         theme = self.theme
-        indent = "  " * max(self.level, 0)
+        indent_unit = " " * theme.space_2
+        indent = indent_unit * max(self.level, 0)
         if self.checked is True:
             mark = Text("☑", style=theme.style("success"))
             marker_plain = "☑"
@@ -47,10 +48,10 @@ class ListItem:
         first = Text(indent)
         padded_mark = Text(marker_plain.ljust(marker_width), style=mark.style)
         first.append_text(padded_mark)
-        first.append(" ")
+        first.append(" " * theme.space_1)
         first.append_text(lines[0])
         yield first
-        cont = " " * (len(indent) + marker_width + 1)
+        cont = " " * (len(indent) + marker_width + theme.space_1)
         for extra in lines[1:]:
             line = Text(cont)
             line.append_text(extra)

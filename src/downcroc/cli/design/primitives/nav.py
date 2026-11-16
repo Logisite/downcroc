@@ -37,7 +37,7 @@ class NavItem:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         theme = self.theme
-        pad = "  " * max(self.indent, 0)
+        pad = (" " * theme.space_2) * max(self.indent, 0)
         state = "active" if self.active and self.state == "default" else self.state
         bg = "bg_panel"
         fg = "fg_secondary"
@@ -63,14 +63,14 @@ class NavItem:
         left = Text()
         left.append(pad, style=theme.bg(bg))
         left.append(marker, style=theme.style(marker_tone, on=bg))
-        left.append(" ", style=theme.bg(bg))
+        left.append(" " * theme.space_1, style=theme.bg(bg))
         icon_slot = f"{resolve_icon(self.icon)} " if self.icon else "  "
         left.append(icon_slot, style=theme.style(fg, on=bg))
         left.append(self.label, style=theme.style(fg, bold=bold, on=bg))
         right = Text()
         if self.badge_text:
             right.append(self.badge_text, style=theme.style("fg_faint", on=bg))
-            right.append(" ", style=theme.bg(bg))
+            right.append(" " * theme.space_1, style=theme.bg(bg))
         fill = width - len(left.plain) - len(right.plain)
         fill = max(fill, 1)
         line = Text()
@@ -102,7 +102,7 @@ class TocItem:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         theme = self.theme
-        indent = "  " * max(self.level - 1, 0)
+        indent = (" " * theme.space_2) * max(self.level - 1, 0)
         state = "active" if self.active and self.state == "default" else self.state
         marker = "▸" if state == "active" else "·"
         tone = "accent_strong" if state == "active" else "fg_muted"

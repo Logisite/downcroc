@@ -28,10 +28,11 @@ class Blockquote:
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
         theme = self.theme
-        width = max((self.width or options.max_width) - 2, 10)
+        inset = theme.space_2
+        width = max((self.width or options.max_width) - inset, 10)
         body = Text(self.text or "", style=theme.style("fg_muted"))
         for line in body.wrap(console, width, overflow="fold"):
             yield Text.assemble(Text("▎ ", style=theme.style("border_strong")), line)
         if self.cite:
-            yield Text(f"  — {self.cite}", style=theme.style("fg_faint"))
+            yield Text(f"{' ' * inset}— {self.cite}", style=theme.style("fg_faint"))
         yield Text("")

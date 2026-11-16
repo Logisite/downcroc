@@ -224,6 +224,31 @@ def test_surfaces_targeted(snapshot) -> None:
     assert console.export_text() == snapshot
 
 
+def test_lists_and_structure_targeted(snapshot) -> None:
+    """Targeted list/blockquote/tag rhythm snapshot."""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from downcroc.cli.design.primitives.blockquote import Blockquote
+    from downcroc.cli.design.primitives.list_block import ListBlock
+    from downcroc.cli.design.primitives.tag_list import TagList
+    from downcroc.cli.design.theme import DEFAULT
+
+    console = Console(
+        record=True, width=50, force_terminal=False, color_system=None, file=StringIO()
+    )
+    console.print(
+        ListBlock(
+            [("Parent", 0, None), ("Child item", 1, None), ("Second", 0, None)],
+            DEFAULT,
+        )
+    )
+    console.print(Blockquote("Quoted text", DEFAULT, cite="ref"))
+    console.print(TagList(["one", "two", "three"], DEFAULT))
+    assert console.export_text() == snapshot
+
+
 @pytest.mark.parametrize("path_to_cli", [[], None])
 def test_playground_snapshot(snap_compare: object, path_to_cli: list) -> None:
     assert snap_compare(PlaygroundApp(), terminal_size=(90, 22))
