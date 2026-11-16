@@ -13,6 +13,16 @@ that does not belong in Part I.
 
 ## A
 
+### account
+
+A mailbox connected to downcroc that can send mail and, when enabled, watch
+for replies and bounces. An account has a state and credentials, send
+transports/bindings, and its own policy, and it is the sender jobs run from.
+
+More: [account](../part-ii/07-account/account.md), [mailboxes](../part-i/04-mailboxes/one-mailbox.md)
+
+See also: [[provider]], [[transport]], [[needs-reauth]], [[vault]]
+
 ### allowance
 
 How many sends one mailbox may make per day. When a mailbox spends its
@@ -21,6 +31,16 @@ again. Give two mailboxes different allowances and the daemon spreads work
 between them by itself.
 
 More: [mailboxes](../part-ii/12-account.md), [sending](../part-ii/15-sending.md)
+
+### approval
+
+The review gate on a batch. A batch can wait awaiting approval until you
+approve a sample or approve all to release messages for sending, or cancel it.
+Approval controls when work is allowed to go out, separate from pausing.
+
+More: [approve and cancel](../part-ii/08-batch/approve.md), [review](../part-ii/13-review/review.md), [submit](../part-ii/08-batch/submit.md)
+
+See also: [[batch]], [[job]]
 
 ## B
 
@@ -35,6 +55,17 @@ See also: [[job]]
 
 ## C
 
+### campaign
+
+The input you prepare and submit to send mail: its messages, routing and
+options, and any follow-up steps. A campaign is read from a file (JSON or CSV
+with a template), checked and previewed, and when submitted becomes a
+[[batch]] of jobs.
+
+More: [prepare](../part-ii/08-batch/prepare.md), [submit](../part-ii/08-batch/submit.md), [send](../part-ii/12-send/send.md)
+
+See also: [[batch]], [[job]]
+
 ### code
 
 The one-word reason a send failed, as the failed screen shows it. Every code
@@ -42,6 +73,18 @@ has a plain meaning; the complete list lives in the
 [failed command chapter](../part-ii/24-failed.md).
 
 See also: [[failed]]
+
+## D
+
+### daemon
+
+The background process that owns downcroc’s state and does the work: sending,
+watching, syncing, and serving the local API. The CLI talks to the daemon; when
+it is not running, nothing moves. Starting it does not unlock the [[vault]].
+
+More: [service](../part-ii/01-service/service.md), [serve](../part-ii/01-service/serve.md), [status](../part-ii/02-status/status.md)
+
+See also: [[vault]]
 
 ## F
 
@@ -55,7 +98,44 @@ More: [the failed command](../part-ii/24-failed.md), [why things fail](32-failur
 
 See also: [[job]], [[code]]
 
+### follow_up
+
+A follow-up is a message planned to go out after an earlier one, as a reply in
+the same thread. It waits for a set time and sends only when its condition is
+still true, such as when the person has not replied.
+
+Follow-ups belong to a batch and are sent by the mailbox that sent the
+original message, so the conversation stays in one place.
+
+More:
+- [../part-ii/19-followups.md](../part-ii/19-followups.md)
+
+## H
+
+### hold
+
+A pause that prevents work from being dispatched while in effect, without
+cancelling or deleting it. Holds can apply at the service, account, batch, or
+job level; work proceeds again once the relevant holds are released and it is
+otherwise eligible.
+
+More: [batch holds](../part-ii/08-batch/holds.md), [service](../part-ii/01-service/service.md), [job](../part-ii/09-job/job.md)
+
+See also: [[batch]], [[job]], [[queued]]
+
 ## J
+
+### jitter
+
+Jitter is the pause downcroc waits between sending messages from a mailbox. By
+spacing sends out instead of firing them back to back, it keeps the pace
+steady and more like the rhythm of a person writing mail.
+
+A mailbox's send policy sets a minimum and maximum gap, and downcroc chooses a
+wait in that range between sends.
+
+More:
+- [../part-ii/15-sending.md](../part-ii/15-sending.md)
 
 ### job
 
@@ -67,6 +147,41 @@ before it is sent and after, so the history is always readable.
 More: [jobs](../part-ii/14d-jobs.md)
 
 See also: [[queued]], [[sent]], [[failed]], [[batch]]
+
+## M
+
+### max_in_flight
+
+Max in flight is the number of sends a mailbox may have underway at the same
+time. Keeping this low spaces work out; raising it allows more sends to run in
+parallel for that mailbox, within the limits of how sending is configured.
+
+More:
+- [../part-ii/15-sending.md](../part-ii/15-sending.md)
+
+## N
+
+### needs-reauth
+
+A mailbox that downcroc can no longer sign in to with the credential it has.
+The address and your messages are still there, but the permission to send has
+expired or been taken away. Nothing sends from it until you connect it again.
+
+More: [broken mailboxes](../part-ii/12-account.md), [connecting Gmail](../part-i/01-starting/gmail.md)
+
+See also: [[vault]], [[job]]
+
+## P
+
+### provider
+
+A declaration of how to talk to a mail service: its hosts and ports, auth
+kind, capabilities (such as IMAP/SMTP or API), and any imported OAuth client
+references. Accounts are created from providers.
+
+More: [provider](../part-ii/06-provider/provider.md)
+
+See also: [[account]], [[transport]]
 
 ## Q
 
@@ -82,6 +197,18 @@ See also: [[job]], [[sent]]
 
 ## S
 
+### sending_window
+
+A sending window is the span of local hours during which downcroc may send
+mail from a mailbox. Outside that window, work waits until sending is allowed
+again.
+
+You can use a window to keep mail going out at sensible times of day rather
+than around the clock.
+
+More:
+- [../part-ii/15-sending.md](../part-ii/15-sending.md)
+
 ### sent
 
 The receiving mail server accepted the message. Accepted is the honest word:
@@ -91,6 +218,52 @@ inbox, only that the server took it.
 More: [job states](33-states.md)
 
 See also: [[job]], [[queued]]
+
+### suppressed
+
+A recipient (or follow-up) withheld from further sending for a batch because a
+rule or signal says not to contact them — for example after a reply or bounce,
+or due to suppression/stop conditions. Suppressed work is recorded, not sent.
+
+More: [inspect](../part-ii/08-batch/inspect.md), [followups](../part-ii/08-batch/followups.md)
+
+See also: [[batch]], [[job]], [[follow_up]]
+
+## T
+
+### template
+
+A template is a reusable message you can apply to many people. It holds the
+subject and the body of the message, and it can include placeholders such as
+`{{name}}` that downcroc fills in from the data for each recipient.
+
+Templates are often paired with a CSV file, where each row supplies the values
+that make the message personal.
+
+More:
+- [../part-ii/21-template.md](../part-ii/21-template.md)
+
+### thread
+
+A thread is a single conversation made of messages that reply to one another.
+When messages share a thread, the people reading them see them grouped
+together as one exchange instead of as separate, unrelated notes.
+
+In downcroc, a follow-up is sent as a reply on the same thread as the original
+message to that person.
+
+More:
+- [../part-ii/19-followups.md](../part-ii/19-followups.md)
+
+### transport
+
+A concrete send path for an account, such as SMTP or the Gmail API. A
+transport/binding has its own health, priority, limits, and credentials, and
+determines how messages are delivered from that account.
+
+More: [account](../part-ii/07-account/account.md), [provider](../part-ii/06-provider/provider.md), [doctor](../part-ii/16-doctor/doctor.md)
+
+See also: [[account]], [[provider]]
 
 ## V
 
