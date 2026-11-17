@@ -62,7 +62,8 @@ connect (XOAUTH2, existing imap-tools setup, own connection, never the watcher's
   |      (RFC 6154 special-use discovery; falls back to spec.sent_folder;
   |      Gmail localizes folder names, so the flag is the truth)
   +-- UID FETCH <start>:<end> (X-GM-THRID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])
-  |      chunks of 500 uids, 2-5s jitter between chunks
+  |      chunks of 500 uids, 2-5s jitter between chunks, progress logged
+  |      at each quarter mark
   +-- build map: message-id header -> int(X-GM-THRID) -> hex
   +-- pull hole pages (page_size) from the repo, look each up, write hits
   +-- leftover holes -> stage 2 list for this account
@@ -140,14 +141,19 @@ loop:
   for account in gmail-api accounts, in stable order, max_accounts lanes in parallel:
       drain the account completely:
         pull page_size holes (oldest first)
-        stage 1 sweep (once per account per pass; skipped if the account had
-          fewer than imap_min_holes, default 5, -> straight to stage 2)
+        stage 1 sweep (once per account per daemon run, cached in memory;
+          skipped if the account had fewer than imap_min_holes, default 5,
+          -> straight to stage 2; a failed sweep retries on a later pass)
+        write every page hole the sweep matched, counting each write as progress
         stage 2 on leftovers
-        next page until the account's hole list is empty
+        next page while the last page filled at least one hole; stop when a
+          page fills none, so waiting holes cannot block later pages forever
       lane takes the next account
   evaluate pass:
     all holes resolved or marked missing -> idle mode
-    holes remain unmarked (429s, locked vault, skipped account) -> cooldown 5m, new pass
+    a turn filled holes -> next turn immediately, no cooldown
+    a turn filled nothing (429s, locked vault, waiting strike) -> cooldown 5m
+    two zero-progress turns in a row -> finish the pass and start a new one
   idle mode: re-run the hole count every recheck_s (default 3600);
     new holes -> back to draining; none -> sleep again
 ```
@@ -212,7 +218,7 @@ New `[backfill]` section in the runtime config schema, all fields optional:
 | `imap_chunk` | 500 | uids per IMAP FETCH chunk |
 | `imap_min_holes` | 5 | below this, skip the IMAP sweep and use stage 2 |
 | `startup_delay_s` | 30 | daemon-start stagger before the first hole count |
-| `pass_cooldown_s` | 300 | wait between passes while unmarked holes remain |
+| `pass_cooldown_s` | 300 | wait after a drain turn that filled no holes |
 
 `startup_delay_s` and `pass_cooldown_s` exist so tests can compress the clock; in
 production the defaults hold. The hole count that decides "is there work" counts only
@@ -231,13 +237,16 @@ All through `EventLogger`, structured fields, no credentials, no message content
 |-------|------|--------|
 | `backfill.started` | worker begins | holes, accounts |
 | `backfill.account_started` | each account drain begins | account, holes |
+| `backfill.imap_progress` | sweep passes a quarter mark | account, messages, total |
 | `backfill.imap_swept` | stage 1 sweep done | account, messages, hits, duration_ms |
-| `backfill.resolved` | each write | attempt, job, account, medium (`imap`/`api`), thread |
+| `backfill.resolved` | each write | attempt, job, account, medium (`imap`/`api`/`provider`), thread |
 | `backfill.missing` | mark applied | attempt, account, strikes |
 | `backfill.ambiguous` | 2+ hits | attempt |
 | `backfill.backoff` | API/IMAP error or skipped account | account, delay_s, cause, detail |
-| `backfill.pass_done` | pass end | resolved, missing, left |
-| `backfill.finished` | entering idle mode | resolved, missing, left |
+| `backfill.pass_done` | drain turn end | resolved, missing, left |
+| `backfill.cooldown` | zero-progress turn before waiting | seconds, left, reason |
+| `backfill.resumed` | vault unlock woke a wait | reason |
+| `backfill.finished` | no holes left or stalled pass ended | resolved, missing, left |
 | `backfill.idle_check` | each hourly re-check | holes |
 
 ## Robustness and crash proofing

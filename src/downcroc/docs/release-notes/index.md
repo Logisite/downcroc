@@ -4,13 +4,19 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.2.post7
+since: 1.3.2.post8
 order: 0
 terminal:
-  summary: Current release is 1.3.2.post7.
+  summary: Current release is 1.3.2.post8.
 ---
 
 # Release notes
+
+## 1.3.2.post8
+
+Backfill drains continuously, caches the Sent sweep, and logs sweep progress.
+
+See the full note in `release-notes/v1.3.2.post8.md` at the repository root.
 
 ## 1.3.2.post7
 

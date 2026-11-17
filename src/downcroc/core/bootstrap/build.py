@@ -59,6 +59,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         foundation.providers,
         credentials,
         foundation.send_attempts,
+        foundation.bus,
         foundation.log,
     )
     return Services(

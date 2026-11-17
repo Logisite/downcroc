@@ -44,6 +44,15 @@ See also: [[batch]], [[job]]
 
 ## B
 
+### backfill
+
+Backfill is a repair job that fills in missing conversation ids for older sent
+mail, so replies to those messages stay in the same [[thread]]. It only writes
+the missing id; it does not resend, move, or change the mail.
+
+More:
+- [backfill log events](../part-ii/19-logs/events/backfill.md)
+
 ### batch
 
 A group of jobs created together from one file or one campaign. The batch is

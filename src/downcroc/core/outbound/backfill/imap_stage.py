@@ -60,7 +60,23 @@ def imap_sweep(
             return None
         select_sent(box, resolve_sent_folder(box, spec))
         started = time.monotonic()
-        result = sweep(box, chunk, pace=_pacer(pace_s))
+        last_mark = 0
+
+        def progress(seen: int, total: int) -> None:
+            nonlocal last_mark
+            if seen >= total:
+                return
+            mark = (seen * 100) // max(total, 1)
+            if mark >= last_mark + 25:
+                last_mark = mark
+                log.info(
+                    "backfill.imap_progress",
+                    account=account.id,
+                    messages=seen,
+                    total=total,
+                )
+
+        result = sweep(box, chunk, pace=_pacer(pace_s), progress=progress)
         log.info(
             "backfill.imap_swept",
             account=account.id,

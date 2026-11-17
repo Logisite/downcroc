@@ -217,7 +217,7 @@ thread ids on older Gmail messages so threads can be grouped correctly.
 - `backfill.imap_chunk` (default `500`, 1–10000): UIDs per IMAP FETCH chunk in the bulk sweep.
 - `backfill.imap_min_holes` (default `5`, 1–100000): Below this hole count, skip the IMAP sweep and use the API lookups.
 - `backfill.startup_delay_s` (default `30.0`, 0–3600): Daemon-start stagger before the first hole count.
-- `backfill.pass_cooldown_s` (default `300.0`, 0–86400): Wait between passes while unmarked holes remain.
+- `backfill.pass_cooldown_s` (default `300.0`, 0–86400): Wait after a drain turn that filled no holes.
 
 ## See also
 

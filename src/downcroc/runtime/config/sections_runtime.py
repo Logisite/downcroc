@@ -471,7 +471,7 @@ class BackfillSettings(BaseModel):
         default=300.0,
         ge=0,
         le=86_400,
-        description="Wait between passes while unmarked holes remain.",
+        description="Wait after a drain turn that filled no holes.",
     )
 
     @model_validator(mode="after")

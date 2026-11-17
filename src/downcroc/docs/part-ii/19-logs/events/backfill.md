@@ -8,7 +8,7 @@ screens: []
 
 # Backfill log events
 
-These events come from the Gmail thread id backfill worker (`core/outbound/backfill/*`). It fills missing thread ids on older Gmail messages so they can be grouped into threads correctly. A pass starts with an IMAP Sent-folder sweep on accounts with enough holes, then falls back to per-hole API searches. When a search finds nothing and the attempt already stores a provider message id, the worker looks that message up exactly before recording a strike. All ten events are `info` unless noted.
+These events come from the [[backfill]] worker. It fills missing thread ids on older Gmail messages so they can be grouped into threads correctly. The first pass for an account starts with an IMAP Sent-folder sweep when it has enough holes, then falls back to per-hole API searches. The sweep result is cached for the rest of the daemon run, so the Sent folder is scanned once. A drain turn that fills holes continues immediately; the cooldown applies only when a turn fills nothing. When a search finds nothing and the attempt already stores a provider message id, the worker looks that message up exactly before recording a strike. The worker wakes from a cooldown as soon as the vault is unlocked. All thirteen events are `info` unless noted.
 
 ## Worker lifecycle
 
@@ -21,9 +21,9 @@ These events come from the Gmail thread id backfill worker (`core/outbound/backf
 
 - `backfill.account_started` (**info**) — one account's lane started draining.
   - `account`: account id.
-  - `holes`: holes queued for this account in this pass.
+  - `holes`: holes still recorded for this account at the start of this drain turn.
 
-- `backfill.pass_done` (**info**) — one drain turn finished; the worker either repeats or ends the pass.
+- `backfill.pass_done` (**info**) — one drain turn finished; a turn that filled holes repeats immediately, otherwise the worker waits the cooldown or ends the pass.
   - `resolved`: holes filled in this turn.
   - `missing`: holes finally marked missing in this turn.
   - `left`: holes still recorded after this turn.
@@ -31,9 +31,22 @@ These events come from the Gmail thread id backfill worker (`core/outbound/backf
 - `backfill.finished` (**info**) — the pass ended, either because no holes remain or because it stalled.
   - `resolved`, `missing`, `left`: same meaning as `backfill.pass_done`.
 
+- `backfill.cooldown` (**info**) — a drain turn filled nothing, so the worker waits before trying again.
+  - `seconds`: configured cooldown (`backfill.pass_cooldown_s`).
+  - `left`: holes still recorded.
+  - `reason`: `vault_locked` or `no_progress`.
+
+- `backfill.resumed` (**info**) — a cooldown or idle wait ended early because the vault was unlocked.
+  - `reason`: `vault_unlocked`.
+
 ## Lookups
 
-- `backfill.imap_swept` (**info**) — a readonly IMAP Sent-folder sweep finished for one account. The result is reused for the rest of the pass.
+- `backfill.imap_progress` (**info**) — a Sent-folder sweep passed a quarter mark, so a long sweep stays visible.
+  - `account`: account id.
+  - `messages`: messages examined so far.
+  - `total`: messages in the Sent folder.
+
+- `backfill.imap_swept` (**info**) — a readonly IMAP Sent-folder sweep finished for one account. The result is reused for the rest of the daemon run.
   - `account`: account id.
   - `messages`: messages examined.
   - `hits`: thread ids found by the sweep.

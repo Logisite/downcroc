@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import random
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from downcroc.core.credentials import CredentialResolver
+from downcroc.core.events import EventBus
 from downcroc.core.outbound.backfill.api_stage import ApiStage, Outcome
 from downcroc.core.outbound.backfill.imap_stage import imap_sweep, lane_token
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.attempts import ThreadHole
+from downcroc.domain.errors import VaultLocked
 from downcroc.domain.providers import ProviderSpec
 from downcroc.providers.registry import ProviderRegistry
 from downcroc.runtime.config.schema import BackfillSettings
@@ -58,6 +61,7 @@ class ThreadBackfillWorker:
         providers: ProviderRegistry,
         credentials: CredentialResolver,
         attempts: SendAttemptRepo,
+        bus: EventBus,
         log: EventLogger,
     ) -> None:
         self._settings = settings
@@ -65,21 +69,33 @@ class ThreadBackfillWorker:
         self._providers = providers
         self._credentials = credentials
         self._attempts = attempts
+        self._bus = bus
         self._log = log
         self._stage = ApiStage(
             attempts, log, retry_after_days=settings.retry_after_days
         )
         self._stop = asyncio.Event()
+        self._wake = asyncio.Event()
+        self._sweeps: dict[str, dict[str, set[str]]] = {}
+        self._sweep_lock = threading.Lock()
         self._task: asyncio.Task[None] | None = None
+        self._listen_task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
         if self._task is not None or not self._settings.enabled:
             return
         self._stop.clear()
+        self._wake.clear()
         self._task = asyncio.create_task(self._run())
+        self._listen_task = asyncio.create_task(self._listen())
 
     async def stop(self) -> None:
         self._stop.set()
+        self._wake.set()
+        listener, self._listen_task = self._listen_task, None
+        if listener is not None:
+            listener.cancel()
+            await asyncio.gather(listener, return_exceptions=True)
         task = self._task
         self._task = None
         if task is None:
@@ -91,6 +107,18 @@ class ThreadBackfillWorker:
             self._log.info(
                 "backfill.backoff", account="", delay_s=0, cause="shutdown_join"
             )
+
+    async def _listen(self) -> None:
+        subscription = self._bus.subscribe()
+        try:
+            while not self._stop.is_set():
+                event = await subscription.queue.get()
+                if event is None:
+                    return
+                if event.type == "vault.unlocked":
+                    self._wake.set()
+        finally:
+            self._bus.unsubscribe(subscription)
 
     async def _run(self) -> None:
         await self._wait(self._settings.startup_delay_s)
@@ -136,6 +164,14 @@ class ThreadBackfillWorker:
                     return
             else:
                 stalled = 0
+            if totals.progress:
+                continue
+            self._log.info(
+                "backfill.cooldown",
+                seconds=self._settings.pass_cooldown_s,
+                left=remaining,
+                reason=self._cooldown_reason(),
+            )
             await self._wait(self._settings.pass_cooldown_s)
 
     async def _drain_lanes(self, lanes: list[_Lane]) -> PassStats:
@@ -169,13 +205,18 @@ class ThreadBackfillWorker:
         """Blocking: drain one account completely, sweep first, API fallback next."""
 
         account, spec, stats = lane.account, lane.spec, lane.stats
+        lane.holes = self._attempts.thread_hole_counts().get(account.id, 0)
         self._log.info("backfill.account_started", account=account.id, holes=lane.holes)
         token = lane_token(account, spec, self._credentials, self._log)
         if token is None:
             return stats
         if not lane.swept:
             lane.swept = True
-            if lane.holes >= self._settings.imap_min_holes:
+            with self._sweep_lock:
+                cached = self._sweeps.get(account.id)
+            if cached is not None:
+                lane.sweep_threads = cached
+            elif lane.holes >= self._settings.imap_min_holes:
                 result = imap_sweep(
                     account,
                     spec,
@@ -186,6 +227,8 @@ class ThreadBackfillWorker:
                 )
                 if result is not None:
                     lane.sweep_threads = result.threads
+                    with self._sweep_lock:
+                        self._sweeps[account.id] = result.threads
         while not self._stop.is_set():
             holes = self._attempts.thread_holes(account.id, self._settings.page_size)
             if not holes or not self._consume(
@@ -206,6 +249,7 @@ class ThreadBackfillWorker:
         """One page turn. Returns True when the account may have more work."""
 
         leftovers = []
+        progressed = False
         for hole in holes:
             candidates = (
                 sweep_threads.get(hole.message_id)
@@ -220,11 +264,11 @@ class ThreadBackfillWorker:
                     == "resolved"
                 ):
                     stats.resolved += 1
+                    progressed = True
                 continue
             if candidates is not None and len(candidates) > 1:
                 self._log.info("backfill.ambiguous", attempt=hole.attempt_id)
             leftovers.append(hole)
-        progressed = False
         for outcome in self._resolve_page(account, spec, token, leftovers):
             if outcome.state == "resolved":
                 stats.resolved += 1
@@ -279,10 +323,32 @@ class ThreadBackfillWorker:
         low, high = self._settings.jitter_s, self._settings.jitter_max_s
         return random.uniform(low, max(low, high))
 
+    def _cooldown_reason(self) -> str:
+        try:
+            self._credentials.ensure_unlocked()
+        except VaultLocked:
+            return "vault_locked"
+        return "no_progress"
+
     async def _wait(self, seconds: float) -> None:
         if seconds <= 0:
             return
+        waiters = {
+            asyncio.create_task(self._stop.wait()),
+            asyncio.create_task(self._wake.wait()),
+        }
+        woken = False
         try:
-            await asyncio.wait_for(self._stop.wait(), timeout=seconds)
-        except TimeoutError:
-            pass
+            await asyncio.wait(
+                waiters,
+                timeout=seconds,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            woken = self._wake.is_set() and not self._stop.is_set()
+        finally:
+            for waiter in waiters:
+                waiter.cancel()
+            await asyncio.gather(*waiters, return_exceptions=True)
+            self._wake.clear()
+        if woken:
+            self._log.info("backfill.resumed", reason="vault_unlocked")

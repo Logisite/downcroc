@@ -40,19 +40,24 @@ def sweep(
     chunk: int,
     *,
     pace=None,
+    progress=None,
 ) -> SweepResult:
     """Fetch X-GM-THRID plus Message-ID for every UID in the selected folder.
 
     The caller selects the Sent folder readonly before calling. ``BODY.PEEK``
     keeps the sweep from touching ``\\Seen`` or any other flag. ``pace`` runs
-    after each chunk so the worker can spread the load.
+    after each chunk so the worker can spread the load, and ``progress`` runs
+    with the running and total message counts so long sweeps stay visible.
     """
 
     uids = _uid_list(box)
     threads: dict[str, set[str]] = {}
     seen = 0
-    for start in range(0, len(uids), chunk):
+    total = len(uids)
+    for start in range(0, total, chunk):
         seen += _fetch_chunk(box, uids[start : start + chunk], threads)
+        if progress is not None:
+            progress(seen, total)
         if pace is not None:
             pace(seen)
     return SweepResult(messages=seen, threads=threads)

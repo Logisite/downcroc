@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.2.post8
+
+Backfill drains continuously, caches the Sent sweep, and logs sweep progress.
+
+See [`release-notes/v1.3.2.post8.md`](release-notes/v1.3.2.post8.md).
+
 ## 1.3.2.post7
 
 Describe this release.
