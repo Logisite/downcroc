@@ -1,8 +1,9 @@
 # 18 - Thread id backfill
 
-Status: proposed, build-ready. This document is the implementation plan for recovering
+Status: implemented. This document describes the shipped mechanics of recovering
 Gmail provider thread ids for sent mail created before the threading fix
 (`63ebc02` introduced `provider_thread_id` capture on send; older attempts have none).
+Code wins when this page and the code drift; update this page then.
 
 ## Problem
 
@@ -82,34 +83,39 @@ Rules:
 
 ### Stage 2: API search fallback (5 units per hole)
 
+Two scopes, in order, one `messages.list` each:
+
 ```
 messages.list(userId='me', q='rfc822msgid:<message-id>', labelIds=['SENT'])
+  -> any hit: decide from the Sent scope, done
+messages.list(userId='me', q='rfc822msgid:<message-id>', includeSpamTrash=true)
+  -> the full-scope search, spent only when Sent is empty
 ```
 
-`mail/gmail/read.py::list_messages` gains an optional `label_ids` parameter so the
-search is a structured `labelIds` query parameter, not `in:sent` text inside `q`.
-`find_sent_thread_id(message_id)` wraps this and returns the list page; classification
-reads `resultSizeEstimate` and the per-result `threadId`s.
+`mail/gmail/read.py::list_messages` carries an optional `label_ids` parameter so the
+Sent search is a structured `labelIds` query parameter, not `in:sent` text inside `q`,
+and an `include_spam_trash` flag for the full scope. `find_thread_id(message_id)` runs
+both scopes and returns a `ThreadSearch` recording which scope decided (`sent`,
+`anywhere`, or `none`) and the hit counts of each. `find_sent_thread_id` remains as the
+Sent-only wrapper. Classification reads the per-result `threadId`s and the page token.
 
-Per Google's API reference the list response carries only `id` and `threadId`, which is
-all we need. Classification:
-
-| resultSize | Meaning | Action |
+| outcome | Meaning | Action |
 |---|---|---|
-| 1 | resolved | write `threadId` verbatim |
-| 0 | not in Sent (deleted, or never filed) | strike 1; second strike after `retry_after_days` -> mark `missing` |
-| 2+ | ambiguous | write nothing, log, treat as 0 for strike purposes |
+| 1 thread id, single page | resolved | write `threadId` verbatim, `scope=sent` or `anywhere` |
+| 2+ thread ids | ambiguous | write nothing from the search, log `backfill.ambiguous`, fall through to the provider-id lookup (below) |
+| 0 anywhere | absent | settle window, then `missing` (below) |
 
-Stage 2 is used for: accounts without `X-GM-EXT-1`, holes the IMAP sweep could not see,
-and holes whose IMAP result was ambiguous. It is not used when the IMAP sweep already
-resolved the account.
+A message moved out of Sent (for example into Trash) still lives in the mailbox and
+still carries its thread id, so the full-scope search recovers it. Only a message
+deleted everywhere, or never filed, is genuinely absent.
 
-When the search returns no results and the attempt already stores
+When both searches return nothing and the attempt already stores
 `send_attempts.provider_message_id`, the worker calls
-`messages.get(id='<provider id>', format='minimal')` and writes the returned `threadId`
-before recording a strike. Gmail can refile an API-sent message under a different RFC
+`messages.get(id='<provider id>', format='minimal')` and writes the returned `threadId`.
+Gmail can refile an API-sent message under a different RFC
 `Message-ID`, so an empty search is not proof the message is gone. The write records
-`medium="provider"`. Ambiguous search results still write nothing.
+`medium="provider"`, `scope="provider"`. Ambiguous search results still fall through to
+this exact lookup.
 
 Cost: 5 units per search (Gmail quota table: list 5, get 20, threads.get 40). The exact
 provider-id fallback costs 20 units and runs only after a search finds nothing. A user
@@ -166,21 +172,44 @@ sequential per the original design.
 Vault-locked or errored accounts are skipped in lane order and retried next pass; one bad
 account never blocks the others.
 
-## Termination and the missing mark
+## Termination and the two terminal marks
 
-"Recursive until all holes are covered" terminates because of the `missing` mark:
+"Recursive until all holes are covered" terminates because of two terminal states:
 
-- An attempt with 0 search hits twice, the second strike at least `retry_after_days`
-  (default 7) after the first, is marked `missing` in the DB. It never costs API units
-  again. Deleted-from-Sent mail is the common case; unbounded retry would burn the
-  user's quota forever.
-- The strike state lives in the DB (columns below), not memory, so restarts preserve it.
-- The idle re-check still counts `missing` rows as "no work", so an account with only
-  misses does not wake the worker.
+- `missing`: a full-scope search (Sent, then anywhere including Spam and Trash, with the
+  provider-id exact lookup) found nothing and `settle_s` (default 900) has passed since
+  `started_at`. That covers Gmail search indexing lag; after it, absence is evidence,
+  not a guess. The hole never costs API units again and can only return through
+  `downcroc backfill retry`.
+- `unresolved`: lookups kept failing (transient errors, quota, auth) for longer than
+  `retry_after_days` (default 7, the outer cap for repeated errors). "Could not check"
+  is a different fact from "not there", so it gets its own status. Fix the cause
+  (for example reconnect the account) and retry.
+
+Before the settle window passes, an absent search only schedules a `retry_scheduled`
+check. Ambiguous or erroring lookups back off exponentially (`retry_base_s` to
+`retry_max_s`). Null progress columns mean due, so holes written before this engine
+existed are checked on the first pass after an upgrade.
+
+- The progress state lives in the DB (columns below), not memory, so restarts preserve it.
+- The idle re-check counts terminal rows as "no work", so an account with only
+  missing/unresolved holes does not wake the worker.
 
 SMTP-sent mail keeps producing holes over time (the send path does not capture a thread
 id for SMTP). The idle re-check is what keeps coverage true at any snapshot without a hot
 loop. If a later release adds SMTP send-time capture, the loop simply goes quiet.
+
+## Diagnostics
+
+`downcroc backfill status | explain | retry` reads the same state the worker does
+(`core/backfill.py::BackfillService`, over `store/repositories/thread_backfill.py`).
+`status` splits holes per account into due, waiting, missing, unresolved, and the
+block reason (`needs_reauth`, `vault_locked`, `api_not_configured`, ...). `explain`
+reports one hole's evidence: scopes tried, hit counts, last result, next check time.
+`retry` reopens one terminal hole into the next pass. The same surface exists over HTTP
+under `/api/backfill`. The worker also wakes on `account.connected` and
+`account.needs_reauth`, so reconnecting an account starts its holes without waiting for
+`recheck_s`.
 
 ## Schema
 
@@ -190,13 +219,22 @@ New Alembic revision, generated by the CLI against a scratch DB per the project 
 
 | column | type | meaning |
 |--------|------|---------|
-| `provider_thread_status` | text, nullable | null = never tried, `missing` = proven unfillable |
-| `thread_missing_at` | text, nullable | ISO timestamp of the second strike |
-| `thread_first_miss_at` | text, nullable | ISO timestamp of the first strike |
+| `provider_thread_status` | text, nullable | null = open, `missing` = proven absent, `unresolved` = could not check |
+| `thread_missing_at` | text, nullable | ISO timestamp of the terminal mark |
+| `thread_first_miss_at` | text, nullable | ISO timestamp of the first inconclusive check |
+| `thread_last_checked_at` | text, nullable | ISO timestamp of the last lookup |
+| `thread_next_check_at` | text, nullable | ISO timestamp when the hole is due again; null means due |
+| `thread_check_count` | integer, default 0 | lookups recorded for the hole |
+| `thread_last_result` | text, nullable | last outcome: `resolved`, `absent`, `ambiguous`, `error`, `reopened` |
+| `thread_last_scope` | text, nullable | last deciding scope: `sent`, `anywhere`, `provider`, `imap` |
+| `thread_last_error` | text, nullable | last failure code, when the check errored |
 
-No new table. Writes are single-row updates through `store/repositories/send_attempts.py`,
-which gains a hole-page query (eligible holes, oldest first, page_size) and the
-strike/mark helpers. The follow-up path keeps reading through
+Plus the `ix_send_attempts_thread_due` index on `(account_id, thread_next_check_at)`.
+
+Hole state lives in `store/repositories/thread_backfill.py` (`ThreadBackfillRepo`:
+counts, due pages, resolve, wait, mark missing/unresolved, reopen). Old hole helpers in
+`store/repositories/send_attempts.py` moved there; `send_attempts.py` keeps send-path
+concerns. The follow-up path keeps reading through
 `provider_thread_id_for_job`; the inbound path keeps matching through
 `replies.py::_resolve_provider_thread`. Both treat old recovered ids and new
 send-captured ids identically without change.
@@ -213,7 +251,10 @@ New `[backfill]` section in the runtime config schema, all fields optional:
 | `max_concurrency` | 2 | in-flight lookups within one account |
 | `jitter_s` | 2.0 | minimum seconds between API/IMAP calls |
 | `jitter_max_s` | 5.0 | upper bound of the 2-5s jitter |
-| `retry_after_days` | 7 | second-strike window for the `missing` mark |
+| `retry_after_days` | 7 | outer cap for repeated lookup errors before `unresolved` |
+| `settle_s` | 900 | seconds after the send before a full-scope miss means `missing` |
+| `retry_base_s` | 60 | first delay before retrying an ambiguous or failed lookup |
+| `retry_max_s` | 21600 | upper bound of the exponential lookup retry delay |
 | `recheck_s` | 3600 | idle-mode hole re-check interval |
 | `imap_chunk` | 500 | uids per IMAP FETCH chunk |
 | `imap_min_holes` | 5 | below this, skip the IMAP sweep and use stage 2 |
@@ -235,19 +276,23 @@ All through `EventLogger`, structured fields, no credentials, no message content
 
 | event | when | fields |
 |-------|------|--------|
-| `backfill.started` | worker begins | holes, accounts |
-| `backfill.account_started` | each account drain begins | account, holes |
+| `backfill.started` | worker begins | holes, accounts, due, waiting, blocked, missing, unresolved |
+| `backfill.pass_plan` | pass split published | due, waiting, blocked, missing, unresolved, next_due_at, blocked_accounts |
+| `backfill.account_started` | each account drain begins | account, holes, due, waiting |
 | `backfill.imap_progress` | sweep passes a quarter mark | account, messages, total |
 | `backfill.imap_swept` | stage 1 sweep done | account, messages, hits, duration_ms |
-| `backfill.resolved` | each write | attempt, job, account, medium (`imap`/`api`/`provider`), thread |
-| `backfill.missing` | mark applied | attempt, account, strikes |
-| `backfill.ambiguous` | 2+ hits | attempt |
+| `backfill.hole_checked` | each stage 2 decision | attempt, job, account, message_id, decision, reason, sent_results, anywhere_results, provider_result, scope, age_s, next_check_at, duration_ms |
+| `backfill.resolved` | each write | attempt, job, account, medium (`imap`/`api`/`provider`), scope, thread, age_s, duration_ms |
+| `backfill.retry_scheduled` | next check time set | attempt, account, next_check_at, delay_s, reason (`absent_settle`/`ambiguous`/`provider_error`/`transient_error`) |
+| `backfill.missing` | absent after settle, full scope searched | attempt, account, reason, age_s, strikes, sent_results, anywhere_results, provider_result |
+| `backfill.unresolved` | error window exhausted | attempt, account, reason, error, age_s |
+| `backfill.ambiguous` | 2+ hits | attempt, scope |
 | `backfill.backoff` | API/IMAP error or skipped account | account, delay_s, cause, detail |
-| `backfill.pass_done` | drain turn end | resolved, missing, left |
-| `backfill.cooldown` | zero-progress turn before waiting | seconds, left, reason |
-| `backfill.resumed` | vault unlock woke a wait | reason |
-| `backfill.finished` | no holes left or stalled pass ended | resolved, missing, left |
-| `backfill.idle_check` | each hourly re-check | holes |
+| `backfill.pass_done` | drain turn end | resolved, missing, waiting, unresolved, errors, due, next_waiting, blocked, left |
+| `backfill.cooldown` | zero-progress turn before waiting | seconds, left, due, reason |
+| `backfill.resumed` | wake ended a wait early | reason (`vault_unlocked`/`account_connected`/`account_needs_reauth`) |
+| `backfill.finished` | pass drained | resolved, missing, waiting, unresolved, left, blocked, reason |
+| `backfill.idle_check` | each re-check | holes, due, waiting, blocked, missing, unresolved, next_due_at |
 
 ## Robustness and crash proofing
 
@@ -272,19 +317,27 @@ All through `EventLogger`, structured fields, no credentials, no message content
 
 | file | change |
 |------|--------|
-| `core/outbound/backfill/worker.py` (new) | worker: lifecycle, lanes, drain loop, pass/idle logic |
-| `core/outbound/backfill/imap_stage.py` (new) | stage 1 consumption: sweep map, hit/ambiguous classification |
-| `core/outbound/backfill/api_stage.py` (new) | stage 2 search, strike ladder, the `missing` mark |
-| `mail/gmail/read.py` | `label_ids` param on `list_messages`; `find_sent_thread_id(message_id)` |
-| `mail/imap/sent_scan.py` (new) | IMAP bulk sweep with `X-GM-THRID` and hex conversion (raw `imaplib` via `box.client`; imap_tools does not expose Gmail fetch attributes) |
+| `core/outbound/backfill/worker.py` | worker: lifecycle, lanes, due-only drain loop, pass/idle logic, wake events |
+| `core/outbound/backfill/lanes.py` | `PassStats` and the per-account `Lane` |
+| `core/outbound/backfill/consume.py` | one page turn: sweep hits first, then stage-2 lookups |
+| `core/outbound/backfill/imap_stage.py` | stage 1 consumption: sweep map, hit/ambiguous classification |
+| `core/outbound/backfill/api_stage.py` | stage 2 settle ladder: resolve, wait, `missing`/`unresolved` marks |
+| `core/outbound/backfill/lookups.py` | the Gmail API calls with backoff (search, provider fallback) |
+| `core/outbound/backfill/evidence.py` | `Outcome`, `Turn`, age/duration/deadline/backoff helpers |
+| `core/outbound/backfill/plan.py` | pass planning: due/waiting/blocked per account with the block reason |
+| `core/backfill.py` | `BackfillService` behind the diagnostics command and API |
+| `mail/gmail/read.py` | `label_ids` + `include_spam_trash` on `list_messages`; `find_thread_id`, `ThreadSearch` |
+| `mail/imap/sent_scan.py` | IMAP bulk sweep with `X-GM-THRID` and hex conversion (raw `imaplib` via `box.client`; imap_tools does not expose Gmail fetch attributes) |
 | `mail/imap/folders.py` | `resolve_sent_folder(box, spec)`: special-use discovery with `spec.sent_folder` fallback |
-| `store/repositories/send_attempts.py` | `ThreadHole`, hole-page query (joins `jobs.message_id`), strike/mark helpers |
-| `store/db/migrations/versions/...` | new Alembic revision (CLI-generated) |
+| `store/repositories/thread_backfill.py` | `ThreadBackfillRepo`: counts, due pages, resolve/wait/mark/reopen |
+| `store/db/migrations/versions/...` | Alembic revisions (CLI-generated) |
 | `runtime/config/schema.py` | `[backfill]` section |
+| `api/routes/backfill.py`, `api/schemas/backfill.py` | `/api/backfill/status`, `/holes/{id}`, `/holes/{id}/retry` |
+| `cli/commands/backfill.py`, `cli/parser/other.py` | `downcroc backfill status/explain/retry` |
 | `api/app.py` | lifespan wiring: start/stop the worker |
 | `tests/harness/gmail.py` | fake: stored sent mail with hex thread ids, `rfc822msgid:` + `labelIds` search, sent deletion, IMAP Sent mirroring via the mail-servers fake |
 | `tests/harness/fakes.py` | fake IMAP: `X-GM-EXT-1` capability toggle, per-user Sent mailbox, `X-GM-THRID` + `BODY.PEEK[HEADER.FIELDS]` fetch, `\Sent` special-use flag |
-| `tests/test_thread_backfill.py` (new) | black-box acceptance |
+| `tests/test_thread_backfill.py` | black-box acceptance |
 
 The inbound attribution query lives in
 `store/repositories/replies.py::_resolve_provider_thread`; the backfill does not change
@@ -315,7 +368,7 @@ connection setup, jitter helper) are reused from their layers, not duplicated.
 1. Seed the fake with sent attempts lacking `provider_thread_id` (pre-fix state).
 2. Start the daemon; assert the worker resolves them and the DB shows hex ids.
 3. Send one reply; assert it lands in the recovered thread (fake echoes `threadId`).
-4. Delete one fake Sent message; assert strike-then-miss behavior across `retry_after_days`.
+4. Delete one fake Sent message; assert absence settles into `missing` after `settle_s`.
 5. Duplicate Message-ID fixture; assert ambiguous handling leaves the hole and logs.
 6. Kill the daemon mid-pass; restart; assert resume without duplicate writes.
 7. Assert the four-media equality test from the table above passes.

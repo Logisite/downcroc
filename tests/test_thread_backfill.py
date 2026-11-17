@@ -17,7 +17,7 @@ FAST = (
     "jitter_max_s = 0.0\n"
     "imap_min_holes = 1\n"
 )
-ZERO_DAYS = FAST + "retry_after_days = 0\n"
+ZERO_DAYS = FAST + "retry_after_days = 0\nsettle_s = 0\n"
 SLOW_START = FAST.replace("startup_delay_s = 0.5", "startup_delay_s = 3.0")
 DELAYED = "\n[backfill]\nstartup_delay_s = 3600\nrecheck_s = 3600\n"
 DISABLED = "\n[backfill]\nenabled = false\n"
@@ -141,9 +141,13 @@ def test_backfill_leaves_duplicate_message_ids_ambiguous(stack_factory) -> None:
         gmail.add(duplicate, labels=("SENT",))
         stack.fakes.deliver_sent("gmail@local.test", duplicate, 999)
         until(lambda: events(stack).get("backfill.ambiguous"))
+        until(lambda: _attempt(stack, created["id"])["provider_thread_id"])
         row = _attempt(stack, created["id"])
-        assert row["provider_thread_id"] is None
-        assert not _resolved(stack, created["id"])
+        # The ambiguous RFC search writes nothing; the exact provider-id
+        # lookup disambiguates and writes the true thread of the sent mail.
+        assert row["provider_thread_id"] == gmail.thread_of(created["message_id"])
+        medium = _resolved(stack, created["id"])[-1]["medium"]
+        assert medium == "provider"
     finally:
         gmail.stop()
 

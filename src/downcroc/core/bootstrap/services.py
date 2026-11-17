@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from downcroc.backup import BackupService, RestoreService
     from downcroc.core.accounts import AccountsService
     from downcroc.core.accounts.preflight import AuthPreflight
+    from downcroc.core.backfill import BackfillService
     from downcroc.core.batches import BatchesService
     from downcroc.core.capacity import CapacityService
     from downcroc.core.config_service import ConfigService
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
     from downcroc.store.repositories.jobs import JobRepo
     from downcroc.store.repositories.messages import MessageRepo
     from downcroc.store.repositories.send_attempts import SendAttemptRepo
+    from downcroc.store.repositories.thread_backfill import ThreadBackfillRepo
 
 
 @dataclass
@@ -60,6 +62,7 @@ class Services:
     inbound: InboundService
     outbound: OutboundService
     backfill: ThreadBackfillWorker
+    backfill_diagnostics: BackfillService
     batches: BatchesService
     capacity: CapacityService
     holds: HoldsService
@@ -70,6 +73,7 @@ class Services:
     retention: RetentionService
     failures: FailureService
     send_attempts: SendAttemptRepo
+    thread_backfill: ThreadBackfillRepo
     transports: TransportService
     oauth_clients: OAuthClientService
     dispatcher: Dispatcher

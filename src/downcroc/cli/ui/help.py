@@ -369,6 +369,9 @@ def index(ui: Ui | None = None) -> str:
             lines.append(f"  {name:<16} {summary(name)}")
         lines.append("")
         lines.append("run: downcroc help TOPIC")
+        lines.append(
+            "this help can lag behind the release; the docs are kept current: downcroc docs"
+        )
         return "\n".join(lines) + "\n"
     lines = [ui.heading("Help topics"), ""]
     room = max(24, ui.width - 26)
@@ -379,6 +382,10 @@ def index(ui: Ui | None = None) -> str:
         lines.append(f"  {ui.accent(ui.glyph('dot'))} {ui.bold(f'{name:<16}')} {text}")
     lines.append("")
     lines.append(f"  {ui.dim('run')} {ui.accent('downcroc help TOPIC')}")
+    lines.append(
+        f"  {ui.dim('fuller and more current than this help')} "
+        f"{ui.accent('downcroc docs')}"
+    )
     return "\n".join(lines) + "\n"
 
 

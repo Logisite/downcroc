@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from downcroc.core.accounts import AccountEligibility
+from downcroc.core.backfill import BackfillService
 from downcroc.core.bootstrap.accounts import build_accounts
 from downcroc.core.bootstrap.dispatch import build_dispatcher
 from downcroc.core.bootstrap.failures import build_failures
@@ -58,7 +59,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         foundation.accounts,
         foundation.providers,
         credentials,
-        foundation.send_attempts,
+        foundation.thread_backfill,
         foundation.bus,
         foundation.log,
     )
@@ -81,6 +82,11 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         inbound=inbound,
         outbound=outbound,
         backfill=backfill,
+        backfill_diagnostics=BackfillService(
+            foundation.thread_backfill,
+            foundation.accounts,
+            foundation.providers,
+        ),
         batches=batches,
         capacity=capacity,
         holds=holds,
@@ -91,6 +97,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         retention=operations.retention,
         failures=failures,
         send_attempts=foundation.send_attempts,
+        thread_backfill=foundation.thread_backfill,
         transports=transports,
         oauth_clients=foundation.clients,
         dispatcher=dispatcher,

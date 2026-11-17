@@ -212,7 +212,10 @@ thread ids on older Gmail messages so threads can be grouped correctly.
 - `backfill.max_concurrency` (default `2`, 1–16): In-flight lookups within one account.
 - `backfill.jitter_s` (default `2.0`, 0–3600): Minimum seconds between API or IMAP calls on one lane.
 - `backfill.jitter_max_s` (default `5.0`, 0–3600): Upper bound of the call jitter. Must be at least `jitter_s`.
-- `backfill.retry_after_days` (default `7`, 0–365): Days after the first strike before a hole can be marked missing.
+- `backfill.retry_after_days` (default `7`, 0–365): Days of repeated lookup errors before a hole is marked unresolved. Confirmed absence is decided by `settle_s` instead.
+- `backfill.settle_s` (default `900.0`, 0–2678400): Seconds after the send before a full-scope miss is treated as absence. Covers Gmail search indexing, not a multi-day wait.
+- `backfill.retry_base_s` (default `60.0`, 0–86400): First delay before retrying an ambiguous or failed lookup.
+- `backfill.retry_max_s` (default `21600.0`, 0–604800): Upper bound of the exponential lookup retry delay. Must be at least `retry_base_s`.
 - `backfill.recheck_s` (default `3600.0`, 0.05–86400): Idle-mode hole re-check interval.
 - `backfill.imap_chunk` (default `500`, 1–10000): UIDs per IMAP FETCH chunk in the bulk sweep.
 - `backfill.imap_min_holes` (default `5`, 1–100000): Below this hole count, skip the IMAP sweep and use the API lookups.

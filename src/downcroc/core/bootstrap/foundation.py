@@ -37,6 +37,7 @@ from downcroc.store.repositories.policy import PolicyRepo
 from downcroc.store.repositories.quota import QuotaRepo
 from downcroc.store.repositories.runtime_state import RuntimeStateRepo
 from downcroc.store.repositories.send_attempts import SendAttemptRepo
+from downcroc.store.repositories.thread_backfill import ThreadBackfillRepo
 from downcroc.store.repositories.transports import TransportRepo
 
 
@@ -65,6 +66,7 @@ class Foundation:
     followup_declarations: FollowUpDeclarationRepo
     quota: QuotaRepo
     send_attempts: SendAttemptRepo
+    thread_backfill: ThreadBackfillRepo
     runtime: RuntimeStateRepo
     transports: TransportRepo
     oauth_clients: OAuthClientRepo
@@ -99,6 +101,7 @@ def open_foundation(settings: Settings, paths: Paths, log: EventLogger) -> Found
     followup_declarations = FollowUpDeclarationRepo(sessions)
     quota = QuotaRepo(sessions)
     send_attempts = SendAttemptRepo(sessions)
+    thread_backfill = ThreadBackfillRepo(sessions)
     for attempt in send_attempts.reserved_accepted():
         if attempt.account_id is None or attempt.quota_day is None:
             continue
@@ -164,6 +167,7 @@ def open_foundation(settings: Settings, paths: Paths, log: EventLogger) -> Found
         followup_declarations=followup_declarations,
         quota=quota,
         send_attempts=send_attempts,
+        thread_backfill=thread_backfill,
         runtime=runtime,
         transports=transports,
         oauth_clients=oauth_clients,

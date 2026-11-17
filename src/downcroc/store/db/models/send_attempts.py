@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, Index, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from downcroc.store.db.models.base import Base
@@ -10,6 +10,11 @@ class SendAttemptRow(Base):
     __tablename__ = "send_attempts"
     __table_args__ = (
         Index("ix_send_attempts_job_started", "job_id", "started_at"),
+        Index(
+            "ix_send_attempts_thread_due",
+            "account_id",
+            "thread_next_check_at",
+        ),
         Index(
             "ix_attempts_quota_reserved",
             "quota_state",
@@ -39,6 +44,14 @@ class SendAttemptRow(Base):
     provider_thread_status: Mapped[str | None] = mapped_column(Text)
     thread_first_miss_at: Mapped[str | None] = mapped_column(Text)
     thread_missing_at: Mapped[str | None] = mapped_column(Text)
+    thread_last_checked_at: Mapped[str | None] = mapped_column(Text)
+    thread_next_check_at: Mapped[str | None] = mapped_column(Text)
+    thread_check_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    thread_last_result: Mapped[str | None] = mapped_column(Text)
+    thread_last_scope: Mapped[str | None] = mapped_column(Text)
+    thread_last_error: Mapped[str | None] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
     quota_day: Mapped[str | None] = mapped_column(Text)
     quota_state: Mapped[str | None] = mapped_column(Text)

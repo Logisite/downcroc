@@ -14,6 +14,7 @@ from downcroc.api.middleware import RequestLogMiddleware
 from downcroc.api.routes import (
     accounts,
     attempts,
+    backfill,
     backups,
     batches,
     config,
@@ -132,6 +133,7 @@ def create_app(
     app.include_router(transports.router)
     app.include_router(oauth_clients.router)
     app.include_router(attempts.router)
+    app.include_router(backfill.router)
     app.include_router(doctor.router)
     app.include_router(providers.router)
     app.include_router(messages.router)

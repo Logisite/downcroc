@@ -303,6 +303,30 @@ def stats(commands: argparse._SubParsersAction) -> None:
     common(prune, yes=True)
 
 
+def backfill(commands: argparse._SubParsersAction) -> None:
+    parser = commands.add_parser(
+        "backfill",
+        help="inspect and retry thread id holes",
+        epilog=(
+            "examples:\n"
+            "  downcroc backfill status\n"
+            "  downcroc backfill explain att_...\n"
+            "  downcroc backfill retry att_..."
+        ),
+    )
+    actions = parser.add_subparsers(dest="action", required=True)
+    status = actions.add_parser("status", help="show holes by account")
+    common(status)
+    explain = actions.add_parser(
+        "explain", help="show why one hole has not been filled"
+    )
+    explain.add_argument("attempt_id", help="send attempt id")
+    common(explain)
+    retry = actions.add_parser("retry", help="put one hole back in the next pass")
+    retry.add_argument("attempt_id", help="send attempt id")
+    common(retry, yes=True)
+
+
 def mail(commands: argparse._SubParsersAction) -> None:
     parser = commands.add_parser(
         "mail",
@@ -383,6 +407,11 @@ def logs(commands: argparse._SubParsersAction) -> None:
         "--addresses",
         action="store_true",
         help="show account addresses instead of ids",
+    )
+    parser.add_argument(
+        "--utc",
+        action="store_true",
+        help="show timestamps in UTC instead of local time",
     )
     common(parser)
 

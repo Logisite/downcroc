@@ -4,13 +4,20 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.2.post8
+since: 1.3.3
 order: 0
 terminal:
-  summary: Current release is 1.3.2.post8.
+  summary: Current release is 1.3.3.
 ---
 
 # Release notes
+
+## 1.3.3
+
+Backfill searches Trash before calling a hole missing, adds the `downcroc backfill`
+diagnostics command, and shows log times in your local timezone.
+
+See the full note in `release-notes/v1.3.3.md` at the repository root.
 
 ## 1.3.2.post8
 

@@ -26,7 +26,10 @@ def parse_since(text: str) -> datetime:
         return datetime.now(tz=UTC) - timedelta(
             seconds=int(text[:-1]) * UNITS[text[-1]]
         )
-    return datetime.fromisoformat(text)
+    moment = datetime.fromisoformat(text)
+    if moment.tzinfo is None:
+        moment = moment.astimezone()
+    return moment.astimezone(UTC)
 
 
 def oldest_first(paths: Paths) -> list[Path]:
@@ -60,13 +63,19 @@ def matches(entry: dict, args: object, cutoff: datetime | None) -> bool:
     return True
 
 
-def _print(entry: dict, raw: bool, book: AddressBook, addresses: bool) -> None:
+def _print(
+    entry: dict,
+    raw: bool,
+    book: AddressBook,
+    addresses: bool,
+    utc: bool = False,
+) -> None:
     if addresses:
         entry = book.apply(entry, json_mode=raw)
     if raw:
         print(json.dumps(entry, ensure_ascii=False), flush=True)
     else:
-        print(render_entry(entry, colour=colour_enabled()), flush=True)
+        print(render_entry(entry, colour=colour_enabled(), utc=utc), flush=True)
 
 
 def _entries(path: Path) -> list[dict]:
@@ -130,7 +139,7 @@ def run(args: object) -> int:
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
     shown = found[-args.limit :]
     for entry in shown:
-        _print(entry, ui.json_mode, book, args.addresses)
+        _print(entry, ui.json_mode, book, args.addresses, args.utc)
     if not found:
         print("no events match", file=sys.stderr)
     elif len(found) > len(shown) and not ui.json_mode:
@@ -153,7 +162,7 @@ def _follow(
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
     shown = found[-args.limit :]
     for entry in shown:
-        _print(entry, ui.json_mode, book, args.addresses)
+        _print(entry, ui.json_mode, book, args.addresses, args.utc)
     if len(found) > len(shown) and not ui.json_mode:
         print(
             f"showing {len(shown)} of {len(found)}, use --since or --limit",
@@ -205,7 +214,7 @@ def _follow(
             if str(entry.get("event", "")).startswith("account."):
                 book.refresh()
             if matches(entry, args, cutoff):
-                _print(entry, ui.json_mode, book, args.addresses)
+                _print(entry, ui.json_mode, book, args.addresses, args.utc)
     except KeyboardInterrupt:
         return 0
     finally:

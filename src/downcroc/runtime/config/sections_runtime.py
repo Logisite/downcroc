@@ -441,7 +441,31 @@ class BackfillSettings(BaseModel):
         default=7,
         ge=0,
         le=365,
-        description="Days after the first strike before a hole can be marked missing.",
+        description=(
+            "Days of repeated lookup errors before a hole is marked unresolved. "
+            "Confirmed absence is terminal after settle_s instead."
+        ),
+    )
+    settle_s: float = Field(
+        default=900.0,
+        ge=0,
+        le=2_678_400,
+        description=(
+            "Seconds after the send before a full-scope miss is treated as absence. "
+            "Covers Gmail search indexing, not a multi-day wait."
+        ),
+    )
+    retry_base_s: float = Field(
+        default=60.0,
+        ge=0,
+        le=86_400,
+        description="First delay before retrying an ambiguous or failed lookup.",
+    )
+    retry_max_s: float = Field(
+        default=21_600.0,
+        ge=0,
+        le=604_800,
+        description="Upper bound of the exponential lookup retry delay.",
     )
     recheck_s: float = Field(
         default=3600.0,
@@ -478,4 +502,6 @@ class BackfillSettings(BaseModel):
     def ordered_jitter(self) -> BackfillSettings:
         if self.jitter_max_s < self.jitter_s:
             raise ValueError("jitter_max_s must be at least jitter_s")
+        if self.retry_max_s < self.retry_base_s:
+            raise ValueError("retry_max_s must be at least retry_base_s")
         return self

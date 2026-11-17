@@ -34,6 +34,11 @@ class ConnectAttempt:
     error: str | None
 
 
+class HoleStatus(StrEnum):
+    MISSING = "missing"
+    UNRESOLVED = "unresolved"
+
+
 @dataclass(frozen=True)
 class ThreadHole:
     """A sent attempt whose Gmail provider thread id is still missing."""
@@ -44,6 +49,12 @@ class ThreadHole:
     message_id: str
     started_at: str
     provider_message_id: str | None = None
+    outcome: str = "sent"
+    first_miss_at: str | None = None
+    next_check_at: str | None = None
+    check_count: int = 0
+    last_result: str | None = None
+    thread_status: str | None = None
 
 
 @dataclass(frozen=True)

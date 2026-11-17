@@ -33,6 +33,16 @@ class GmailListPage:
 
 
 @dataclass(frozen=True)
+class ThreadSearch:
+    """One RFC Message-ID search, with the scopes that were tried."""
+
+    scope: str
+    page: GmailListPage
+    sent_results: int
+    anywhere_results: int
+
+
+@dataclass(frozen=True)
 class GmailMessage:
     id: str
     thread_id: str | None
@@ -102,6 +112,7 @@ def list_messages(
     page_token: str | None = None,
     max_results: int = 100,
     label_ids: tuple[str, ...] = (),
+    include_spam_trash: bool = False,
     project_id: str | None = None,
 ) -> GmailListPage:
     _require_api(spec)
@@ -110,6 +121,8 @@ def list_messages(
         params["pageToken"] = page_token
     if label_ids:
         params["labelIds"] = list(label_ids)
+    if include_spam_trash:
+        params["includeSpamTrash"] = True
     response = api._request(
         spec,
         "GET",
@@ -141,6 +154,56 @@ def list_messages(
     )
 
 
+def find_thread_id(
+    spec: ProviderSpec,
+    access_token: str,
+    message_id: str,
+    *,
+    timeout_s: float,
+    project_id: str | None = None,
+) -> ThreadSearch:
+    """Search Sent first, then anywhere including Spam and Trash.
+
+    A message the user moved out of Sent is still in the mailbox and still has
+    its thread id. The second search is only spent when the first is empty, so
+    the common case costs one list call.
+    """
+
+    cleaned = message_id.strip().strip("<>")
+    query = f"rfc822msgid:<{cleaned}>"
+    sent = list_messages(
+        spec,
+        access_token,
+        query,
+        timeout_s=timeout_s,
+        max_results=50,
+        label_ids=("SENT",),
+        project_id=project_id,
+    )
+    if sent.messages and any(ref.thread_id for ref in sent.messages):
+        return ThreadSearch(
+            scope="sent",
+            page=sent,
+            sent_results=len(sent.messages),
+            anywhere_results=0,
+        )
+    anywhere = list_messages(
+        spec,
+        access_token,
+        query,
+        timeout_s=timeout_s,
+        max_results=50,
+        include_spam_trash=True,
+        project_id=project_id,
+    )
+    return ThreadSearch(
+        scope="anywhere" if anywhere.messages else "none",
+        page=anywhere,
+        sent_results=0,
+        anywhere_results=len(anywhere.messages),
+    )
+
+
 def find_sent_thread_id(
     spec: ProviderSpec,
     access_token: str,
@@ -151,8 +214,8 @@ def find_sent_thread_id(
 ) -> GmailListPage:
     """Search the account's Sent folder for one RFC Message-ID.
 
-    The list response carries only ``id`` and ``threadId`` per message, which is
-    everything the backfill needs. Callers classify on the result count.
+    Kept for callers that need the Sent-only answer. New recovery code uses
+    :func:`find_thread_id`, which also searches Spam and Trash.
     """
 
     cleaned = message_id.strip().strip("<>")

@@ -49,10 +49,20 @@ LEVEL_COLOUR = {
 EVENT_COLOUR = "\x1b[32m"
 
 
+def _iso(moment: datetime) -> str:
+    return moment.isoformat(timespec="milliseconds")
+
+
+def _utc_stamp(moment: datetime) -> str:
+    return _iso(moment.astimezone(UTC)).replace("+00:00", "Z")
+
+
 def entry_from(record: logging.LogRecord) -> dict[str, Any]:
     moment = datetime.fromtimestamp(record.created, tz=UTC)
+    local = datetime.fromtimestamp(record.created).astimezone()
     entry: dict[str, Any] = {
-        "ts": moment.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        "ts": _utc_stamp(moment),
+        "ts_local": _iso(local),
         "level": record.levelname.lower(),
         "event": record.getMessage(),
         "logger": record.name,
@@ -76,14 +86,39 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(entry_from(record), default=str, ensure_ascii=False)
 
 
-def render(entry: dict[str, Any], colour: bool = True) -> str:
-    stamp = str(entry.get("ts", ""))[11:23]
+def _parse_stamp(value: object) -> datetime | None:
+    text = str(value or "")
+    if not text:
+        return None
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment
+
+
+def _display_stamp(entry: dict[str, Any], utc: bool) -> str:
+    moment = _parse_stamp(entry.get("ts") if utc else entry.get("ts_local"))
+    if moment is None:
+        moment = _parse_stamp(entry.get("ts"))
+    if moment is None:
+        return ""
+    if utc:
+        moment = moment.astimezone(UTC)
+        return moment.strftime("%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
+    return moment.strftime("%H:%M:%S.") + f"{moment.microsecond // 1000:03d}"
+
+
+def render(entry: dict[str, Any], colour: bool = True, utc: bool = False) -> str:
+    stamp = _display_stamp(entry, utc)
     level = str(entry.get("level", "info"))
     event = str(entry.get("event", ""))
     fields = "  ".join(
         f"{key}={value}"
         for key, value in entry.items()
-        if key not in {"ts", "level", "logger"} and key != "event"
+        if key not in {"ts", "ts_local", "level", "logger"} and key != "event"
     )
     if colour:
         tint = LEVEL_COLOUR.get(level, "")

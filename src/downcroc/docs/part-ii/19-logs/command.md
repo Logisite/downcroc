@@ -1,7 +1,7 @@
 ---
 title: logs command
 commands: [logs]
-flags: [--event, --level, --account, --batch, --job, --since, --limit, --follow, --addresses]
+flags: [--event, --level, --account, --batch, --job, --since, --limit, --follow, --addresses, --utc]
 concepts: [job, batch]
 screens: []
 ---
@@ -17,7 +17,7 @@ For help finding the log file and understanding what events mean, see [logs.md](
 ```text
 downcroc logs [--event EVENT] [--level {debug,info,warning,error}]
               [--account ACCOUNT] [--batch BATCH] [--job JOB]
-              [--since SINCE] [--limit LIMIT] [--follow] [--addresses]
+              [--since SINCE] [--limit LIMIT] [--follow] [--addresses] [--utc]
 ```
 
 With no filters, `logs` prints recent log lines.
@@ -44,7 +44,7 @@ Filters combine to narrow the view. You can apply several at once to home in on 
 : Filters to lines associated with a specific [[job]] id. Combine with `--batch` when you want the log for one particular piece of work.
 
 `--since SINCE`
-: Sets the start of the time range. Accepts a relative duration such as `15m`, `2h`, or `3d`, or an ISO timestamp. Use this to limit the view to recent activity (for example “the last 15 minutes”).
+: Sets the start of the time range. Accepts a relative duration such as `15m`, `2h`, or `3d`, or an ISO timestamp. A timestamp without a timezone is read as your computer's local time. Use this to limit the view to recent activity (for example “the last 15 minutes”).
 
 ### Amount and streaming
 
@@ -58,6 +58,9 @@ Filters combine to narrow the view. You can apply several at once to home in on 
 
 `--addresses`
 : Shows account addresses instead of account ids in the output. This can make lines easier to read when you think in terms of mailboxes rather than internal ids.
+
+`--utc`
+: Shows timestamps in UTC instead of your computer's local time. Every log line carries both stamps; the display picks local by default, so times match your wall clock. Use this when comparing against server-side records or exporting lines for someone in another timezone.
 
 Common flags: `--json`, `--no-input`, `--wide`, `--full`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
 
@@ -80,6 +83,8 @@ Because the underlying log is structured (JSONL), `--json` gives you the full st
 - `downcroc logs --account <account_id> --level error --since 1h` — show recent errors for one account.
 - `downcroc logs --follow` — stream new lines as they are written.
 - `downcroc logs --follow --event job. --json` — stream job events live as JSON.
+- `downcroc logs --since "2026-11-17 09:00"` — show lines from 9am your local time.
+- `downcroc logs --utc --since 1h` — show the last hour in UTC.
 
 ## See also
 

@@ -1,22 +1,11 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from downcroc.domain.attempts import SendAttempt, ThreadHole
-from downcroc.runtime.clock import parse_utc, utc_now
-from downcroc.store.db.models import JobRow, SendAttemptRow
-
-SENT_OUTCOMES = ("sent", "sent_unconfirmed", "uncertain")
-
-
-def _hole_conditions():
-    return (
-        SendAttemptRow.outcome.in_(SENT_OUTCOMES),
-        SendAttemptRow.provider_thread_id.is_(None),
-        SendAttemptRow.provider_thread_status.is_(None),
-        JobRow.message_id.is_not(None),
-    )
+from downcroc.domain.attempts import SendAttempt
+from downcroc.runtime.clock import utc_now
+from downcroc.store.db.models import SendAttemptRow
 
 
 def _to_attempt(row: SendAttemptRow) -> SendAttempt:
@@ -228,84 +217,3 @@ class SendAttemptRepo:
                 .order_by(SendAttemptRow.started_at, SendAttemptRow.id)
             )
             return [_to_attempt(row) for row in rows]
-
-    def thread_hole_counts(self) -> dict[str, int]:
-        """Holes per account: sent attempts still missing a provider thread id."""
-
-        with self._sessions() as session:
-            rows = session.execute(
-                select(SendAttemptRow.account_id, func.count())
-                .join(JobRow, JobRow.id == SendAttemptRow.job_id)
-                .where(*_hole_conditions())
-                .where(SendAttemptRow.account_id.is_not(None))
-                .group_by(SendAttemptRow.account_id)
-            )
-            return {row[0]: int(row[1]) for row in rows}
-
-    def thread_holes(self, account_id: str, page_size: int) -> list[ThreadHole]:
-        """Oldest eligible holes for one account, page_size at a time."""
-
-        with self._sessions() as session:
-            rows = session.execute(
-                select(
-                    SendAttemptRow.id,
-                    SendAttemptRow.job_id,
-                    SendAttemptRow.account_id,
-                    JobRow.message_id,
-                    SendAttemptRow.started_at,
-                    SendAttemptRow.provider_message_id,
-                )
-                .join(JobRow, JobRow.id == SendAttemptRow.job_id)
-                .where(*_hole_conditions())
-                .where(SendAttemptRow.account_id == account_id)
-                .order_by(SendAttemptRow.started_at, SendAttemptRow.id)
-                .limit(page_size)
-            )
-            return [
-                ThreadHole(
-                    attempt_id=row[0],
-                    job_id=row[1],
-                    account_id=row[2],
-                    message_id=row[3],
-                    started_at=row[4],
-                    provider_message_id=row[5],
-                )
-                for row in rows
-            ]
-
-    def resolve_thread(self, attempt_id: str, thread_id: str) -> bool:
-        """Write the thread id unless a concurrent writer filled the hole first."""
-
-        with self._sessions.begin() as session:
-            result = session.execute(
-                update(SendAttemptRow)
-                .where(SendAttemptRow.id == attempt_id)
-                .where(SendAttemptRow.provider_thread_id.is_(None))
-                .values(provider_thread_id=thread_id)
-            )
-            return bool(result.rowcount)
-
-    def miss_thread(self, attempt_id: str, *, retry_after_days: int) -> str:
-        """Record one failed lookup: first, waiting, missing, or resolved."""
-
-        now = utc_now()
-        with self._sessions.begin() as session:
-            row = session.get(SendAttemptRow, attempt_id)
-            if row is None or row.provider_thread_id is not None:
-                return "resolved"
-            if row.provider_thread_status == "missing":
-                return "missing"
-            if row.thread_first_miss_at is None:
-                row.thread_first_miss_at = now
-                return "first"
-            first = parse_utc(row.thread_first_miss_at)
-            moment = parse_utc(now)
-            if (
-                first is not None
-                and moment is not None
-                and (moment - first).total_seconds() < retry_after_days * 86_400
-            ):
-                return "waiting"
-            row.provider_thread_status = "missing"
-            row.thread_missing_at = now
-            return "missing"

@@ -30,6 +30,7 @@ HANDLERS: dict[str, str] = {
     "config": "downcroc.cli.commands.config:run",
     "sending": "downcroc.cli.commands.sending:run",
     "stats": "downcroc.cli.commands.stats:run",
+    "backfill": "downcroc.cli.commands.backfill:run",
     "followups": "downcroc.cli.commands.followups:run",
     "mail": "downcroc.cli.commands.mail:run",
     "logs": "downcroc.cli.commands.logs:run",

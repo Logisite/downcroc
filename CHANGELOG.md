@@ -3,6 +3,13 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.3
+
+Backfill searches Trash before calling a hole missing, adds the `downcroc backfill`
+diagnostics command, and shows log times in your local timezone.
+
+See [`release-notes/v1.3.3.md`](release-notes/v1.3.3.md).
+
 ## 1.3.2.post8
 
 Backfill drains continuously, caches the Sent sweep, and logs sweep progress.

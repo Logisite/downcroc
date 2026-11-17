@@ -178,6 +178,16 @@ class FailureNotFound(DomainError):
     status = 404
 
 
+class BackfillHoleNotFound(DomainError):
+    code = "backfill_hole_not_found"
+    status = 404
+
+
+class BackfillHoleResolved(DomainError):
+    code = "backfill_hole_resolved"
+    status = 409
+
+
 class JobNotFailed(DomainError):
     code = "job_not_failed"
     status = 409

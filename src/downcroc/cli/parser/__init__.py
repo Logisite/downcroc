@@ -24,7 +24,10 @@ def build_parser() -> argparse.ArgumentParser:
             "examples:\n"
             "  downcroc init\n"
             "  downcroc send campaign.json\n"
-            "  downcroc help vault"
+            "  downcroc help vault\n"
+            "\n"
+            "this help can lag behind the release; the docs are kept current:\n"
+            "  downcroc docs"
         ),
     )
     parser.add_argument("--version", action=VersionAction, nargs=0)
@@ -44,6 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     other.config(commands)
     other.sending(commands)
     other.stats(commands)
+    other.backfill(commands)
     other.followups(commands)
     other.mail(commands)
     other.logs(commands)
