@@ -3,6 +3,18 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.3.post1
+
+Describe this release.
+
+See [`release-notes/v1.3.3.post1.md`](release-notes/v1.3.3.post1.md).
+
+## 1.3.3.post1
+
+Release automation now publishes the repository release note as the GitHub release body.
+
+See [`release-notes/v1.3.3.post1.md`](release-notes/v1.3.3.post1.md).
+
 ## 1.3.3
 
 Backfill searches Trash before calling a hole missing, adds the `downcroc backfill`
