@@ -39,13 +39,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          notes="release-notes/${TAG#v}.md"
-          notes_args=""
-          if [ -f "$notes" ]; then
-            notes_args="--notes-file $notes"
+          notes="release-notes/${TAG}.md"
+          if [ ! -f "$notes" ]; then
+            echo "::error::missing release note $notes for $TAG"
+            exit 1
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else
-            gh release create "$TAG" dist/* --title "downcroc ${TAG#v}" $notes_args
+            gh release create "$TAG" dist/* --title "downcroc ${TAG#v}" --notes-file "$notes"
           fi
