@@ -103,9 +103,18 @@ Stage 2 is used for: accounts without `X-GM-EXT-1`, holes the IMAP sweep could n
 and holes whose IMAP result was ambiguous. It is not used when the IMAP sweep already
 resolved the account.
 
-Cost: 5 units per hole (Gmail quota table: list 5, get 20, threads.get 40). A user with
-300 holes costs 1500 units once, against a 6000 units/min per-user ceiling. The IMAP stage
-normally resolves everything, so API units are the exception.
+When the search returns no results and the attempt already stores
+`send_attempts.provider_message_id`, the worker calls
+`messages.get(id='<provider id>', format='minimal')` and writes the returned `threadId`
+before recording a strike. Gmail can refile an API-sent message under a different RFC
+`Message-ID`, so an empty search is not proof the message is gone. The write records
+`medium="provider"`. Ambiguous search results still write nothing.
+
+Cost: 5 units per search (Gmail quota table: list 5, get 20, threads.get 40). The exact
+provider-id fallback costs 20 units and runs only after a search finds nothing. A user
+with 300 holes costs 1500 units for the searches plus up to 6000 units for exact lookups,
+against a 6000 units/min per-user ceiling. The IMAP stage normally resolves everything,
+so API units are the exception.
 
 ## Startup and lifecycle
 

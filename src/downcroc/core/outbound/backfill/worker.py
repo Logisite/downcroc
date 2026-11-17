@@ -39,6 +39,8 @@ class _Lane:
     spec: ProviderSpec
     holes: int
     stats: PassStats = field(default_factory=PassStats)
+    swept: bool = False
+    sweep_threads: dict[str, set[str]] | None = None
 
 
 class ThreadBackfillWorker:
@@ -171,22 +173,23 @@ class ThreadBackfillWorker:
         token = lane_token(account, spec, self._credentials, self._log)
         if token is None:
             return stats
-        sweep_threads: dict[str, set[str]] | None = None
-        if lane.holes >= self._settings.imap_min_holes:
-            result = imap_sweep(
-                account,
-                spec,
-                token,
-                chunk=self._settings.imap_chunk,
-                pace_s=self._pace(),
-                log=self._log,
-            )
-            if result is not None:
-                sweep_threads = result.threads
+        if not lane.swept:
+            lane.swept = True
+            if lane.holes >= self._settings.imap_min_holes:
+                result = imap_sweep(
+                    account,
+                    spec,
+                    token,
+                    chunk=self._settings.imap_chunk,
+                    pace_s=self._pace(),
+                    log=self._log,
+                )
+                if result is not None:
+                    lane.sweep_threads = result.threads
         while not self._stop.is_set():
             holes = self._attempts.thread_holes(account.id, self._settings.page_size)
             if not holes or not self._consume(
-                account, spec, token, holes, sweep_threads, stats
+                account, spec, token, holes, lane.sweep_threads, stats
             ):
                 break
         return stats

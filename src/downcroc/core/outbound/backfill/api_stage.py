@@ -89,9 +89,64 @@ class ApiStage:
         thread_ids = {ref.thread_id for ref in page.messages if ref.thread_id}
         if len(thread_ids) == 1 and page.next_page_token is None:
             return self.write(account, hole, thread_ids.pop(), medium="api")
+        if not thread_ids:
+            direct = self._provider_id(account, spec, hole, token)
+            if direct is not None:
+                return direct
         if len(thread_ids) > 1:
             self._log.info("backfill.ambiguous", attempt=hole.attempt_id)
         return self._strike(account, hole)
+
+    def _provider_id(
+        self, account: Account, spec: ProviderSpec, hole: ThreadHole, token: str
+    ) -> Outcome | None:
+        """Exact lookup for holes that already store a provider message id.
+
+        Gmail can refile an API-sent message under a different RFC Message-ID,
+        so an empty search is not proof the message is gone. Look it up by the
+        id the send response returned before recording a strike.
+        """
+
+        message_id = hole.provider_message_id
+        if not message_id:
+            return None
+        for index, delay in enumerate(BACKOFF_STEPS):
+            try:
+                message = read.get_message(
+                    spec,
+                    token,
+                    message_id,
+                    timeout_s=TIMEOUT_S,
+                    fmt="minimal",
+                    project_id=self._project_id,
+                )
+            except gmail_api.GmailApiFailure as error:
+                if error.auth:
+                    self._log.info(
+                        "backfill.backoff",
+                        account=account.id,
+                        delay_s=0,
+                        cause=error.code,
+                        detail=str(error),
+                    )
+                    return Outcome("skipped")
+                if not (error.transient or error.quota):
+                    return None
+                self._log.info(
+                    "backfill.backoff",
+                    account=account.id,
+                    delay_s=delay,
+                    cause=error.code,
+                    detail=str(error),
+                )
+                if index == len(BACKOFF_STEPS) - 1:
+                    return Outcome("backoff")
+                time.sleep(delay)
+                continue
+            if message.thread_id:
+                return self.write(account, hole, message.thread_id, medium="provider")
+            return None
+        return Outcome("backoff")
 
     def _strike(self, account: Account, hole: ThreadHole) -> Outcome:
         state = self._attempts.miss_thread(

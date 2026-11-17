@@ -8,7 +8,7 @@ screens: []
 
 # Backfill log events
 
-These events come from the Gmail thread id backfill worker (`core/outbound/backfill/*`). It fills missing thread ids on older Gmail messages so they can be grouped into threads correctly. A pass starts with an IMAP Sent-folder sweep on accounts with enough holes, then falls back to per-hole API searches. All ten events are `info` unless noted.
+These events come from the Gmail thread id backfill worker (`core/outbound/backfill/*`). It fills missing thread ids on older Gmail messages so they can be grouped into threads correctly. A pass starts with an IMAP Sent-folder sweep on accounts with enough holes, then falls back to per-hole API searches. When a search finds nothing and the attempt already stores a provider message id, the worker looks that message up exactly before recording a strike. All ten events are `info` unless noted.
 
 ## Worker lifecycle
 
@@ -33,7 +33,7 @@ These events come from the Gmail thread id backfill worker (`core/outbound/backf
 
 ## Lookups
 
-- `backfill.imap_swept` (**info**) — a readonly IMAP Sent-folder sweep finished for one account.
+- `backfill.imap_swept` (**info**) — a readonly IMAP Sent-folder sweep finished for one account. The result is reused for the rest of the pass.
   - `account`: account id.
   - `messages`: messages examined.
   - `hits`: thread ids found by the sweep.
@@ -43,7 +43,7 @@ These events come from the Gmail thread id backfill worker (`core/outbound/backf
   - `attempt`: send attempt id for the hole.
   - `job`: job id.
   - `account`: account id.
-  - `medium`: lookup source, `api` or `imap`.
+  - `medium`: lookup source, `api`, `imap`, or `provider` (exact lookup by the stored Gmail message id).
   - `thread`: thread id written.
 
 - `backfill.ambiguous` (**info**) — an IMAP sweep or API search returned more than one candidate thread id; the hole is not filled from an ambiguous result.

@@ -253,6 +253,7 @@ class SendAttemptRepo:
                     SendAttemptRow.account_id,
                     JobRow.message_id,
                     SendAttemptRow.started_at,
+                    SendAttemptRow.provider_message_id,
                 )
                 .join(JobRow, JobRow.id == SendAttemptRow.job_id)
                 .where(*_hole_conditions())
@@ -267,6 +268,7 @@ class SendAttemptRepo:
                     account_id=row[2],
                     message_id=row[3],
                     started_at=row[4],
+                    provider_message_id=row[5],
                 )
                 for row in rows
             ]

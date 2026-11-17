@@ -43,6 +43,7 @@ class ThreadHole:
     account_id: str
     message_id: str
     started_at: str
+    provider_message_id: str | None = None
 
 
 @dataclass(frozen=True)
