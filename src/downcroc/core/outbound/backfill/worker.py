@@ -5,13 +5,13 @@ import random
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
+from downcroc.core.credentials import CredentialResolver
 from downcroc.core.outbound.backfill.api_stage import ApiStage, Outcome
 from downcroc.core.outbound.backfill.imap_stage import imap_sweep, lane_token
 from downcroc.domain.accounts import Account, AccountStatus
 from downcroc.domain.attempts import ThreadHole
 from downcroc.domain.providers import ProviderSpec
 from downcroc.providers.registry import ProviderRegistry
-from downcroc.providers.token import TokenManager
 from downcroc.runtime.config.schema import BackfillSettings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.store.repositories.accounts import AccountRepo
@@ -54,14 +54,14 @@ class ThreadBackfillWorker:
         settings: BackfillSettings,
         accounts: AccountRepo,
         providers: ProviderRegistry,
-        tokens: TokenManager,
+        credentials: CredentialResolver,
         attempts: SendAttemptRepo,
         log: EventLogger,
     ) -> None:
         self._settings = settings
         self._accounts = accounts
         self._providers = providers
-        self._tokens = tokens
+        self._credentials = credentials
         self._attempts = attempts
         self._log = log
         self._stage = ApiStage(
@@ -168,7 +168,7 @@ class ThreadBackfillWorker:
 
         account, spec, stats = lane.account, lane.spec, lane.stats
         self._log.info("backfill.account_started", account=account.id, holes=lane.holes)
-        token = lane_token(account, spec, self._tokens, self._log)
+        token = lane_token(account, spec, self._credentials, self._log)
         if token is None:
             return stats
         sweep_threads: dict[str, set[str]] | None = None

@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.2.post6
+
+Describe this release.
+
+See [`release-notes/v1.3.2.post6.md`](release-notes/v1.3.2.post6.md).
+
 ## 1.3.2.post5
 
 Describe this release.

@@ -57,7 +57,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         foundation.settings.backfill,
         foundation.accounts,
         foundation.providers,
-        foundation.tokens,
+        credentials,
         foundation.send_attempts,
         foundation.log,
     )

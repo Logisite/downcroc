@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from downcroc.core.credentials import CredentialResolver
 from downcroc.domain.accounts import Account
 from downcroc.domain.providers import ProviderSpec
 from downcroc.mail.imap.client import close, select_sent
@@ -15,7 +16,6 @@ from downcroc.mail.imap.connection import (
 )
 from downcroc.mail.imap.folders import resolve_sent_folder
 from downcroc.mail.imap.sent_scan import SweepResult, has_gmail_extensions, sweep
-from downcroc.providers.token import TokenManager
 from downcroc.runtime.logging.setup import EventLogger
 
 TIMEOUT_S = 30.0
@@ -24,13 +24,15 @@ TIMEOUT_S = 30.0
 def lane_token(
     account: Account,
     spec: ProviderSpec,
-    tokens: TokenManager,
+    credentials: CredentialResolver,
     log: EventLogger,
 ) -> str | None:
     """Credential for one account turn; locked or broken accounts are skipped."""
 
     try:
-        return tokens.access_token(account, spec=spec)
+        # Resolve through the credential layer so imported per-account OAuth
+        # clients are overlaid before the token is requested.
+        return credentials.access_token(account, spec)
     except Exception as error:  # noqa: BLE001
         _skipped(account, error, log)
         return None
