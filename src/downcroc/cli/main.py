@@ -18,6 +18,38 @@ def _config_error(error: ConfigError) -> CliError:
     )
 
 
+def _update_footer(args: object) -> None:
+    """Show a non-intrusive update-available footer on CLI commands.
+
+    Best effort and silent: any failure (offline, bad cache, disabled in
+    config) is ignored so the check never changes command behavior or output.
+    """
+    command = getattr(args, "command", None)
+    if command in {"update", "serve"}:
+        return
+    if getattr(args, "json", False) or getattr(args, "quiet", False):
+        return
+    try:
+        from downcroc.cli.context import load
+        from downcroc.cli.ui.panel import status_line
+        from downcroc.cli.ui.session import build
+        from downcroc.cli.update_check import check
+
+        paths, settings, _ = load()
+        cli = settings.cli
+        if not cli.update_check:
+            return
+        info = check(paths, cli.update_check_interval_s)
+        if info is None:
+            return
+        ui = build(args)
+        text = f"{info.latest} available - run: downcroc update"
+        for line in status_line(ui, "Update available", text):
+            print(line)
+    except Exception:  # noqa: BLE001 - the footer must never fail a command
+        return
+
+
 def main(argv: list[str] | None = None) -> int:
     values = list(sys.argv[1:] if argv is None else argv)
     if values and values[0] in {"--version", "-V"}:
@@ -39,7 +71,9 @@ def main(argv: list[str] | None = None) -> int:
     dispatch.configure(args)
 
     try:
-        return dispatch.dispatch(args)
+        code = dispatch.dispatch(args)
+        _update_footer(args)
+        return code
     except Cancelled:
         print("cancelled", file=sys.stderr)
         return 130

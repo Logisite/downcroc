@@ -398,6 +398,19 @@ class CliSettings(BaseModel):
             "when the terminal is too narrow for the grid."
         ),
     )
+    update_check: bool = Field(
+        default=True,
+        description=(
+            "Check GitHub for a newer release on CLI commands and show an "
+            "update-available footer."
+        ),
+    )
+    update_check_interval_s: int = Field(
+        default=3600,
+        ge=60,
+        le=604800,
+        description="Minimum seconds between GitHub update checks.",
+    )
 
 
 class BackfillSettings(BaseModel):
