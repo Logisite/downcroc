@@ -1,7 +1,7 @@
 ---
 title: job
 commands: [job, job.list, job.show, job.send, job.pause, job.resume, job.cancel, job.delete, job.reassign, job.attempts, job.create]
-flags: [job.create --account, job.list --account, job.reassign --account, job.attempts --addresses, job.show --addresses, job.create --batch, job.list --batch, job.reassign --batch, job.delete --dry-run, job.reassign --dry-run, job.create --force, job.delete --force, job.create --html, job.create --html-file, job.reassign --include-failed, job.reassign --job, job.list --limit, job.create --name, job.list --offset, job.reassign --pin, job.pause --reason, job.resume --reason, job.create --send, job.reassign --since, job.list --state, job.reassign --state, job.create --subject, job.create --text, job.create --text-file, job.create --to, job.reassign --to, job.reassign --until]
+flags: [job.create --account, job.list --account, job.reassign --account, job.create --batch, job.list --batch, job.reassign --batch, job.delete --dry-run, job.reassign --dry-run, job.create --force, job.delete --force, job.create --html, job.create --html-file, job.reassign --include-failed, job.reassign --job, job.list --limit, job.create --name, job.list --offset, job.reassign --pin, job.pause --reason, job.resume --reason, job.create --send, job.reassign --since, job.list --state, job.reassign --state, job.create --subject, job.create --text, job.create --text-file, job.create --to, job.reassign --to, job.reassign --until]
 concepts: [job]
 screens: []
 ---
@@ -178,7 +178,9 @@ downcroc job create --account ACCOUNT_ID --to RECIPIENT --subject SUBJECT
 
 ## Common flags
 
-`--json`, `--no-input`, `--yes` (where confirmation applies), `--wide`, `--full`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
+`--json`, `--no-input`, `--yes` (where confirmation applies), `--wide`, `--full`, `--addresses`, `--stack`, `--grid`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
+
+`--addresses` shows account addresses instead of account ids on commands that report accounts.
 
 ## Examples
 

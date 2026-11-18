@@ -1,7 +1,7 @@
 ---
 title: logs command
 commands: [logs]
-flags: [--event, --level, --account, --batch, --job, --since, --limit, --follow, --addresses, --utc]
+flags: [--event, --level, --account, --batch, --job, --since, --limit, --follow, --utc]
 concepts: [job, batch]
 screens: []
 ---
@@ -62,7 +62,7 @@ Filters combine to narrow the view. You can apply several at once to home in on 
 `--utc`
 : Shows timestamps in UTC instead of your computer's local time. Every log line carries both stamps; the display picks local by default, so times match your wall clock. Use this when comparing against server-side records or exporting lines for someone in another timezone.
 
-Common flags: `--json`, `--no-input`, `--wide`, `--full`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
+Common flags: `--json`, `--no-input`, `--wide`, `--full`, `--addresses`, `--stack`, `--grid`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
 
 ## Output
 

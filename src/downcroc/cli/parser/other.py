@@ -404,11 +404,6 @@ def logs(commands: argparse._SubParsersAction) -> None:
     )
     parser.add_argument("--follow", action="store_true", help="keep printing new lines")
     parser.add_argument(
-        "--addresses",
-        action="store_true",
-        help="show account addresses instead of ids",
-    )
-    parser.add_argument(
         "--utc",
         action="store_true",
         help="show timestamps in UTC instead of local time",

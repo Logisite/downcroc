@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from downcroc.cli.client import api, get, post
 from downcroc.cli.commands import when
 from downcroc.cli.context import load
+from downcroc.cli.logs_addresses import AddressBook, book_for, resolve_account
 from downcroc.cli.output import json_out, record, table
 from downcroc.cli.ui.session import Ui, build
 
@@ -15,7 +16,7 @@ def _totals(row: dict) -> dict:
     return {key: row.get(key, 0) for key in TOTAL_KEYS}
 
 
-def _summary(data: dict) -> None:
+def _summary(data: dict, book: AddressBook | None) -> None:
     record({"from": data["from"], "to": data["to"], **_totals(data["total"])})
     if data.get("inbound"):
         record(
@@ -29,20 +30,23 @@ def _summary(data: dict) -> None:
         table(
             ["account", *TOTAL_KEYS],
             [
-                [row["account_id"], *[_totals(row)[key] for key in TOTAL_KEYS]]
+                [
+                    resolve_account(book, row["account_id"]),
+                    *[_totals(row)[key] for key in TOTAL_KEYS],
+                ]
                 for row in rows
             ],
         )
 
 
-def _hourly(data: dict) -> None:
+def _hourly(data: dict, book: AddressBook | None) -> None:
     record({"from": data["from"], "to": data["to"]})
     table(
         ["hour", "account", *TOTAL_KEYS],
         [
             [
                 row["hour_start"],
-                row["account_id"],
+                resolve_account(book, row["account_id"]),
                 *[_totals(row)[key] for key in TOTAL_KEYS],
             ]
             for row in data["rows"]
@@ -50,14 +54,14 @@ def _hourly(data: dict) -> None:
     )
 
 
-def _daily(data: dict) -> None:
+def _daily(data: dict, book: AddressBook | None) -> None:
     record({"from": data["from"], "to": data["to"]})
     table(
         ["day", "account", "limit", *TOTAL_KEYS],
         [
             [
                 row["day"],
-                row["account_id"],
+                resolve_account(book, row["account_id"]),
                 row["quota_limit"],
                 *[_totals(row)[key] for key in TOTAL_KEYS],
             ]
@@ -85,13 +89,13 @@ def _batches(data: dict) -> None:
     )
 
 
-def _accounts(data: dict) -> None:
+def _accounts(data: dict, book: AddressBook | None) -> None:
     record({"from": data["from"], "to": data["to"]})
     table(
         ["account", "address", "used", "reserved", "available", *TOTAL_KEYS],
         [
             [
-                row["account_id"],
+                resolve_account(book, row["account_id"]),
                 row["address"],
                 row.get("used", 0),
                 row.get("reserved", 0),
@@ -135,6 +139,7 @@ def _range(args: object) -> dict:
 def run(args: object) -> int:
     paths, _, _ = load()
     ui = build(args)
+    book = book_for(args)
     with api(paths) as client:
         if args.action == "summary":
             data = get(client, "/api/stats/summary", **_range(args))
@@ -142,7 +147,7 @@ def run(args: object) -> int:
             if args.json:
                 json_out({**data, "pending_eta": pending})
             else:
-                _summary(data)
+                _summary(data, book)
                 _pending(pending, ui)
             return 0
         if args.action == "pending":
@@ -157,14 +162,14 @@ def run(args: object) -> int:
             if args.json:
                 json_out(data)
             else:
-                _hourly(data)
+                _hourly(data, book)
             return 0
         if args.action == "daily":
             data = get(client, "/api/stats/daily", **_range(args))
             if args.json:
                 json_out(data)
             else:
-                _daily(data)
+                _daily(data, book)
             return 0
         if args.action == "batches":
             data = get(client, "/api/stats/batches", **_range(args))
@@ -178,7 +183,7 @@ def run(args: object) -> int:
             if args.json:
                 json_out(data)
             else:
-                _accounts(data)
+                _accounts(data, book)
             return 0
         if args.action == "prune":
             result = post(client, "/api/stats/prune")

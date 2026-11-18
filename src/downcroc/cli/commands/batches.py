@@ -8,6 +8,7 @@ from downcroc.cli.client import api, delete, get, get_page, post
 from downcroc.cli.commands import batch_thread, batch_view, when
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
+from downcroc.cli.logs_addresses import AddressBook, book_for, resolve_account
 from downcroc.cli.output import json_out, page_footer, record, table
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.menu import open_menu
@@ -36,6 +37,7 @@ def _confirm_batch(ui: Ui, args: object, batch: dict, question: str) -> None:
 
 def run(args: object) -> int:
     ui = build(args)
+    book = book_for(args)
     action = getattr(args, "action", None)
     if action is None:
         if open_menu(ui, "batch_menu"):
@@ -72,14 +74,14 @@ def run(args: object) -> int:
 
             return batch_followups.run(client, args, ui)
         if action == "suppression":
-            return _suppression(client, args, ui)
+            return _suppression(client, args, ui, book)
         if action == "thread":
             return _thread(client, args, ui)
         batch = get(client, f"/api/batches/{args.batch_id}")
     if ui.json_mode:
         json_out(batch)
     else:
-        batch_view.show_batch(batch, bool(args.all), ui)
+        batch_view.show_batch(batch, bool(args.all), ui, book)
     return 0
 
 
@@ -356,7 +358,7 @@ def _followup(client, args: object, ui: Ui) -> int:
     return 0
 
 
-def _suppression(client, args: object, ui: Ui) -> int:
+def _suppression(client, args: object, ui: Ui, book: AddressBook | None) -> int:
     rows = get(client, f"/api/batches/{args.batch_id}/suppression-preview")
     if ui.json_mode:
         json_out(rows)
@@ -366,7 +368,10 @@ def _suppression(client, args: object, ui: Ui) -> int:
         return 0
     table(
         ["address", "account", "reason"],
-        [[item["address"], item["account_id"], item["reason"]] for item in rows],
+        [
+            [item["address"], resolve_account(book, item["account_id"]), item["reason"]]
+            for item in rows
+        ],
     )
     return 0
 

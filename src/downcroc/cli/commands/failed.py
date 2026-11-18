@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from downcroc.cli.client import api, delete, get, get_page, post
 from downcroc.cli.context import load
+from downcroc.cli.logs_addresses import AddressBook, book_for, resolve_account
 from downcroc.cli.output import json_out, page_footer, record, table
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.menu import open_menu
@@ -25,12 +26,12 @@ def _list(rows: list[dict]) -> None:
     )
 
 
-def _show(item: dict) -> None:
+def _show(item: dict, book: AddressBook | None) -> None:
     record(
         {
             "job": item["job_id"],
             "batch": item["batch_id"],
-            "account": item["account_id"],
+            "account": resolve_account(book, item["account_id"]),
             "recipient": item["recipient"],
             "code": item["code"],
             "message": item["message"],
@@ -61,7 +62,7 @@ def _listing(client, args: object, ui: Ui) -> int:
     return 0
 
 
-def _retry_all(client, args: object, ui: Ui) -> int:
+def _retry_all(client, args: object, ui: Ui, book: AddressBook | None) -> int:
     rows, total = get_page(client, "/api/failed", limit=500, offset=0)
     count = total if total is not None else len(rows)
     if count == 0:
@@ -75,7 +76,7 @@ def _retry_all(client, args: object, ui: Ui) -> int:
     if not ui.json_mode:
         print(f"{count} failures on {len(accounts)} accounts")
         for account in accounts:
-            print(f"  {account}")
+            print(f"  {resolve_account(book, account)}")
         print(f"  {retryable} of the shown failures are retryable")
     prompts.confirm(
         f"retry {count} failures?",
@@ -134,6 +135,7 @@ def _purge(client, args: object, ui: Ui) -> int:
 def run(args: object) -> int:
     ui = build(args)
     paths, _, _ = load()
+    book = book_for(args)
     action = getattr(args, "action", None)
     if action is None and open_menu(ui, "failed_menu"):
         return 0
@@ -141,7 +143,7 @@ def run(args: object) -> int:
         if action in {None, "list"}:
             return _listing(client, args, ui)
         if action == "retry-all":
-            return _retry_all(client, args, ui)
+            return _retry_all(client, args, ui, book)
         if action == "forget":
             return _forget(client, args, ui)
         if action == "purge":
@@ -157,5 +159,5 @@ def run(args: object) -> int:
         if ui.json_mode:
             json_out(item)
         else:
-            _show(item)
+            _show(item, book)
         return 0

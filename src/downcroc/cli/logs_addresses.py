@@ -72,3 +72,18 @@ def load_book() -> AddressBook:
     book = AddressBook(paths)
     book.refresh()
     return book
+
+
+def book_for(args: object) -> AddressBook | None:
+    """Build an address book only when the caller asked for addresses."""
+    if not bool(getattr(args, "addresses", False)):
+        return None
+    return load_book()
+
+
+def resolve_account(book: AddressBook | None, account_id: str | None) -> str:
+    """Return the address for an account id, or the id itself as a fallback."""
+    text = str(account_id) if account_id is not None else "-"
+    if book is None:
+        return text
+    return book.address(text) or text

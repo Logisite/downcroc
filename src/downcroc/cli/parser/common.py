@@ -134,6 +134,11 @@ def common(
         help="force the boxed table grid even when narrow",
     )
     parser.add_argument(
+        "--addresses",
+        action="store_true",
+        help="show account addresses instead of ids",
+    )
+    parser.add_argument(
         "--glyphs",
         choices=GLYPHS,
         default=suppress,
@@ -201,6 +206,11 @@ def root(parser: argparse.ArgumentParser) -> None:
         "--grid",
         action="store_true",
         help="force the boxed table grid even when narrow",
+    )
+    parser.add_argument(
+        "--addresses",
+        action="store_true",
+        help="show account addresses instead of ids",
     )
     parser.add_argument("--glyphs", choices=GLYPHS, default="auto", help="glyph set")
     parser.add_argument(

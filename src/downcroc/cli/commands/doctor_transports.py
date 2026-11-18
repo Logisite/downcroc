@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from downcroc.cli.client import get
+from downcroc.cli.logs_addresses import AddressBook, resolve_account
 from downcroc.cli.output import json_out, record
 from downcroc.cli.ui.session import Ui
 
 
-def transports(client, ui: Ui) -> int:
+def transports(client, ui: Ui, book: AddressBook | None = None) -> int:
     body = get(client, "/api/doctor/transports")
     if ui.json_mode:
         json_out(body)
@@ -37,7 +38,7 @@ def transports(client, ui: Ui) -> int:
     for check in failed:
         record(
             {
-                "account": check["account_id"],
+                "account": resolve_account(book, check["account_id"]),
                 "binding": check["binding_id"] or "-",
                 "check": check["check"],
                 "code": check["code"],

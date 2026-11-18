@@ -153,7 +153,7 @@ def _state(batch: dict) -> str:
     return f"{batch['state']} (paused)" if batch.get("paused_at") else batch["state"]
 
 
-def show_batch(batch: dict, all_rows: bool, ui: Ui) -> None:
+def show_batch(batch: dict, all_rows: bool, ui: Ui, book=None) -> None:
     record(
         {
             "id": batch["id"],
@@ -161,7 +161,7 @@ def show_batch(batch: dict, all_rows: bool, ui: Ui) -> None:
             "kind": batch["kind"],
             "state": _state(batch),
             "approval": batch["approval"],
-            "routing": routing(batch),
+            "routing": routing(batch, book),
             "source": batch["source_ref"],
             "template": batch["template_ref"],
             "created_at": batch["created_at"],
@@ -210,11 +210,14 @@ def recipients(rows: list[dict], all_rows: bool) -> None:
         print(f"{len(rows) - len(shown)} more recipients, use --all to show them")
 
 
-def routing(batch: dict) -> str:
+def routing(batch: dict, book=None) -> str:
     routing_value = batch.get("routing") or {}
     mode = routing_value.get("mode", "auto")
     if mode == "fixed":
-        return f"fixed, {routing_value.get('account') or batch.get('account_id')}"
+        account = routing_value.get("account") or batch.get("account_id")
+        if book is not None and account is not None:
+            account = book.address(str(account)) or account
+        return f"fixed, {account}"
     counted = routing_value.get("counts") or {}
     if counted:
         joined = ", ".join(f"{name} {count}" for name, count in counted.items())

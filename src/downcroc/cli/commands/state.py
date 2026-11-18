@@ -9,6 +9,7 @@ from downcroc.cli.commands.doctor_transports import inbound as doctor_inbound
 from downcroc.cli.commands.doctor_transports import transports as doctor_transports
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
+from downcroc.cli.logs_addresses import book_for
 from downcroc.cli.output import json_out, record
 from downcroc.cli.ui import auth as auth_summary
 from downcroc.cli.ui import prompts, splash
@@ -196,9 +197,10 @@ def _writable(path: Path) -> bool:
 
 def _doctor_remote(selected: str, args: object, ui: Ui) -> int:
     paths, _, _ = load()
+    book = book_for(args)
     with api(paths, timeout=getattr(args, "timeout", None)) as client:
         if selected == "transports":
-            return doctor_transports(client, ui)
+            return doctor_transports(client, ui, book)
         if selected == "inbound":
             return doctor_inbound(client, ui)
         return doctor_capacity(client, ui)

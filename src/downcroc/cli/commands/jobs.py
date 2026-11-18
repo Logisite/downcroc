@@ -11,7 +11,7 @@ from downcroc.cli.commands.job_view import (
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError
 from downcroc.cli.job_sender import sender_text
-from downcroc.cli.logs_addresses import load_book
+from downcroc.cli.logs_addresses import book_for, load_book
 from downcroc.cli.output import json_out, page_footer
 from downcroc.cli.ui import prompts
 from downcroc.cli.ui.menu import open_menu
@@ -43,7 +43,7 @@ def _listing(client, args: object, ui: Ui) -> int:
     if ui.json_mode:
         json_out(rows)
         return 0
-    job_list(rows)
+    job_list(rows, book_for(args))
     page_footer(
         len(rows),
         total,

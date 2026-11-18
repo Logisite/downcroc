@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 from downcroc.cli.commands import when
+from downcroc.cli.logs_addresses import AddressBook
 from downcroc.cli.output import record, table
 from downcroc.cli.ui.session import Ui
 
 
-def sender_label(job: dict) -> str:
+def sender_label(job: dict, book: AddressBook | None = None) -> str:
     if job.get("sender_policy") == "auto" or job.get("account_id") is None:
         return "auto"
-    return f"pinned {job['account_id']}"
+    account = job["account_id"]
+    if book is not None:
+        account = book.address(str(account)) or account
+    return f"pinned {account}"
 
 
 def _state(item: dict) -> str:
     return f"{item['state']} (paused)" if item.get("paused_at") else item["state"]
 
 
-def job_list(rows: list[dict]) -> None:
+def job_list(rows: list[dict], book: AddressBook | None = None) -> None:
     table(
         ["id", "recipient", "state", "sender", "attempts", "eta", "subject", "sent"],
         [
@@ -23,7 +27,7 @@ def job_list(rows: list[dict]) -> None:
                 item["id"],
                 item["recipient"],
                 _state(item),
-                sender_label(item),
+                sender_label(item, book),
                 item["attempts"],
                 when.cell(item.get("eta")),
                 item["subject"],
