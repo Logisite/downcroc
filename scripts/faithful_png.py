@@ -20,16 +20,19 @@ def _color_hex(color) -> str | None:
     """Best-effort true-color hex from a rich Color, else None."""
     try:
         rgb = color.get_truecolor()
-    except Exception:
+    except AssertionError, IndexError, KeyError, AttributeError, TypeError:
         return None
     return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
 
 def _strip_svg(strips, cell_w: int, cell_h: int, default_bg: str) -> list[str]:
+    style_sheet = (
+        "<style>.m{font-family:'DejaVu Sans Mono',monospace;"
+        f"font-size:{cell_h - 3}px;font-kerning:none}}</style>"
+    )
     parts: list[str] = [
         f'<rect width="100%" height="100%" fill="{default_bg}"/>',
-        "<style>.m{font-family:'DejaVu Sans Mono',monospace;"
-        f"font-size:{cell_h - 3}px;font-kerning:none}}</style>",
+        style_sheet,
     ]
     for y, strip in enumerate(strips):
         x = 0
