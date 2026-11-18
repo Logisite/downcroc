@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
+from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.followups.model import (
     Candidate,
     Content,
@@ -107,9 +108,15 @@ class Context:
 
 
 class Planner:
-    def __init__(self, jobs: JobRepo, messages: MessageRepo) -> None:
+    def __init__(
+        self,
+        jobs: JobRepo,
+        messages: MessageRepo,
+        delivered_ids: DeliveredIdResolver | None = None,
+    ) -> None:
         self._jobs = jobs
         self._messages = messages
+        self._delivered_ids = delivered_ids
 
     def initial_jobs(self, batch_id: str, limit: int) -> list[Job]:
         return [
@@ -118,9 +125,26 @@ class Planner:
             if job.step_key is None and job.state in SENT
         ]
 
+    def _ensure_delivered(self, job: Job) -> Job:
+        """Fill the delivered Message-ID on demand so threading can use it."""
+        if (
+            self._delivered_ids is None
+            or job.delivered_message_id is not None
+            or job.state not in SENT
+            or job.account_id is None
+        ):
+            return job
+        value = self._delivered_ids.recover(job)
+        return replace(job, delivered_message_id=value) if value else job
+
     def context(self, initial_jobs: list[Job]) -> Context:
         root_ids = [job.id for job in initial_jobs]
+        initial_jobs = [self._ensure_delivered(job) for job in initial_jobs]
         chains = self._jobs.thread_jobs_many(root_ids)
+        chains = {
+            root: [self._ensure_delivered(job) for job in chain]
+            for root, chain in chains.items()
+        }
         message_ids = [
             job.message_id for root in root_ids for job in chains.get(root, [])
         ]

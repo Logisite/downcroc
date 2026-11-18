@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 
+from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.events import EventBus
 from downcroc.core.followups import catalog
 from downcroc.core.followups.builder import DerivedBuilder
@@ -48,6 +49,7 @@ class FollowUpService:
         log: EventLogger,
         declarations: FollowUpDeclarationRepo,
         send_attempts: SendAttemptRepo,
+        delivered_ids: DeliveredIdResolver | None = None,
     ) -> None:
         self._settings = settings
         self._batches = batches
@@ -55,7 +57,7 @@ class FollowUpService:
         self._log = log
         self._declaration_repo = declarations
         self._limits = _limits(settings)
-        self._planner = Planner(jobs, messages)
+        self._planner = Planner(jobs, messages, delivered_ids)
         self._senders = SenderResolver(accounts, send_attempts, log)
         self._snapshots = catalog.SnapshotCache(content, self._limits)
         self._builder = DerivedBuilder(

@@ -109,7 +109,8 @@ class DerivedBuilder:
         built: list[NewJob] = []
         for item in source.candidates:
             sender = self._sender(item.parent)
-            if not item.references or item.references[-1] != item.anchor.message_id:
+            anchor_id = item.anchor.delivered_message_id or item.anchor.message_id
+            if not item.references or item.references[-1] != anchor_id:
                 raise FollowUpThreadBroken(
                     "the follow-up chain cannot produce a reply",
                     hint="restore the parent job and its message id",
@@ -144,6 +145,11 @@ class DerivedBuilder:
                 in_reply_to=item.references[-1],
                 references_count=len(item.references),
                 references_head=item.references[0],
+                reference_source=(
+                    "delivered"
+                    if item.anchor.delivered_message_id
+                    else "minted_fallback"
+                ),
                 subject_has_re=subject_has_re(item.content.subject),
                 message_id=message_id,
             )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from downcroc.core.accounts import AccountEligibility
 from downcroc.core.bootstrap.foundation import Foundation
+from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.outbound import OutboundService
 from downcroc.core.transports import TransportService
 
@@ -10,6 +11,7 @@ def build_outbound(
     foundation: Foundation,
     transports: TransportService,
     eligibility: AccountEligibility,
+    delivered_ids: DeliveredIdResolver,
 ) -> OutboundService:
     settings = foundation.settings
     return OutboundService(
@@ -32,4 +34,5 @@ def build_outbound(
         eligibility,
         foundation.quota,
         foundation.connectivity_state,
+        delivered_ids,
     )

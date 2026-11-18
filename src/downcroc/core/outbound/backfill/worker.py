@@ -5,6 +5,7 @@ import random
 import threading
 
 from downcroc.core.credentials import CredentialResolver
+from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.events import EventBus
 from downcroc.core.outbound.backfill.api_stage import ApiStage
 from downcroc.core.outbound.backfill.consume import PageTurn
@@ -41,6 +42,7 @@ class ThreadBackfillWorker:
         attempts: ThreadBackfillRepo,
         bus: EventBus,
         log: EventLogger,
+        delivered_ids: DeliveredIdResolver | None = None,
     ) -> None:
         self._settings = settings
         self._accounts = accounts
@@ -49,6 +51,7 @@ class ThreadBackfillWorker:
         self._attempts = attempts
         self._bus = bus
         self._log = log
+        self._delivered_ids = delivered_ids
         self._stage = ApiStage(
             attempts,
             log,
@@ -255,6 +258,8 @@ class ThreadBackfillWorker:
         token = lane_token(account, spec, self._credentials, self._log)
         if token is None:
             return stats
+        if self._delivered_ids is not None:
+            self._delivered_ids.heal_account(account, spec, token)
         self._sweep(lane, token)
         while not self._stop.is_set():
             holes = self._attempts.due_holes(account.id, self._settings.page_size)

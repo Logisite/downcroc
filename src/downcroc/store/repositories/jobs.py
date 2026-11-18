@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from downcroc.domain.errors import JobNotFound
 from downcroc.domain.jobs import Job, JobState, NewJob
+from downcroc.runtime.clock import utc_now
 from downcroc.store.db.models import JobRow
 from downcroc.store.repositories.job_mapping import to_job, to_row
 from downcroc.store.repositories.job_senders import JobSenderRepo
@@ -34,6 +35,28 @@ class JobRepo(JobSenderRepo, JobStateRepo):
             if row is None:
                 raise JobNotFound(f"no job {job_id}")
             return to_job(row)
+
+    def set_delivered_message_id(self, job_id: str, message_id: str) -> None:
+        with self._sessions.begin() as session:
+            row = session.get(JobRow, job_id)
+            if row is None:
+                raise JobNotFound(f"no job {job_id}")
+            row.delivered_message_id = message_id
+            row.updated_at = utc_now()
+
+    def sent_without_delivered_id(self, account_id: str, limit: int) -> list[Job]:
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(JobRow)
+                .where(
+                    JobRow.account_id == account_id,
+                    JobRow.state.in_(("sent", "sent_unconfirmed")),
+                    JobRow.delivered_message_id.is_(None),
+                )
+                .order_by(JobRow.created_at, JobRow.id)
+                .limit(limit)
+            )
+            return [to_job(row) for row in rows]
 
     def list(
         self,

@@ -10,7 +10,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from .fakes import FakeMailServers
-from .gmail_store import API, RFC822MSGID, FakeMessage, _sender, _wire
+from .gmail_store import (
+    API,
+    RFC822MSGID,
+    FakeMessage,
+    _sender,
+    _wire,
+    overwrite_message_id,
+)
 
 
 @dataclass
@@ -21,6 +28,7 @@ class FakeGmail:
     _expired_before: int | None = None
     _send_failure: tuple[int, dict[str, object], dict[str, str]] | None = None
     _omit_thread_id: bool = False
+    _overwrite_message_id: bool = False
     _server: ThreadingHTTPServer | None = None
     _thread: threading.Thread | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -85,6 +93,16 @@ class FakeGmail:
 
         with self._lock:
             self._omit_thread_id = enabled
+
+    def overwrite_message_ids(self, enabled: bool = True) -> None:
+        """Simulate Gmail replacing our Message-ID on API send with its own.
+
+        The stored message and the metadata read-back then report a
+        Google-style id distinct from the minted one in the outgoing wire.
+        """
+
+        with self._lock:
+            self._overwrite_message_id = enabled
 
     def delete(self, message_id: str) -> bool:
         """Drop one stored message (by RFC Message-ID) from the mailbox."""
@@ -297,6 +315,8 @@ class FakeGmail:
                     payload.get("threadId") if isinstance(payload, dict) else None
                 ) or self._referenced_thread(raw)
                 thread_id = str(thread_id or message_id)
+                if self._overwrite_message_id and raw:
+                    raw = overwrite_message_id(raw, f"gmail{message_id}@mail.gmail.com")
                 stored = FakeMessage(
                     id=message_id,
                     raw=raw,

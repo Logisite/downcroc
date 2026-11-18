@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from downcroc.core.bootstrap.foundation import Foundation
 from downcroc.core.capacity import CapacityService
 from downcroc.core.credentials import CredentialResolver
+from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.doctor import DoctorService
 from downcroc.core.followups import FollowUpService
 from downcroc.core.holds import HoldsService
@@ -30,6 +31,7 @@ def build_operations(
     capacity: CapacityService,
     holds: HoldsService,
     inbound: InboundService,
+    delivered_ids: DeliveredIdResolver,
 ) -> Operations:
     settings = foundation.settings
     checks = TransportChecks(
@@ -74,6 +76,7 @@ def build_operations(
         foundation.log,
         foundation.followup_declarations,
         foundation.send_attempts,
+        delivered_ids,
     )
     retention = RetentionService(
         settings.retention,

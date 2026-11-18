@@ -51,10 +51,13 @@ def build_chain(root: Job, anchor: Job, jobs: list[Job]) -> ThreadChain:
         raise ThreadBroken("parent_not_in_chain")
     if not collected or collected[-1].id != root.id:
         raise ThreadBroken("missing_parent_message_id")
-    references = tuple(job.message_id for job in reversed(collected))
+    references = tuple(
+        job.delivered_message_id or job.message_id for job in reversed(collected)
+    )
     if not references:
         raise ThreadBroken("references_empty")
-    if references[-1] != anchor.message_id:
+    anchor_id = anchor.delivered_message_id or anchor.message_id
+    if references[-1] != anchor_id:
         raise ThreadBroken("parent_not_in_chain")
     return ThreadChain(root=root, anchor=anchor, references=references)
 

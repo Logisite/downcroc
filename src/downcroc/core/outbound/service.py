@@ -5,6 +5,7 @@ import uuid
 
 from downcroc.core.accounts import AccountEligibility
 from downcroc.core.credentials import CredentialResolver
+from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.events import EventBus
 from downcroc.core.oauth_clients import OAuthClientService
 from downcroc.core.outbound.attempts import AttemptRecorder
@@ -71,6 +72,7 @@ class OutboundService(JobFacade):
         eligibility: AccountEligibility,
         quota: QuotaRepo,
         connectivity: object | None = None,
+        delivered_ids: DeliveredIdResolver | None = None,
     ) -> None:
         self._jobs = jobs
         self._accounts = accounts
@@ -83,6 +85,7 @@ class OutboundService(JobFacade):
         self._transports = transports
         self._policy = policy
         self._quota = quota
+        self._delivered_ids = delivered_ids
         self._credentials = CredentialResolver(accounts, vault, tokens, clients)
         self._accountant = QuotaAccountant(quota, send_attempts, bus, log)
         self._pool = SmtpSessionPool(settings, log)
@@ -100,6 +103,7 @@ class OutboundService(JobFacade):
             send_attempts,
             jobs,
         )
+        # delivered-id capture for both transports happens in _apply
         self._delivery = TransportDelivery(
             transports,
             self._credentials,
@@ -264,6 +268,47 @@ class OutboundService(JobFacade):
             raise
         return self._apply(claimed, account, outcome, started, day, attempt_id)
 
+    def _capture_delivered_id(
+        self, job: Job, account: Account, outcome: DeliveryOutcome
+    ) -> None:
+        """Record the Message-ID Gmail actually stamped on the delivered mail.
+
+        SMTP leaves our minted id intact, so it is the delivered id. The Gmail
+        API overwrites it, so read the real value back with the opaque id. Both
+        paths are best-effort: failures are logged and leave the column NULL so
+        the follow-up slice can recover it later.
+        """
+        if self._delivered_ids is None:
+            return
+        kind = outcome.binding.kind.value if outcome.binding else "pending"
+        if kind == "smtp":
+            self._jobs.set_delivered_message_id(job.id, job.message_id)
+            self._log.info(
+                "followup.delivered_id_captured",
+                job=job.id,
+                account=account.id,
+                minted=job.message_id,
+                delivered=job.message_id,
+                source="smtp",
+            )
+        elif kind == "gmail_api" and outcome.provider_message_id:
+            spec = self._providers.get(account.provider)
+            try:
+                token = self._credentials.access_token(account, spec=spec)
+            except Exception:  # noqa: BLE001 - best effort, never fail the send
+                self._log.info(
+                    "followup.delivered_id_failed",
+                    job=job.id,
+                    account=account.id,
+                    minted=job.message_id,
+                    source="send_readback",
+                    detail="no_token",
+                )
+                return
+            self._delivered_ids.capture(
+                job, outcome.provider_message_id, account, spec, token
+            )
+
     def _apply(
         self,
         job: Job,
@@ -287,6 +332,7 @@ class OutboundService(JobFacade):
             )
         if outcome.status == "sent":
             sent = self._jobs.mark_sent(job.id, utc_now())
+            self._capture_delivered_id(sent, account, outcome)
             self._sent(sent, account, started, outcome.binding)
             self._accountant.commit(account.id, day, attempt_id, limit)
             return sent

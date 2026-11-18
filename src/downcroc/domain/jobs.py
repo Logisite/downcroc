@@ -51,6 +51,7 @@ class Job:
     sent_at: str | None
     paused_at: str | None = None
     paused_reason: str | None = None
+    delivered_message_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,3 +74,4 @@ class NewJob:
     parent_job_id: str | None = None
     thread_root_job_id: str | None = None
     state: JobState = JobState.QUEUED
+    delivered_message_id: str | None = None

@@ -17,6 +17,7 @@ from downcroc.core.bootstrap.scheduling import (
 from downcroc.core.bootstrap.services import Services
 from downcroc.core.bootstrap.support import build_support
 from downcroc.core.bootstrap.transports import build_transports
+from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.outbound.backfill import ThreadBackfillWorker
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
@@ -31,7 +32,17 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
     accounts, vault_maintenance, auth_preflight = build_accounts(
         foundation, inbound, transports, credentials
     )
-    outbound = build_outbound(foundation, transports, eligibility)
+    delivered_ids = DeliveredIdResolver(
+        foundation.jobs,
+        foundation.send_attempts,
+        foundation.clients,
+        foundation.accounts,
+        foundation.providers,
+        credentials,
+        foundation.log,
+        settings.outbound.api_timeout_s,
+    )
+    outbound = build_outbound(foundation, transports, eligibility, delivered_ids)
     inbound.open()
     capacity = build_capacity(foundation, transports)
     holds = build_holds(foundation, transports, capacity)
@@ -44,6 +55,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         capacity,
         holds,
         inbound,
+        delivered_ids,
     )
     dispatcher = build_dispatcher(
         foundation,
@@ -62,6 +74,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         foundation.thread_backfill,
         foundation.bus,
         foundation.log,
+        delivered_ids,
     )
     return Services(
         engine=foundation.engine,

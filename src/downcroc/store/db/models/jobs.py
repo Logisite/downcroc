@@ -63,6 +63,7 @@ class JobRow(Base):
     lease_owner: Mapped[str | None] = mapped_column(Text)
     lease_expires_at: Mapped[str | None] = mapped_column(Text)
     message_id: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    delivered_message_id: Mapped[str | None] = mapped_column(Text)
     last_error_code: Mapped[str | None] = mapped_column(Text)
     last_error_message: Mapped[str | None] = mapped_column(Text)
     retryable: Mapped[bool | None] = mapped_column(Boolean)

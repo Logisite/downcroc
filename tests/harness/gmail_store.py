@@ -26,6 +26,21 @@ def _sender(raw: bytes) -> str:
     return parseaddr(header or "")[1].lower()
 
 
+def overwrite_message_id(raw: bytes, delivered: str) -> bytes:
+    """Replace the Message-ID header, simulating Gmail's send-time rewrite."""
+
+    lines = raw.splitlines(keepends=True)
+    out: list[bytes] = []
+    replaced = False
+    for line in lines:
+        if line.lower().startswith(b"message-id:") and not replaced:
+            out.append(f"Message-ID: <{delivered}>\r\n".encode())
+            replaced = True
+        else:
+            out.append(line)
+    return b"".join(out)
+
+
 @dataclass
 class FakeMessage:
     id: str
