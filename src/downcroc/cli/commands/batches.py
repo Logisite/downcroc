@@ -86,6 +86,13 @@ def run(args: object) -> int:
 def _validate(args: object, ui: Ui) -> int:
     paths, settings, _ = load()
     source = path_tools.resolve_input(args.path)
+    if getattr(args, "followup", False):
+        body = inputs.validate_followup(source, settings, paths)
+        if ui.json_mode:
+            json_out(body)
+        else:
+            batch_view.show_validation(body)
+        return 0 if body["ok"] else 1
     body = inputs.validate(source, getattr(args, "template", None), settings, paths)
     if body.get("ok"):
         try:

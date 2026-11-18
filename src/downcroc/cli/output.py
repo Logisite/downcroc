@@ -72,7 +72,13 @@ BAD = {
     "corrupt",
 }
 
-_CONTEXT = {"wide": False, "full": False, "tables": True}
+_CONTEXT = {
+    "wide": False,
+    "full": False,
+    "tables": True,
+    "stack": False,
+    "grid": False,
+}
 _NARROW_HINTED = False
 
 
@@ -81,9 +87,13 @@ def configure(
     wide: bool = False,
     full: bool = False,
     tables: bool | None = None,
+    stack: bool = False,
+    grid: bool = False,
 ) -> None:
     _CONTEXT["wide"] = wide
     _CONTEXT["full"] = full
+    _CONTEXT["stack"] = stack
+    _CONTEXT["grid"] = grid
     if tables is not None:
         _CONTEXT["tables"] = tables
 
@@ -144,14 +154,21 @@ def table(headers: list[str], rows: list[list[Any]]) -> None:
     live = _terminal_width()
     widths = _layout(headers, cooked, live)
     narrow = widths is None
-    if narrow and not _CONTEXT["tables"]:
+    # A narrow terminal that cannot fit the boxed grid now auto-stacks (the
+    # stacked layout never truncates values). --stack forces stacking anywhere;
+    # --grid forces the boxed layout even when it must compress columns;
+    # cli.tables = false also forces stacking.
+    if _CONTEXT["grid"]:
+        if narrow:
+            widths = _forced(headers, cooked, live)
+        _grid(headers, cooked, widths)
+        if narrow:
+            _narrow_hint(live)
+        return
+    if narrow or _CONTEXT["stack"] or not _CONTEXT["tables"]:
         _stacked(headers, cooked, live)
         return
-    if widths is None:
-        widths = _forced(headers, cooked, live)
     _grid(headers, cooked, widths)
-    if narrow:
-        _narrow_hint(live)
 
 
 def _forced(headers: list[str], rows: list[list[str]], live: int) -> list[int]:

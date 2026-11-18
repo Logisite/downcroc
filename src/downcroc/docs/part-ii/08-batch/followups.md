@@ -8,6 +8,13 @@ screens: []
 
 # batch followups
 
+> **Singular vs plural - read this first.** `downcroc batch followup` (no "s")
+> **adds one step and sends it now** from a payload file. `downcroc batch followups`
+> (with "s") is a **management family** of subcommands: `status`, `declare`,
+> `remove`, `retire`. If you want to add a one-off reply right now, use the
+> singular. If you want to declare, inspect, or manage a scheduled step, use the
+> plural. They are different commands with different jobs.
+
 A [[follow_up]] is a later reply in the same conversation, sent only when its
 condition and timing still allow it. Follow-up work is organized as named
 [[follow_up_step]]s on a parent campaign [[batch]]: each step defines when it is
@@ -55,6 +62,13 @@ Creates/adds a follow-up step for `batch_id` from the definition file at `path`.
 - `--template TEMPLATE`: template to use for the step (when applicable).
 - `--require-approval`: mark the step as requiring approval before its child work
   is dispatched.
+
+The file is a one-shot payload: a JSON array of messages, or an object with a
+`messages` array and no `followup` schedule block. Message `subject` is optional
+and is generated as `Re: <parent subject>` when omitted, so a file with no
+subject is valid here even though `batch validate` (campaign mode) would reject
+it. Check a followup file before use with `downcroc batch validate <path>
+--followup`; see [prepare](prepare.md).
 
 **Output:** reports the resulting batch/follow-up state (with `--json`, the batch
 as JSON).

@@ -332,7 +332,28 @@ def attachments(preview: dict) -> str:
     return f"{value['count']} files, {value['bytes']:,} bytes"
 
 
+def _schedule_label(body: dict) -> str:
+    schedule = body.get("schedule")
+    if not schedule:
+        return "one-shot (no schedule)"
+    return f"after {schedule['after_days']}d, when {schedule['when']}"
+
+
 def show_validation(body: dict) -> None:
+    if body["ok"] and body.get("kind") == "followup":
+        record(
+            {
+                "file": body["path"],
+                "kind": "followup",
+                "mode": body.get("mode", "one-shot"),
+                "messages": f"{body['messages']:,} valid",
+                "schedule": _schedule_label(body),
+                "auto": ", ".join(body.get("auto") or []) or "none",
+            }
+        )
+        for field in body.get("ignored") or []:
+            print(f"ignored: {field}")
+        return
     if body["ok"]:
         record(
             {

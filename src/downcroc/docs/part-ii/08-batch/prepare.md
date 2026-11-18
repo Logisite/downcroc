@@ -1,7 +1,7 @@
 ---
 title: batch prepare
 commands: [batch, batch.validate, batch.schema, batch.example, batch.preview]
-flags: [batch.validate path, batch.preview path, batch.preview --account, batch.submit --account, batch.validate --account, batch.pause --all, batch.preview --all, batch.resume --all, batch.show --all, batch.preview --key, batch.submit --key, batch.example --kind, batch.followups.declare --kind, batch.preview --table, batch.followup --template, batch.preview --template, batch.submit --template, batch.validate --template, batch.example --write]
+flags: [batch.validate path, batch.preview path, batch.preview --account, batch.submit --account, batch.validate --account, batch.pause --all, batch.preview --all, batch.resume --all, batch.show --all, batch.preview --key, batch.submit --key, batch.example --kind, batch.followups.declare --kind, batch.preview --table, batch.followup --template, batch.preview --template, batch.submit --template, batch.validate --template, batch.validate --followup, batch.example --write]
 concepts: [batch]
 screens: []
 ---
@@ -13,7 +13,7 @@ Before you submit a [[batch]], you can check that your [[campaign]] input is val
 ## Usage
 
 ```text
-downcroc batch validate <path> [--template NAME|PATH] [--account ID]
+downcroc batch validate <path> [--template NAME|PATH] [--account ID] [--followup]
 downcroc batch schema
 downcroc batch example [--kind {json,followups,csv,template}] [--write DIR]
 downcroc batch preview <path> [--template NAME|PATH] [--account ID] [--key KEY] [--all] [--table]
@@ -26,14 +26,20 @@ downcroc batch preview <path> [--template NAME|PATH] [--account ID] [--key KEY] 
 Checks an input file offline and reports whether it is ready to submit.
 
 ```text
-downcroc batch validate <path> [--template NAME|PATH] [--account ID]
+downcroc batch validate <path> [--template NAME|PATH] [--account ID] [--followup]
 ```
 
-- `path` is a campaign file or CSV.
+- `path` is a campaign file or CSV, or a followup payload when `--followup` is set.
 - `--template NAME|PATH` names or points to the template for a CSV input.
 - `--account ID` pins every message to the given account for validation/routing context.
+- `--followup` validates a followup payload file using the same rules as
+  `batch followup` and `batch followups declare`. It auto-detects the dialect: a
+  file with a `followup` schedule block is checked as a scheduled declaration
+  (schedule and coverage required); otherwise it is checked as a one-shot payload
+  (no subject required). This catches the case where a subject-less followup file
+  is valid for `batch followup` but rejected by campaign validation.
 
-`validate` parses and checks the input (format, required fields, campaign/message/follow-up structure, routing, duplicates/overlap signals as applicable). If the input is valid, it also attempts to fetch a preview from the daemon to include recipient overlap information; if that preview cannot be obtained, validation still reports its own result and leaves overlap unavailable.
+`validate` parses and checks the input (format, required fields, campaign/message/follow-up structure, routing, duplicates/overlap signals as applicable). If the input is valid, it also attempts to fetch a preview from the daemon to include recipient overlap information; if that preview cannot be obtained, validation still reports its own result and leaves overlap unavailable. When campaign validation rejects a subject-less file that looks like a followup payload, its hint points you to `--followup`.
 
 **Output**
 
@@ -144,12 +150,21 @@ payload [[follow_up_declaration]] JSON, versioning, remove/retire), see
   `batch schema`/examples.
 - The campaign key may be derived from the file name when omitted. Message keys
   may be auto-named (`m1`, `m2`, …). Step keys are required.
+- In campaign files, `subject` is required and non-empty. In followup payloads
+  it is optional: when omitted, the followup subject is generated as
+  `Re: <parent subject>` on send, so `batch validate --followup` accepts a file
+  that campaign validation would reject. Use `--followup` to check such files.
 - Duplicate recipients are rejected unless `campaign.options.allow_duplicates`
   is true. Overlap with recent recipients may be reported during validate/submit.
 
 ## Common flags
 
-`--json`, `--no-input`, `--wide`, `--full`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
+`--json`, `--no-input`, `--wide`, `--full`, `--stack`, `--grid`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
+
+`--stack` shows boxed table fields as a stacked list; `--grid` forces the boxed
+table grid even in a narrow terminal. When a grid cannot fit, tables now stack
+automatically so values are never truncated. `--full` stops value truncation in
+key/value output.
 
 ## Examples
 

@@ -5,7 +5,9 @@ import logging
 from pathlib import Path
 
 from downcroc.core.batches.source import CampaignReader
+from downcroc.core.followups.payload import parse_payload_document
 from downcroc.core.inputs import detector
+from downcroc.core.inputs.limits import IntakeLimits
 from downcroc.domain.errors import BatchInvalid, DomainError, InputUnreadable
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
@@ -121,10 +123,88 @@ def validate(
     try:
         body = read(path, template, settings, paths)
     except (BatchInvalid, InputUnreadable) as error:
-        return failure(path, error)
+        result = failure(path, error)
+        _subject_hint(result)
+        return result
     body["path"] = str(path)
     body["issues"] = []
+    _subject_hint(body)
     return body
+
+
+def _subject_hint(body: dict) -> None:
+    """Point subject-less campaign files at the followup validator."""
+    if body.get("ok") and not body.get("issues"):
+        return
+    for issue in body.get("issues") or []:
+        if issue.get("code") in {"missing_subject", "empty_subject"}:
+            body["hint"] = (
+                "this looks like a followup payload; try batch validate --followup"
+            )
+            return
+
+
+def validate_followup(path: Path, settings: Settings, paths: Paths) -> dict:
+    """Validate a followup payload file in the same way the live commands parse it.
+
+    Auto-detects the dialect from the file: a ``followup`` schedule block means a
+    scheduled declaration (schedule and coverage required), otherwise a one-shot
+    payload (no subject needed, ``Re:`` generated on send).
+    """
+    try:
+        raw = detector.read_source(path, settings.intake.max_file_bytes)
+        document = json.loads(raw.decode("utf-8-sig"))
+        scheduled = isinstance(document, dict) and "followup" in document
+    except UnicodeDecodeError, json.JSONDecodeError, ValueError:
+        scheduled = False
+    except (BatchInvalid, InputUnreadable) as error:
+        return failure(path, error)
+
+    limits = IntakeLimits(
+        max_messages=settings.intake.max_messages,
+        max_body_bytes=settings.intake.max_body_bytes,
+        max_attachment_bytes=settings.intake.max_attachment_bytes,
+    )
+    try:
+        payload = parse_payload_document(
+            raw,
+            name=path.stem,
+            source_dir=path.parent,
+            limits=limits,
+            require_schedule=scheduled,
+            declaration=scheduled,
+        )
+    except (BatchInvalid, InputUnreadable) as error:
+        result = failure(path, error)
+        result["kind"] = "followup"
+        return result
+
+    mode = "scheduled" if scheduled else "one-shot"
+    return {
+        "ok": True,
+        "path": str(path),
+        "kind": "followup",
+        "mode": mode,
+        "messages": len(payload.campaign.messages),
+        "valid": len(payload.campaign.messages),
+        "issues": [],
+        "warnings": [],
+        "ignored": [item.field for item in payload.ignored],
+        "schedule": (
+            {
+                "after_days": payload.schedule.after_days,
+                "when": payload.schedule.when,
+                "require_approval": payload.schedule.require_approval,
+            }
+            if payload.schedule
+            else None
+        ),
+        "auto": (
+            ["subject (Re: parent subject)"]
+            if any(not message.subject for message in payload.campaign.messages)
+            else []
+        ),
+    }
 
 
 EXAMPLES = {

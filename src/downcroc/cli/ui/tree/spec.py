@@ -11,6 +11,8 @@ GLOBAL_DESTS = frozenset(
         "yes",
         "wide",
         "full",
+        "stack",
+        "grid",
         "glyphs",
         "color",
         "quiet",

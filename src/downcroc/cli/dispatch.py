@@ -72,6 +72,8 @@ def configure(args: object) -> None:
     output.configure(
         wide=bool(getattr(args, "wide", False)),
         full=bool(getattr(args, "full", False)),
+        stack=bool(getattr(args, "stack", False)),
+        grid=bool(getattr(args, "grid", False)),
     )
 
 

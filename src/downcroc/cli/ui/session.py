@@ -76,6 +76,8 @@ class Ui:
     quiet: bool
     timeout: float
     width: int
+    stack: bool = False
+    grid: bool = False
 
     def glyph(self, name: str) -> str:
         return GLYPHS[self.glyphs].get(name, "")
@@ -185,10 +187,18 @@ def build(args: object) -> Ui:
         quiet=bool(_flag(args, "quiet")),
         timeout=_timeout(args),
         width=max(20, width),
+        stack=bool(_flag(args, "stack")),
+        grid=bool(_flag(args, "grid")),
     )
     from downcroc.cli import output
 
-    output.configure(wide=ui.wide, full=ui.full, tables=_config_tables())
+    output.configure(
+        wide=ui.wide,
+        full=ui.full,
+        tables=_config_tables(),
+        stack=ui.stack,
+        grid=ui.grid,
+    )
     return ui
 
 

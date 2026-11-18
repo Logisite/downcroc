@@ -124,6 +124,16 @@ def common(
         help="do not truncate values",
     )
     parser.add_argument(
+        "--stack",
+        action="store_true",
+        help="stack table fields instead of a boxed grid",
+    )
+    parser.add_argument(
+        "--grid",
+        action="store_true",
+        help="force the boxed table grid even when narrow",
+    )
+    parser.add_argument(
         "--glyphs",
         choices=GLYPHS,
         default=suppress,
@@ -181,6 +191,16 @@ def root(parser: argparse.ArgumentParser) -> None:
         "--full",
         action="store_true",
         help="do not truncate values",
+    )
+    parser.add_argument(
+        "--stack",
+        action="store_true",
+        help="stack table fields instead of a boxed grid",
+    )
+    parser.add_argument(
+        "--grid",
+        action="store_true",
+        help="force the boxed table grid even when narrow",
     )
     parser.add_argument("--glyphs", choices=GLYPHS, default="auto", help="glyph set")
     parser.add_argument(

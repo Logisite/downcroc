@@ -98,10 +98,16 @@ def batch(commands: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  downcroc batch validate campaign.json\n"
-            "  downcroc batch validate rows.csv --template intro"
+            "  downcroc batch validate rows.csv --template intro\n"
+            "  downcroc batch validate followup.json --followup"
         ),
     )
     _source(validate)
+    validate.add_argument(
+        "--followup",
+        action="store_true",
+        help="validate a followup payload (one-shot or scheduled)",
+    )
     common(validate)
 
     schema = actions.add_parser("schema", help="print the input contract")
