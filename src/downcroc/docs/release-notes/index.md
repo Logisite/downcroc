@@ -4,13 +4,19 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.3.post1
+since: 1.3.3.post2
 order: 0
 terminal:
-  summary: Current release is 1.3.3.post1.
+  summary: Current release is 1.3.3.post2.
 ---
 
 # Release notes
+
+## 1.3.3.post2
+
+Follow-ups now thread reliably with the recipient across both SMTP and Gmail API sends.
+
+See the full note in `release-notes/v1.3.3.post2.md` at the repository root.
 
 ## 1.3.3.post1
 

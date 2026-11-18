@@ -149,6 +149,34 @@ State changes from hold controls emit their own records (primary emitter: `src/d
 - `smtp.session_dropped` (**debug/warning**, when emitted) — a pooled SMTP session was dropped.
   - `account`/binding and reason as emitted.
 
+## Follow-up threading
+
+Follow-ups reference the parent's delivered `Message-ID` so recipients group them into
+one conversation. The Gmail API replaces the self-minted id on delivery; these events
+record when the real delivered id is learned and which id a follow-up anchored to.
+
+- `followup.delivered_id_captured` (**info**) — the delivered id was read back at send time and stored on the job.
+  - `job`: job id.
+  - `account`: account id.
+  - `minted`: the self-generated Message-ID from the outgoing wire.
+  - `delivered`: the Message-ID actually stamped on the delivered message.
+  - `source`: `smtp` (minted id kept) or `send_readback` (read from Gmail after an API send).
+
+- `followup.delivered_id_recovered` (**info**) — a legacy API job's delivered id was recovered in the background or on demand and cached.
+  - `job`, `account`, `minted`, `delivered` as above.
+  - `source`: `opaque` (recovered from the send attempt's provider id) or `search` (Sent-folder search by minted id).
+
+- `followup.delivered_id_failed` (**info**) — delivered-id recovery failed; the job keeps a NULL delivered id and a later pass retries.
+  - `job`: job id.
+  - `account`: account id (when known).
+  - `minted`: the self-generated Message-ID.
+  - `opaque_error`, `search_error`: error classes from the two recovery paths, when attempted.
+  - `detail`: reason when no credentials or no account were available.
+
+- `thread.linked` (**info**) — a follow-up was threaded onto a parent job. In addition to the usual fields, it now carries:
+  - `reference_source`: `delivered` (anchored to the parent's delivered id) or `minted_fallback` (no delivered id available; the self-generated id was used).
+  - `in_reply_to`, `references_head`, `references_count`: the headers built for the follow-up.
+
 ## See also
 
 - [../logs.md](../logs.md) — reading and understanding the log
