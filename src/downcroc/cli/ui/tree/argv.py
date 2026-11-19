@@ -25,6 +25,12 @@ def global_argv(globals: Globals) -> list[str]:
         argv.append("--wide")
     if globals.full:
         argv.append("--full")
+    if globals.stack:
+        argv.append("--stack")
+    if globals.grid:
+        argv.append("--grid")
+    if globals.addresses:
+        argv.append("--addresses")
     if globals.glyphs and globals.glyphs != "auto":
         argv.extend(["--glyphs", globals.glyphs])
     if globals.color and globals.color != "auto":

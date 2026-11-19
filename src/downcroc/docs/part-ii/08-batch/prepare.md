@@ -148,8 +148,13 @@ payload [[follow_up_declaration]] JSON, versioning, remove/retire), see
 - Input is detected as JSON or CSV by content/shape (UTF-8). CSV inputs require a
   template (`--template`); template/CSV variables and manifests are described by
   `batch schema`/examples.
-- The campaign key may be derived from the file name when omitted. Message keys
-  may be auto-named (`m1`, `m2`, …). Step keys are required.
+- **Keys: let downcroc generate them.** It is recommended to omit the `key`
+  fields and let downcroc assign them: the campaign key comes from the file name,
+  and message keys are auto-named `m1`, `m2`, … in order. Hand-written keys are
+  allowed but you must keep them unique and stable yourself, and a typo in a
+  key used by a follow-up override or payload match is easy to miss. Only supply
+  a key when you need a stable identifier across files or runs. Step keys on
+  inline `followups[]` are the exception and must be provided.
 - In campaign files, `subject` is required and non-empty. In followup payloads
   it is optional: when omitted, the followup subject is generated as
   `Re: <parent subject>` on send, so `batch validate --followup` accepts a file

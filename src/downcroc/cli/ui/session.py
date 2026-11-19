@@ -78,6 +78,7 @@ class Ui:
     width: int
     stack: bool = False
     grid: bool = False
+    addresses: bool = False
 
     def glyph(self, name: str) -> str:
         return GLYPHS[self.glyphs].get(name, "")
@@ -189,6 +190,7 @@ def build(args: object) -> Ui:
         width=max(20, width),
         stack=bool(_flag(args, "stack")),
         grid=bool(_flag(args, "grid")),
+        addresses=bool(_flag(args, "addresses")),
     )
     from downcroc.cli import output
 

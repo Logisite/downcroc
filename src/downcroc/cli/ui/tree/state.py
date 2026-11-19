@@ -14,6 +14,9 @@ class Globals:
     yes: bool = False
     wide: bool = False
     full: bool = False
+    stack: bool = False
+    grid: bool = False
+    addresses: bool = False
     glyphs: str = "auto"
     color: str = "auto"
     quiet: bool = False
@@ -27,6 +30,9 @@ class Globals:
             json=ui.json_mode,
             wide=ui.wide,
             full=ui.full,
+            stack=ui.stack,
+            grid=ui.grid,
+            addresses=ui.addresses,
             glyphs=ui.glyphs,
             color="always" if ui.colour else "auto",
             quiet=ui.quiet,

@@ -6,6 +6,23 @@ prints the keystroke and the resulting screen after every step. It never
 asserts; the human reads the screens and decides.
 
 Story files live in ``probe_stories.py``. This module is the engine.
+
+Navigating the command tree
+---------------------------
+The tree has a search box. Type a ``/name`` to filter, then press **enter
+twice**: the first enter selects the search match and clears the filter, the
+second enter actually descends into (or opens) that node. A single enter after
+a search only commits the filter and goes nowhere. For example, to reach the
+``stats`` menu and the ``daily`` leaf from the root tree::
+
+    /stats | enter | enter | /daily | enter | enter
+
+The two enters on a search land on that node (the first commits the filter, the
+second selects). From a menu, ``o`` opens the leaf's option/CLI editor, the view
+that lists the global flags and the generated command. In that editor ``space``
+toggles a global boolean, ``enter`` edits, ``r`` runs, ``x`` resets, ``b`` goes
+back and ``q`` quits. Add ``pause:0.4`` between steps if the screen lags behind
+the keystrokes (see ``parse_steps`` in ``probe_terminal.py``).
 """
 
 from __future__ import annotations
