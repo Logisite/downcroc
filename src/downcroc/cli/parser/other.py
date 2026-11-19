@@ -404,6 +404,11 @@ def logs(commands: argparse._SubParsersAction) -> None:
     )
     parser.add_argument("--follow", action="store_true", help="keep printing new lines")
     parser.add_argument(
+        "--chain",
+        action="store_true",
+        help="render events as a linked chain of blue cards",
+    )
+    parser.add_argument(
         "--utc",
         action="store_true",
         help="show timestamps in UTC instead of local time",

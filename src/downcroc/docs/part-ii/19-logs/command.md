@@ -1,7 +1,7 @@
 ---
 title: logs command
 commands: [logs]
-flags: [--event, --level, --account, --batch, --job, --since, --limit, --follow, --utc]
+flags: [--event, --level, --account, --batch, --job, --since, --limit, --follow, --utc, --chain]
 concepts: [job, batch]
 screens: []
 ---
@@ -55,6 +55,9 @@ Filters combine to narrow the view. You can apply several at once to home in on 
 : Keeps printing new lines as they are written instead of exiting after the current results. This streams the log continuously until you stop it (for example with Ctrl-C). Use `--follow` when you want to watch what happens live while reproducing or waiting for an event.
 
 ### Display
+
+`--chain`
+: Renders each event as a thin blue rounded box with level-coloured, wrapped text, and joins consecutive events with a single centred `◆` bead. This is a human-readable view of the same records; use it to follow a sequence of events as one linked chain. It works with `--follow` and `--addresses`. `--json` takes precedence and keeps the raw one-line-per-event output unchanged.
 
 `--addresses`
 : Shows account addresses instead of account ids in the output. This can make lines easier to read when you think in terms of mailboxes rather than internal ids.

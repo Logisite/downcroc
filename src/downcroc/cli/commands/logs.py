@@ -10,6 +10,11 @@ from types import FrameType
 
 from downcroc.cli.context import load
 from downcroc.cli.errors import CliError, UsageError, render
+from downcroc.cli.log_chain import (
+    ChainRenderer,
+    glyphs_for,
+    render_chain,
+)
 from downcroc.cli.logs_addresses import AddressBook
 from downcroc.cli.output import colour_enabled
 from downcroc.cli.ui.session import Ui, build
@@ -138,8 +143,25 @@ def run(args: object) -> int:
     for path in oldest_first(paths):
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
     shown = found[-args.limit :]
-    for entry in shown:
-        _print(entry, ui.json_mode, book, args.addresses, args.utc)
+    if getattr(args, "chain", False) and not ui.json_mode:
+        if shown:
+            entries = [
+                book.apply(entry, json_mode=False) if args.addresses else entry
+                for entry in shown
+            ]
+            print(
+                render_chain(
+                    entries,
+                    glyphs=glyphs_for(ui.glyphs),
+                    colour=colour_enabled(),
+                    utc=args.utc,
+                ),
+                end="",
+                flush=True,
+            )
+    else:
+        for entry in shown:
+            _print(entry, ui.json_mode, book, args.addresses, args.utc)
     if not found:
         print("no events match", file=sys.stderr)
     elif len(found) > len(shown) and not ui.json_mode:
@@ -157,12 +179,32 @@ def _follow(
     ui: Ui,
     book: AddressBook,
 ) -> int:
+    chain = getattr(args, "chain", False) and not ui.json_mode
+    renderer = (
+        ChainRenderer(
+            glyphs=glyphs_for(ui.glyphs),
+            colour=colour_enabled(),
+            utc=args.utc,
+        )
+        if chain
+        else None
+    )
+
+    def emit(entry: dict) -> None:
+        if renderer is not None:
+            shown_entry = (
+                book.apply(entry, json_mode=False) if args.addresses else entry
+            )
+            print(renderer.emit(shown_entry), end="", flush=True)
+        else:
+            _print(entry, ui.json_mode, book, args.addresses, args.utc)
+
     found: list[dict] = []
     for path in oldest_first(paths):
         found.extend(entry for entry in _entries(path) if matches(entry, args, cutoff))
     shown = found[-args.limit :]
     for entry in shown:
-        _print(entry, ui.json_mode, book, args.addresses, args.utc)
+        emit(entry)
     if len(found) > len(shown) and not ui.json_mode:
         print(
             f"showing {len(shown)} of {len(found)}, use --since or --limit",
@@ -214,7 +256,7 @@ def _follow(
             if str(entry.get("event", "")).startswith("account."):
                 book.refresh()
             if matches(entry, args, cutoff):
-                _print(entry, ui.json_mode, book, args.addresses, args.utc)
+                emit(entry)
     except KeyboardInterrupt:
         return 0
     finally:
