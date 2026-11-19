@@ -31,6 +31,7 @@ downcroc batch list --parents [--sort {recent,stale}]
 
 - `--state` filters by batch state: `awaiting_approval`, `sending`, `done`, `cancelled`.
 - `--limit` sets maximum rows (1–500, default 100). `--offset` skips rows for paging.
+- `--newest-first` reverses the default order. Listings are oldest first by default (newest at the bottom); this flag puts the newest first.
 - `--parents` shows parent batches only, folding follow-up child batches into each parent row with a follow-up summary: declared steps, last follow-up step and when it happened (relative time, e.g. `fu1 · 4d`), pending/waiting follow-up work, and last activity.
 - `--sort {recent,stale}` controls ordering for `--parents` (default `recent`). `stale` puts the oldest-touched/most neglected parents first so batches that need follow-up attention rise to the top.
 

@@ -272,9 +272,16 @@ class BatchesService:
         return PreviewOverlap(sum(counts.values()), tuple(sorted(counts)))
 
     def list(
-        self, *, state: str | None = None, limit: int = 100, offset: int = 0
+        self,
+        *,
+        state: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        newest_first: bool = False,
     ) -> list[Batch]:
-        return self._batches.list(state=state, limit=limit, offset=offset)
+        return self._batches.list(
+            state=state, limit=limit, offset=offset, newest_first=newest_first
+        )
 
     def count(self, *, state: str | None = None) -> int:
         return self._batches.count(state=state)

@@ -30,7 +30,7 @@ Lists failed jobs.
 downcroc failed list [--limit LIMIT] [--offset OFFSET]
 ```
 
-- Returns failed jobs in the failure list. Default limit is 100 (1–500). `--offset` skips rows for paging.
+- Returns failed jobs in the failure list. Default limit is 100 (1–500). `--offset` skips rows for paging. Failures are oldest first by default; `--newest-first` puts the newest first.
 - **Output:** by default prints a table of job id, recipient, code, attempts, failed time, and message, and a page footer when results are paged/truncated. With `--json`, prints the failure records as JSON.
 
 ### show

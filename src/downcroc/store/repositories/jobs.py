@@ -66,9 +66,15 @@ class JobRepo(JobSenderRepo, JobStateRepo):
         state: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        newest_first: bool = False,
     ) -> list[Job]:
         query = self._filtered(batch_id, account_id, state)
-        query = query.order_by(JobRow.created_at, JobRow.id).offset(offset).limit(limit)
+        order = (
+            (JobRow.created_at.desc(), JobRow.id.desc())
+            if newest_first
+            else (JobRow.created_at, JobRow.id)
+        )
+        query = query.order_by(*order).offset(offset).limit(limit)
         with self._sessions() as session:
             return [to_job(row) for row in session.scalars(query)]
 

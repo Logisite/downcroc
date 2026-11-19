@@ -133,6 +133,7 @@ def list_batches(
     state: str | None = None,
     parents: bool = False,
     sort: str = Query(default="recent"),
+    newest_first: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[BatchOut]:
@@ -147,9 +148,15 @@ def list_batches(
         ]
         summaries = services.followups.parent_summaries([batch.id for batch in batches])
         if sort == "stale":
-            batches.sort(key=lambda batch: _stale_key(batch, summaries.get(batch.id)))
+            batches.sort(
+                key=lambda batch: _stale_key(batch, summaries.get(batch.id)),
+                reverse=newest_first,
+            )
         else:
-            batches.sort(key=lambda batch: _recent_key(batch, summaries.get(batch.id)))
+            batches.sort(
+                key=lambda batch: _recent_key(batch, summaries.get(batch.id)),
+                reverse=newest_first,
+            )
         response.headers["X-Total-Count"] = str(len(batches))
         page = batches[offset : offset + limit]
         return [
@@ -164,7 +171,9 @@ def list_batches(
     response.headers["X-Total-Count"] = str(service.count(state=state))
     return [
         BatchOut.of(batch, service.counts(batch.id), capacity.batch_eta(batch))
-        for batch in service.list(state=state, limit=limit, offset=offset)
+        for batch in service.list(
+            state=state, limit=limit, offset=offset, newest_first=newest_first
+        )
     ]
 
 

@@ -14,6 +14,7 @@ GLOBAL_DESTS = frozenset(
         "stack",
         "grid",
         "addresses",
+        "newest_first",
         "glyphs",
         "color",
         "quiet",

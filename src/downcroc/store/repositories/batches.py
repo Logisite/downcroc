@@ -104,15 +104,17 @@ class BatchRepo:
         state: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        newest_first: bool = False,
     ) -> list[Batch]:
         query = select(BatchRow)
         if state is not None:
             query = query.where(BatchRow.state == state)
-        query = (
-            query.order_by(BatchRow.created_at.desc(), BatchRow.id)
-            .offset(offset)
-            .limit(limit)
+        order = (
+            (BatchRow.created_at.desc(), BatchRow.id.desc())
+            if newest_first
+            else (BatchRow.created_at, BatchRow.id)
         )
+        query = query.order_by(*order).offset(offset).limit(limit)
         with self._sessions() as session:
             return [_to_batch(row) for row in session.scalars(query)]
 

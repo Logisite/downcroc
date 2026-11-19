@@ -25,11 +25,12 @@ def _services(request: Request) -> Services:
 def list_failures(
     request: Request,
     response: Response,
+    newest_first: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ) -> list[FailureOut]:
     service = _services(request).failures
-    failures = service.list(limit=limit, offset=offset)
+    failures = service.list(limit=limit, offset=offset, newest_first=newest_first)
     response.headers["X-Total-Count"] = str(service.count())
     return [FailureOut.of(failure) for failure in failures]
 

@@ -34,6 +34,7 @@ def list_messages(
     reply_state: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    newest_first: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[MessageSummaryOut]:
@@ -47,6 +48,7 @@ def list_messages(
         until=until,
         limit=limit,
         offset=offset,
+        newest_first=newest_first,
     )
     response.headers["X-Total-Count"] = str(
         repo.count_messages(

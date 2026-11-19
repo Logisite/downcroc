@@ -63,13 +63,15 @@ class FailureRepo:
                 raise FailureNotFound(f"no failure for job {job_id}")
             return _to_failure(row)
 
-    def list(self, limit: int = 100, offset: int = 0) -> list[FailedJob]:
-        query = (
-            select(FailedJobRow)
-            .order_by(FailedJobRow.failed_at.desc(), FailedJobRow.job_id)
-            .offset(offset)
-            .limit(limit)
+    def list(
+        self, limit: int = 100, offset: int = 0, newest_first: bool = False
+    ) -> list[FailedJob]:
+        order = (
+            (FailedJobRow.failed_at.desc(), FailedJobRow.job_id.desc())
+            if newest_first
+            else (FailedJobRow.failed_at, FailedJobRow.job_id)
         )
+        query = select(FailedJobRow).order_by(*order).offset(offset).limit(limit)
         with self._sessions() as session:
             return [_to_failure(row) for row in session.scalars(query)]
 

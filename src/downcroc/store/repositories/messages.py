@@ -109,6 +109,7 @@ class MessageRepo(InboundMixin):
         until: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        newest_first: bool = False,
     ) -> list[MessageSummary]:
         count = (
             select(func.count())
@@ -129,7 +130,12 @@ class MessageRepo(InboundMixin):
             query = query.where(MessageRow.date >= since)
         if until is not None:
             query = query.where(MessageRow.date <= until)
-        query = query.order_by(MessageRow.date.desc(), MessageRow.id.desc())
+        order = (
+            (MessageRow.date.desc(), MessageRow.id.desc())
+            if newest_first
+            else (MessageRow.date, MessageRow.id)
+        )
+        query = query.order_by(*order)
         query = query.limit(limit).offset(offset)
         with self._sessions() as session:
             rows = session.execute(query).all()

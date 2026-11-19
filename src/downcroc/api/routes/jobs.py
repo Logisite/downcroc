@@ -30,6 +30,7 @@ def list_jobs(
     batch: str | None = None,
     account: str | None = None,
     state: str | None = None,
+    newest_first: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[JobOut]:
@@ -40,6 +41,7 @@ def list_jobs(
         state=state,
         limit=limit,
         offset=offset,
+        newest_first=newest_first,
     )
     response.headers["X-Total-Count"] = str(
         service.count(batch_id=batch, account_id=account, state=state)

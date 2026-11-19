@@ -48,6 +48,7 @@ def _listing(client, args: object, ui: Ui) -> int:
         "/api/failed",
         limit=getattr(args, "limit", None) or 100,
         offset=getattr(args, "offset", 0) or 0,
+        newest_first=bool(getattr(args, "newest_first", False)),
     )
     if ui.json_mode:
         json_out(rows)

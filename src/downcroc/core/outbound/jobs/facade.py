@@ -61,6 +61,7 @@ class JobFacade:
         state: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        newest_first: bool = False,
     ) -> list[Job]:
         return self._jobs.list(
             batch_id=batch_id,
@@ -68,6 +69,7 @@ class JobFacade:
             state=state,
             limit=limit,
             offset=offset,
+            newest_first=newest_first,
         )
 
     def count(
