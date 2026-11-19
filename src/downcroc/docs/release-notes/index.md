@@ -4,13 +4,20 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.3.post2
+since: 1.3.4
 order: 0
 terminal:
-  summary: Current release is 1.3.3.post2.
+  summary: Current release is 1.3.4.
 ---
 
 # Release notes
+
+## 1.3.4
+
+Adds a cached hourly update check, `batch validate --followup`, stacked tables in
+narrow terminals, and a global `--addresses` flag.
+
+See the full note in `release-notes/v1.3.4.md` at the repository root.
 
 ## 1.3.3.post2
 
