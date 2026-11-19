@@ -3,6 +3,14 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.5
+
+Collects the post-`1.3.4` fixes and fixes the interactive tree's global flag toggles.
+
+See [`release-notes/v1.3.5.md`](release-notes/v1.3.5.md).
+
+See [`release-notes/v1.3.5.md`](release-notes/v1.3.5.md).
+
 ## 1.3.4.post4
 
 List commands default to oldest first with a `--newest-first` flag to invert.

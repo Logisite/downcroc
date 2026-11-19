@@ -4,13 +4,19 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.4.post4
+since: 1.3.5
 order: 0
 terminal:
-  summary: Current release is 1.3.4.post4.
+  summary: Current release is 1.3.5.
 ---
 
 # Release notes
+
+## 1.3.5
+
+Collects the post-`1.3.4` fixes and fixes the interactive tree's global flag toggles.
+
+See the full note in `release-notes/v1.3.5.md` at the repository root.
 
 ## 1.3.4.post4
 
