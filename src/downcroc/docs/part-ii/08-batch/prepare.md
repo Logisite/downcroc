@@ -161,10 +161,10 @@ payload [[follow_up_declaration]] JSON, versioning, remove/retire), see
 
 `--json`, `--no-input`, `--wide`, `--full`, `--stack`, `--grid`, `--glyphs {auto,nerd,ascii}`, `--color {auto,always,never}`, `--quiet`, `--timeout TIMEOUT`, `--no-pager`.
 
-`--stack` shows boxed table fields as a stacked list; `--grid` forces the boxed
-table grid even in a narrow terminal. When a grid cannot fit, tables now stack
-automatically so values are never truncated. `--full` stops value truncation in
-key/value output.
+Tables stay boxed at any width and wrap long cell values onto extra lines.
+`--stack` switches to a stacked layout instead; `--grid` forces the boxed grid
+(overriding `--stack` or `cli.tables = false`). `--full` stops value truncation
+in key/value output.
 
 ## Examples
 
