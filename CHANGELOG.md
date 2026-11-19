@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.4.post3
+
+Restores level colours and full terminal width in the `logs --chain` view.
+
+See [`release-notes/v1.3.4.post3.md`](release-notes/v1.3.4.post3.md).
+
 ## 1.3.4.post2
 
 Adds `downcroc logs --chain`, a linked card view of log events with no truncated values.
