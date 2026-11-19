@@ -31,9 +31,13 @@ def test_chain_renders_joined_boxes(stack_factory) -> None:
     assert any(line.startswith("╰") for line in lines), result.stdout
     beads = [line for line in lines if line.strip() == "◆"]
     assert beads, result.stdout
-    # Every bead sits at the box midpoint (boxes are 72 wide here).
+    # Every bead sits at the midpoint of the surrounding box borders.
+    top = next(line for line in lines if line.startswith("╭"))
+    midpoint = len(top) // 2 - 1
     for bead in beads:
-        assert bead.index("◆") == 72 // 2 - 1, repr(bead)
+        assert bead.index("◆") == midpoint, repr(bead)
+    # Boxes fill the terminal width (no hard 72-column cap).
+    assert len(top) >= 80, len(top)
 
 
 def test_chain_ascii_fallback(stack_factory) -> None:

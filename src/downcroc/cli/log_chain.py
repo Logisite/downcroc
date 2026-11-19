@@ -10,7 +10,7 @@ from downcroc.runtime.logging.format import _display_stamp
 
 LEVEL_TONE = {
     "debug": "fg_muted",
-    "info": "fg_primary",
+    "info": "info",
     "warning": "warning",
     "error": "danger",
     "critical": "danger",
@@ -55,7 +55,7 @@ def glyphs_for(choice: str) -> Glyphs:
 
 def chain_width() -> int:
     columns = shutil.get_terminal_size((100, 24)).columns
-    return min(72, max(40, columns - 8))
+    return max(20, columns - 2)
 
 
 def _wrap(text: str, width: int) -> list[str]:
@@ -74,20 +74,29 @@ def _wrap(text: str, width: int) -> list[str]:
     return lines or [""]
 
 
-def _content(entry: dict[str, Any], utc: bool, theme: Theme) -> list[tuple[str, str]]:
+def _content(
+    entry: dict[str, Any], utc: bool, theme: Theme
+) -> list[tuple[str, str, bool]]:
+    """Build content lines as (text, token, bold) segments.
+
+    The header carries the level's semantic tone (blue info, amber warning, red
+    error) and is bold, so the text is visibly coloured; structured fields are
+    secondary and unbolded.
+    """
     stamp = _display_stamp(entry, utc)
     level = str(entry.get("level", "info"))
     event = str(entry.get("event", ""))
-    tone = theme.tone(LEVEL_TONE.get(level, "fg_primary"))
-    head = _wrap(f"{stamp}  {level}  {event}", 200)
-    lines: list[tuple[str, str]] = [(part, tone) for part in head]
+    tone = LEVEL_TONE.get(level, "fg_primary")
+    lines: list[tuple[str, str, bool]] = [
+        (part, tone, True) for part in _wrap(f"{stamp}  {level}  {event}", 200)
+    ]
     fields = "  ".join(
         f"{key}={value}"
         for key, value in entry.items()
         if key not in {"ts", "ts_local", "level", "logger", "event"}
     )
     if fields:
-        lines.extend((part, "fg_secondary") for part in _wrap(fields, 200))
+        lines.extend((part, "fg_secondary", False) for part in _wrap(fields, 200))
     return lines
 
 
@@ -105,8 +114,8 @@ def _box_lines(
     inner = width - 2
     text_width = inner - 2
 
-    def paint(text: str, token: str) -> str:
-        return _fg(theme.tone(token)) + text + RESET if colour else text
+    def paint(text: str, token: str, bold: bool = False) -> str:
+        return _fg(theme.tone(token), bold=bold) + text + RESET if colour else text
 
     def edge(left: str, right: str, junction: str | None, tone: str) -> str:
         mid = width // 2
@@ -119,13 +128,13 @@ def _box_lines(
         return body
 
     out = [edge(glyphs.tl, glyphs.tr, top, border)]
-    for text, token in _content(entry, utc, theme):
+    for text, token, bold in _content(entry, utc, theme):
         for part in _wrap(text, text_width):
             pad = text_width - cells(part)
             out.append(
                 (paint(glyphs.v, border) if colour else glyphs.v)
                 + " "
-                + paint(part, token)
+                + paint(part, token, bold)
                 + " " * (pad - 1)
                 + (paint(glyphs.v, border) if colour else glyphs.v)
             )
