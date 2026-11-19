@@ -3,6 +3,13 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.4.post1
+
+Keeps boxed tables with wrapped cells as the default at every width; stacking is
+now opt-in via `--stack`.
+
+See [`release-notes/v1.3.4.post1.md`](release-notes/v1.3.4.post1.md).
+
 ## 1.3.4
 
 Adds a cached hourly update check, `batch validate --followup`, stacked tables in
