@@ -188,7 +188,7 @@ Command line client behavior.
 - `cli.glyphs` (default `auto`, `auto|nerd|ascii`): Glyph set.
 - `cli.tables` (default `true`): Always draw boxed tables. Set false to fall back to stacked fields when the terminal is too narrow for the grid.
 - `cli.update_check` (default `true`): Check GitHub for a newer release on CLI commands and show an update-available footer. Set false to disable the check entirely.
-- `cli.update_check_interval_s` (default `3600`, 60–604800): Minimum seconds between GitHub update checks. The result is cached in the state directory and checked at most once per interval.
+- `cli.update_check_interval_s` (default `86400`, 60–604800): Minimum seconds between GitHub update checks. The result is cached in the state directory and checked at most once per interval.
 
 ## connectivity
 

@@ -406,7 +406,7 @@ class CliSettings(BaseModel):
         ),
     )
     update_check_interval_s: int = Field(
-        default=3600,
+        default=86400,
         ge=60,
         le=604800,
         description="Minimum seconds between GitHub update checks.",
