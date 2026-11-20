@@ -4,13 +4,19 @@ description: What changed in each release and what to do before upgrading.
 tags: [release, changelog]
 audience: user
 status: stable
-since: 1.3.5
+since: 1.3.5.post1
 order: 0
 terminal:
-  summary: Current release is 1.3.5.
+  summary: Current release is 1.3.5.post1.
 ---
 
 # Release notes
+
+## 1.3.5.post1
+
+Global table flags work before the command, and the update check is daily.
+
+See the full note in `release-notes/v1.3.5.post1.md` at the repository root.
 
 ## 1.3.5
 
