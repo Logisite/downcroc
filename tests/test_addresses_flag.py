@@ -46,6 +46,29 @@ def test_addresses_flag_shows_addresses_in_stats(stack_factory) -> None:
     assert account not in resolved.stdout
 
 
+def test_addresses_flag_before_command(stack_factory, monkeypatch) -> None:
+    """--addresses is honored when placed before the command."""
+    monkeypatch.setenv("COLUMNS", "200")
+    stack = stack_factory(accounts=["alice@local.test"])
+    account = stack.accounts[0]
+    address = account_address(stack, account)
+    _send(stack, account)
+
+    result = cli(
+        stack,
+        "--addresses",
+        "stats",
+        "accounts",
+        "--from",
+        _today(),
+        "--to",
+        _today(),
+    )
+    assert result.returncode == 0, result.stderr
+    assert address in result.stdout
+    assert account not in result.stdout
+
+
 def test_addresses_flag_keeps_ids_in_json(stack_factory) -> None:
     """--addresses does not change machine-readable output."""
     stack = stack_factory(accounts=["alice@local.test"])

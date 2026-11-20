@@ -126,16 +126,19 @@ def common(
     parser.add_argument(
         "--stack",
         action="store_true",
+        default=suppress,
         help="stack table fields instead of a boxed grid",
     )
     parser.add_argument(
         "--grid",
         action="store_true",
+        default=suppress,
         help="force the boxed table grid even when narrow",
     )
     parser.add_argument(
         "--addresses",
         action="store_true",
+        default=suppress,
         help="show account addresses instead of ids",
     )
     parser.add_argument(

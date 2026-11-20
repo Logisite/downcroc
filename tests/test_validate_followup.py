@@ -92,9 +92,18 @@ def test_validate_campaign_hints_followup(stack_factory) -> None:
 
 
 def test_stack_flag_is_global(stack_factory) -> None:
-    """--stack and --grid are accepted on any command (common flags)."""
+    """--stack and --grid work before or after the command."""
     stack = stack_factory(accounts=[])
     result = _run(stack, "batch", "list", "--stack", "--json")
     assert result.returncode == 0, result.stderr
     result = _run(stack, "batch", "list", "--grid", "--json")
     assert result.returncode == 0, result.stderr
+
+    stacked = _run(stack, "--stack", "batch", "list")
+    assert stacked.returncode == 0, stacked.stderr
+    assert "no batches match" in stacked.stdout
+    assert "╭" not in stacked.stdout
+
+    gridded = _run(stack, "--grid", "--stack", "batch", "list")
+    assert gridded.returncode == 0, gridded.stderr
+    assert "╭" in gridded.stdout
