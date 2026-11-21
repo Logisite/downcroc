@@ -126,6 +126,7 @@ def list_threads(
     batch: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    newest_first: bool = Query(default=True),
 ) -> list[ThreadOut]:
     repo = _services(request).messages
     threads = repo.list_threads(
@@ -133,6 +134,7 @@ def list_threads(
         batch_id=batch,
         limit=limit,
         offset=offset,
+        newest_first=newest_first,
     )
     response.headers["X-Total-Count"] = str(
         repo.count_threads(account_id=account, batch_id=batch)

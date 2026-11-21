@@ -217,6 +217,7 @@ class MessageRepo(InboundMixin):
         batch_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        newest_first: bool = True,
     ) -> list[Thread]:
         query = select(ThreadRow)
         if account_id is not None:
@@ -230,7 +231,10 @@ class MessageRepo(InboundMixin):
             )
         if batch_id is not None:
             query = query.where(ThreadRow.batch_id == batch_id)
-        query = query.order_by(ThreadRow.last_seen.desc(), ThreadRow.id.desc())
+        if newest_first:
+            query = query.order_by(ThreadRow.last_seen.desc(), ThreadRow.id.desc())
+        else:
+            query = query.order_by(ThreadRow.last_seen.asc(), ThreadRow.id.asc())
         query = query.limit(limit).offset(offset)
         with self._sessions() as session:
             return [_thread(row) for row in session.execute(query).scalars()]

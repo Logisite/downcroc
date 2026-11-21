@@ -31,7 +31,7 @@ downcroc mail list [--account ACCOUNT] [--folder {INBOX}] [--thread THREAD]
 ```
 
 - Filters: `--account` by account, `--folder` (INBOX), `--thread` by thread id, `--reply-state` by reply classification, `--since`/`--until` by date (`YYYY-MM-DD`).
-- Paging: `--limit` (1–500, default 100) and `--offset`. Messages are oldest first by default; `--newest-first` puts the newest first.
+- Paging: `--limit` (1–500, default 100) and `--offset`. Messages are newest first by default; `--oldest-first` puts the oldest first. `[cli] list_order = "oldest_first"` changes the default.
 
 **Output:** a table of date, from, subject, reply state, attachment count, and message id (plus a page footer when paged). Reply-state labels are explained once per run when present: “confirmed reply” (headers prove it answers a job), “likely reply” (subject/participant match without proving headers), “late reply” (after the reply window), “bounce” (delivery failure). With `--json`, prints the messages.
 
@@ -52,10 +52,11 @@ With `--json`, prints the message as JSON.
 Lists threads.
 
 ```text
-downcroc mail threads [--account ACCOUNT] [--batch BATCH] [--limit LIMIT] [--offset OFFSET]
+downcroc mail threads [--account ACCOUNT] [--batch BATCH] [--limit LIMIT] [--offset OFFSET] [--newest-first | --oldest-first]
 ```
 
 - Filters: `--account`, `--batch`. Paging: `--limit` (1–500, default 100), `--offset`.
+- Threads are newest first by default; `--oldest-first` puts the oldest first. `[cli] list_order = "oldest_first"` changes the default.
 
 **Output:** a table of thread id, subject, message count, reply count, and last seen (with page footer when paged). With `--json`, prints threads.
 

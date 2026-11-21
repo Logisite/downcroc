@@ -241,8 +241,18 @@ def limit(parser: argparse.ArgumentParser, default: int = 100) -> None:
         default=0,
         help="rows to skip",
     )
-    parser.add_argument(
+    order = parser.add_mutually_exclusive_group()
+    order.add_argument(
         "--newest-first",
         action="store_true",
-        help="put the newest rows first (default: oldest first)",
+        dest="newest_first",
+        default=argparse.SUPPRESS,
+        help="put the newest rows first (default)",
+    )
+    order.add_argument(
+        "--oldest-first",
+        action="store_false",
+        dest="newest_first",
+        default=argparse.SUPPRESS,
+        help="put the oldest rows first",
     )

@@ -79,6 +79,7 @@ class Ui:
     stack: bool = False
     grid: bool = False
     addresses: bool = False
+    newest_first: bool = True
 
     def glyph(self, name: str) -> str:
         return GLYPHS[self.glyphs].get(name, "")
@@ -132,6 +133,13 @@ def _config_glyphs() -> str:
 def _config_tables() -> bool:
     value = _config_cli().get("tables")
     return value if isinstance(value, bool) else True
+
+
+def _newest_first(args: object) -> bool:
+    explicit = _flag(args, "newest_first")
+    if explicit is not None:
+        return bool(explicit)
+    return _config_cli().get("list_order") != "oldest_first"
 
 
 def _glyph_choice(args: object) -> str:
@@ -191,6 +199,7 @@ def build(args: object) -> Ui:
         stack=bool(_flag(args, "stack")),
         grid=bool(_flag(args, "grid")),
         addresses=bool(_flag(args, "addresses")),
+        newest_first=_newest_first(args),
     )
     from downcroc.cli import output
 

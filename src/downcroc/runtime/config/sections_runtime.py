@@ -398,6 +398,10 @@ class CliSettings(BaseModel):
             "when the terminal is too narrow for the grid."
         ),
     )
+    list_order: Literal["newest_first", "oldest_first"] = Field(
+        default="newest_first",
+        description="Default row order for list commands.",
+    )
     update_check: bool = Field(
         default=True,
         description=(

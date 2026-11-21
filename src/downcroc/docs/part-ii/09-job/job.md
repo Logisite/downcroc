@@ -27,10 +27,11 @@ Actions: `list`, `show`, `send`, `pause`, `resume`, `cancel`, `delete`, `reassig
 Lists jobs.
 
 ```text
-downcroc job list [--batch BATCH] [--account ACCOUNT] [--state STATE] [--limit LIMIT] [--offset OFFSET]
+downcroc job list [--batch BATCH] [--account ACCOUNT] [--state STATE] [--limit LIMIT] [--offset OFFSET] [--newest-first | --oldest-first]
 ```
 
 - Filters: `--batch` by batch id, `--account` by account id, `--state` by job state. `--limit` sets maximum rows (1–500, default 100) and `--offset` skips rows for paging.
+- Jobs are newest first by default; `--oldest-first` puts the oldest first. `[cli] list_order = "oldest_first"` changes the default.
 - Job states: `queued`, `awaiting_approval`, `sending`, `sent`, `sent_unconfirmed`, `retry_wait`, `failed`, `cancelled`.
 - **Output:** prints a job list (and page footer when paged). With `--json`, prints jobs as JSON.
 
