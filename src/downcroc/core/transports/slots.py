@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import time
+from dataclasses import dataclass
 
 from downcroc.core.accounts import AccountEligibility
 from downcroc.core.policy import PolicyResolver
@@ -18,12 +19,21 @@ from downcroc.store.repositories.accounts import AccountRepo
 from downcroc.store.repositories.quota import QuotaRepo
 
 
+@dataclass(frozen=True)
+class SeatDecision:
+    """What a planning call should use, without committing it by default."""
+
+    held: tuple[str, ...]
+    release: str | None = None
+    borrow: frozenset[str] | None = None
+
+
 class SlotResolver:
     """Derives the active SMTP rotation from live config and live state.
 
-    Nothing is cached: ``dispatch.smtp_seats``, allowance, health, and the last
-    turn are read fresh so a config edit applies on the next cycle and a restart
-    needs no rebuild step.
+    Planning is pure unless ``advance`` is set. Only dispatch advances the
+    sticky holder, so read-only paths cannot rotate a seat by inspecting it.
+    Config, allowance, health, and the last turn are read fresh on every call.
     """
 
     def __init__(
@@ -49,9 +59,8 @@ class SlotResolver:
         self._log = log
         self._held: tuple[str, ...] = ()
         self._held_since = 0.0
-        self._held_picks = 0
-        self._seat_reason = "boot"
-        self._hold_reason: str | None = None
+        self._held_sends = 0
+        self._held_batches: frozenset[str] = frozenset()
 
     def pick(
         self,
@@ -61,10 +70,14 @@ class SlotResolver:
         account_ids: list[str] | None = None,
         work: set[str] | None = None,
         rng: random.Random | None = None,
+        advance: bool = False,
+        batch_ids: frozenset[str] = frozenset(),
+        active_batches: frozenset[str] | None = None,
+        source: str = "query",
     ) -> SlotPlan:
         chosen = set(account_ids) if account_ids else None
         day = day or self._policy.day()
-        rng = rng or random.Random()
+        rng = rng if rng is not None else random.Random(0)
         entries: list[SlotEntry] = []
         for account in self._accounts.list():
             if chosen is not None and account.id not in chosen:
@@ -94,63 +107,96 @@ class SlotResolver:
                     smtp_ready=has_smtp,
                 )
             )
-        held = self._eligible_held(entries, work)
-        if not held:
-            self._seat_reason = self._hold_reason or (
-                "rotation" if self._held else "boot"
-            )
-            self._hold_reason = None
-        plan = choose_slots(entries, self._dispatch.smtp_seats, held=held)
-        self._remember(plan)
+        decision = self._decide(entries, advance, work, active_batches)
+        planning = entries
+        if decision.borrow is not None:
+            working = [
+                entry for entry in entries if entry.account_id in decision.borrow
+            ]
+            if working:
+                planning = working
+        plan = choose_slots(planning, self._dispatch.smtp_seats, held=decision.held)
+        if advance:
+            self._commit(plan, decision, batch_ids, source)
         return plan
 
-    def _eligible_held(
-        self, entries: list[SlotEntry], work: set[str] | None
-    ) -> tuple[str, ...]:
+    def _decide(
+        self,
+        entries: list[SlotEntry],
+        advance: bool,
+        work: set[str] | None,
+        active_batches: frozenset[str] | None,
+    ) -> SeatDecision:
+        if not advance:
+            return SeatDecision(self._held)
         if not self._dispatch.smtp_seat_sticky or not self._held:
-            self._hold_reason = None
-            return ()
+            reason = "rotation" if self._held else "boot"
+            return SeatDecision((), reason)
         ready = {
             entry.account_id
             for entry in entries
             if entry.has_smtp and entry.smtp_ready and entry.remaining > 0
         }
         if any(item not in ready for item in self._held):
-            self._hold_reason = "failover"
-            return ()
-        if work is not None and work and not (set(self._held) & work):
-            self._hold_reason = "idle"
-            return ()
+            return SeatDecision((), "failover")
+        if work and not (set(self._held) & work):
+            return SeatDecision((), borrow=frozenset(work))
         if self._dispatch.smtp_seat_max_s and (
             time.monotonic() - self._held_since >= self._dispatch.smtp_seat_max_s
         ):
-            self._hold_reason = "max_s"
-            return ()
+            return SeatDecision((), "max_s")
         if self._dispatch.smtp_seat_max_sends and (
-            self._held_picks >= self._dispatch.smtp_seat_max_sends
+            self._held_sends >= self._dispatch.smtp_seat_max_sends
         ):
-            self._hold_reason = "max_sends"
-            return ()
-        self._hold_reason = None
-        self._held_picks += 1
-        return self._held
+            return SeatDecision((), "max_sends")
+        if (
+            self._dispatch.smtp_seat_after_batch
+            and active_batches is not None
+            and self._held_batches
+            and not (self._held_batches & active_batches)
+        ):
+            return SeatDecision((), "batch_drain")
+        return SeatDecision(self._held)
 
-    def _remember(self, plan: SlotPlan) -> None:
+    def _commit(
+        self,
+        plan: SlotPlan,
+        decision: SeatDecision,
+        batch_ids: frozenset[str],
+        source: str,
+    ) -> None:
         active = tuple(plan.active)
-        if active == self._held:
+        release = decision.release
+        if decision.borrow is not None:
             return
+        if active == self._held and release in {None, "boot", "rotation"}:
+            if not self._held_batches and batch_ids:
+                self._held_batches = frozenset(batch_ids)
+            return
+        previous = self._held
+        held_for = round(time.monotonic() - self._held_since, 3) if previous else 0
+        sends = self._held_sends
         self._held = active
         self._held_since = time.monotonic()
-        self._held_picks = 0
+        self._held_sends = 0
+        self._held_batches = frozenset(batch_ids) if active else frozenset()
         self._log.info(
             "dispatch.smtp_seat",
             account=active[0] if active else None,
+            released=previous[0] if previous else None,
             binding=None,
-            reason=self._seat_reason,
-            held_for_s=0,
-            sends=0,
+            reason=release or ("rotation" if previous else "boot"),
+            held_for_s=held_for,
+            sends=sends,
+            source=source,
             order=list(active),
         )
+
+    def note_send(self, account_id: str, transport: str) -> None:
+        if transport != TransportKind.SMTP.value:
+            return
+        if account_id in self._held:
+            self._held_sends += 1
 
     def allowed_kinds(
         self,

@@ -220,7 +220,15 @@ class Dispatcher(DispatchHelpers):
             self._idle(due_accounts, blocked_window, blocked_allowance)
             self._log_cycle(0, 0, 0, started)
             return
-        candidates = self._limit_seats(candidates)
+        batch_ids = frozenset(
+            job.batch_id for candidate in candidates for job in candidate.jobs
+        ) | frozenset(job.batch_id for job in auto_pool)
+        active_batches = frozenset(self._jobs.active_batch_ids())
+        candidates = self._limit_seats(
+            candidates,
+            batch_ids=batch_ids,
+            active_batches=active_batches,
+        )
         capacity = self._transports.limiter.effective_global()
         picked: list[tuple[Job, Account, frozenset]] = []
         while candidates and len(picked) < capacity:

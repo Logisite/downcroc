@@ -12,6 +12,12 @@ from downcroc.store.repositories.job_senders import JobSenderRepo
 from downcroc.store.repositories.job_states import JobStateRepo
 
 _SENDABLE = (JobState.QUEUED.value, JobState.RETRY_WAIT.value)
+_ACTIVE = (
+    JobState.AWAITING_APPROVAL.value,
+    JobState.QUEUED.value,
+    JobState.SENDING.value,
+    JobState.RETRY_WAIT.value,
+)
 
 
 class JobRepo(JobSenderRepo, JobStateRepo):
@@ -206,6 +212,13 @@ class JobRepo(JobSenderRepo, JobStateRepo):
         )
         with self._sessions() as session:
             return [to_job(row) for row in session.scalars(query)]
+
+    def active_batch_ids(self) -> set[str]:
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(JobRow.batch_id).where(JobRow.state.in_(_ACTIVE))
+            )
+            return {str(row) for row in rows}
 
     def counts(self, batch_id: str) -> dict[str, int]:
         with self._sessions() as session:

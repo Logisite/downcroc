@@ -289,6 +289,10 @@ class TransportService:
         account_ids: list[str] | None = None,
         work: set[str] | None = None,
         rng: random.Random | None = None,
+        advance: bool = False,
+        batch_ids: frozenset[str] = frozenset(),
+        active_batches: frozenset[str] | None = None,
+        source: str = "query",
     ) -> SlotPlan:
         return self._slots.pick(
             day=day,
@@ -296,7 +300,14 @@ class TransportService:
             account_ids=account_ids,
             work=work,
             rng=rng,
+            advance=advance,
+            batch_ids=batch_ids,
+            active_batches=active_batches,
+            source=source,
         )
+
+    def note_send(self, account_id: str, transport: str) -> None:
+        self._slots.note_send(account_id, transport)
 
     def allowed_kinds(
         self,

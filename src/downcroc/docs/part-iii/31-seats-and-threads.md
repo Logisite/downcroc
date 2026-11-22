@@ -44,7 +44,12 @@ be active in the rotation while others wait, depending on plan and health.
 Configuration controls how that rotation behaves (see
 [Configuration reference](38-config.md)): for example the number of SMTP seats,
 whether a seat is “sticky”, and caps that cause a sticky seat to rotate (by
-time, by send count, or after the current [[batch]] drains).
+time, by successful SMTP send count, or after the current [[batch]] drains when
+`smtp_seat_after_batch` is enabled). A sticky seat is only advanced by the
+dispatcher. Capacity and show views can inspect the current plan without
+rotating it. A held account having no work in one cycle does not release the
+seat; another working account may borrow the seat for that cycle, and the holder
+keeps it for when its work returns.
 
 These knobs trade simplicity and pacing for distribution across mailboxes. They
 do not bypass sending windows, daily allowance, holds, or other safety/policy

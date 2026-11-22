@@ -86,12 +86,18 @@ class DispatchHelpers:
         weights = [max(1, candidate.remaining) for candidate in ready]
         return self._rng.choices(ready, weights=weights, k=1)[0]
 
-    def _limit_seats(self, candidates: list[Candidate]) -> list[Candidate]:
+    def _limit_seats(
+        self,
+        candidates: list[Candidate],
+        *,
+        batch_ids: frozenset[str],
+        active_batches: frozenset[str],
+    ) -> list[Candidate]:
         """Apply the reassignable slot plan to the candidate set.
 
-        The plan is derived from live config on every cycle. A seated account is
-        SMTP-only; an unseated OAuth account is API-only; an unseated password
-        account waits. Candidates with no usable mechanism are dropped.
+        Dispatch is the only caller that advances the sticky holder. A seated
+        account is SMTP-only; an unseated OAuth account is API-only; an unseated
+        password account waits. Candidates with no usable mechanism are dropped.
         """
         if not candidates:
             return candidates
@@ -101,6 +107,10 @@ class DispatchHelpers:
             ),
             work={candidate.account.id for candidate in candidates},
             rng=self._rng,
+            advance=True,
+            batch_ids=batch_ids,
+            active_batches=active_batches,
+            source="dispatch",
         )
         keep: list[Candidate] = []
         for candidate in candidates:

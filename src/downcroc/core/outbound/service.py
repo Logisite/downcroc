@@ -493,6 +493,7 @@ class OutboundService(JobFacade):
     def _sent(self, job: Job, account: Account, started: float, binding) -> None:
         self._stats.record_sent(job, account.id)
         transport = binding.kind.value if binding is not None else "pending"
+        self._transports.note_send(account.id, transport)
         thread = self._thread_fields(job)
         self._bus.publish(
             "job.sent",

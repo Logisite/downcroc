@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from tests.harness.campaigns import campaign_of, submit
 from tests.harness.dispatch import dispatch_config
+from tests.harness.logs import events
+from tests.harness.seed import until
 
 
 def test_sticky_smtp_seat_is_configurable_and_stable(stack_factory) -> None:
@@ -24,6 +27,57 @@ def test_sticky_smtp_seat_is_configurable_and_stable(stack_factory) -> None:
     values = stack.api.get("/api/config")["config"]["dispatch"]
     assert values["smtp_seat_sticky"] is False
     assert values["smtp_seat_max_s"] == 30
+
+
+def test_read_only_views_do_not_release_the_seat(stack_factory) -> None:
+    stack = stack_factory(
+        config_extra=dispatch_config(),
+        accounts=["alice@local.test", "bob@local.test"],
+    )
+    first = stack.api.get("/api/doctor/capacity")
+    active = first["smtp_active"]
+    before = len(events(stack).get("dispatch.smtp_seat", []))
+
+    for _ in range(3):
+        stack.api.get("/api/doctor/capacity")
+        stack.api.get("/api/batches")
+        for account in stack.accounts:
+            stack.api.get(f"/api/accounts/{account}")
+            stack.api.get(f"/api/accounts/{account}/transports")
+
+    after = events(stack).get("dispatch.smtp_seat", [])
+    assert len(after) == before
+    assert stack.api.get("/api/doctor/capacity")["smtp_active"] == active
+
+
+def test_auto_routing_keeps_one_seat_until_the_batch_drains(stack_factory) -> None:
+    stack = stack_factory(
+        config_extra=dispatch_config(),
+        accounts=["alice@local.test", "bob@local.test"],
+    )
+    stack.api.post("/api/service/pause", {"reason": "prepare unpin"})
+    batch = submit(
+        stack,
+        campaign_of(6, options={"approval": "auto"}),
+        "auto.json",
+    )
+    stack.api.post(
+        "/api/jobs/reassign",
+        {
+            "job_ids": [job["id"] for job in batch["recipients"]],
+            "unpin": True,
+            "confirm": True,
+        },
+    )
+    stack.api.post("/api/service/resume", {})
+    until(lambda: stack.api.get(f"/api/batches/{batch['id']}")["state"] == "done")
+
+    seats = events(stack).get("dispatch.smtp_seat", [])
+    assert len(seats) <= 1
+    assert all(item.get("reason") not in {"failover", "idle"} for item in seats)
+    if seats:
+        assert seats[0].get("source") == "dispatch"
+        assert seats[0].get("sends", 0) >= 0
 
 
 def test_archived_accounts_do_not_hold_a_seat(stack_factory) -> None:
