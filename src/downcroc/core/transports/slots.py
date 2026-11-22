@@ -140,7 +140,9 @@ class SlotResolver:
         if any(item not in ready for item in self._held):
             return SeatDecision((), "failover")
         if work and not (set(self._held) & work):
-            return SeatDecision((), borrow=frozenset(work))
+            working = [entry for entry in entries if entry.account_id in work]
+            if not any(entry.has_api for entry in working):
+                return SeatDecision((), borrow=frozenset(work))
         if self._dispatch.smtp_seat_max_s and (
             time.monotonic() - self._held_since >= self._dispatch.smtp_seat_max_s
         ):

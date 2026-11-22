@@ -48,7 +48,8 @@ time, by successful SMTP send count, or after the current [[batch]] drains when
 `smtp_seat_after_batch` is enabled). A sticky seat is only advanced by the
 dispatcher. Capacity and show views can inspect the current plan without
 rotating it. A held account having no work in one cycle does not release the
-seat; another working account may borrow the seat for that cycle, and the holder
+seat. OAuth accounts keep sending through their API bindings. Only a working
+account with no API path may borrow the seat for that cycle, and the holder
 keeps it for when its work returns.
 
 These knobs trade simplicity and pacing for distribution across mailboxes. They
