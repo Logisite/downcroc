@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.5.post5
+
+SMTP seats now follow real ability and workload, not a fixed owner.
+
+See [`release-notes/v1.3.5.post5.md`](release-notes/v1.3.5.post5.md).
+
 ## 1.3.5.post3
 
 Read-only commands no longer rotate sticky SMTP seats.
