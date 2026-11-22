@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
 from downcroc.domain.transports import TransportKind
@@ -18,6 +19,7 @@ class SlotEntry:
     has_smtp: bool
     has_api: bool
     smtp_ready: bool
+    transport_count: int
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,7 @@ def choose_slots(
     entries: list[SlotEntry],
     seats: int,
     held: tuple[str, ...] = (),
+    rng: random.Random | None = None,
 ) -> SlotPlan:
     """Choose the active SMTP rotation from the live queue.
 
@@ -102,9 +105,13 @@ def choose_slots(
     by_id = {entry.account_id: entry for entry in ordered}
     active = [by_id[item] for item in held if item in by_id][:width]
     active_ids = {entry.account_id for entry in active}
-    active += [entry for entry in ordered if entry.account_id not in active_ids][
-        : max(0, width - len(active))
-    ]
+    pool = [entry for entry in ordered if entry.account_id not in active_ids]
+    picker = rng or random.Random()
+    while pool and len(active) < width:
+        weights = [1 / max(1, entry.transport_count) for entry in pool]
+        chosen = picker.choices(pool, weights=weights, k=1)[0]
+        active.append(chosen)
+        pool.remove(chosen)
     return SlotPlan(
         seats=width,
         active=tuple(entry.account_id for entry in active),

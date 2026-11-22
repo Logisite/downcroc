@@ -309,6 +309,14 @@ class TransportService:
     def note_send(self, account_id: str, transport: str) -> None:
         self._slots.note_send(account_id, transport)
 
+    @property
+    def slot_owner(self) -> str | None:
+        return self._slots.owner
+
+    @property
+    def slot_reason(self) -> str:
+        return self._slots.reason
+
     def allowed_kinds(
         self,
         account: Account,

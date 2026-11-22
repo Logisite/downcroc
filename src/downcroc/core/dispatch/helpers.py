@@ -75,6 +75,13 @@ class DispatchHelpers:
         longest goes first, and jitter breaks ties so the order is not a fixed
         A-B-C loop. The jitter is internal and is not configurable.
         """
+        owner = self._transports.slot_owner
+        if owner:
+            seated = [
+                candidate for candidate in candidates if candidate.account.id == owner
+            ]
+            if seated:
+                return seated[0]
         turns = [
             self._transports.limiter.account_turn(candidate.account.id)
             for candidate in candidates
@@ -157,14 +164,14 @@ class DispatchHelpers:
                     "dispatch.slot_assigned",
                     account=account_id,
                     slot=position,
-                    reason="rotation",
+                    reason=self._transports.slot_reason,
                 )
         for account_id in previous_active - plan.active_set:
             self._log.info(
                 "dispatch.slot_released",
                 account=account_id,
                 slot=0,
-                reason="rotation",
+                reason=self._transports.slot_reason,
             )
         self._plan_active = plan.active_set
         self._log.info(

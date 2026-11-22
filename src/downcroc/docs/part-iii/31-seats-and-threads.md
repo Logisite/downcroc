@@ -47,10 +47,16 @@ whether a seat is “sticky”, and caps that cause a sticky seat to rotate (by
 time, by successful SMTP send count, or after the current [[batch]] drains when
 `smtp_seat_after_batch` is enabled). A sticky seat is only advanced by the
 dispatcher. Capacity and show views can inspect the current plan without
-rotating it. A held account having no work in one cycle does not release the
-seat. OAuth accounts keep sending through their API bindings. Only a working
-account with no API path may borrow the seat for that cycle, and the holder
-keeps it for when its work returns.
+changing the owner. A new owner is chosen from accounts with work, a usable SMTP
+binding, and allowance left. The live transport list drives selection: an
+account with only SMTP enabled carries more weight than one with both SMTP and
+API enabled, and disabled or unhealthy bindings are excluded entirely.
+
+The owner keeps the seat while it can use it and has work. It is relieved when
+allowance runs out, its SMTP binding becomes unusable, a send fails, a
+configured cap fires, or its work is finished. The next account is chosen from
+the working fleet. The relieved account can be selected again when its issue is
+cleared.
 
 These knobs trade simplicity and pacing for distribution across mailboxes. They
 do not bypass sending windows, daily allowance, holds, or other safety/policy

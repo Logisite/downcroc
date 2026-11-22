@@ -57,10 +57,10 @@ Dispatcher loop, retry, and concurrency settings.
 - `dispatch.parallel_sends` (default `false`): Allow more than one send in flight. Off by default; one send at a time is the recommended and safest mode.
 - `dispatch.api_max_concurrency` (default `1`, 1–16): Maximum parallel Gmail API sends when `parallel_sends` is on. Ignored while `parallel_sends` is off.
 - `dispatch.smtp_seats` (default `1`, 1–10): Distinct SMTP mailboxes in the serial send rotation. This is **not** parallel sending. Values above 3 are risky and strongly warned; setting high values can trigger confirmations/warnings in the CLI.
-- `dispatch.smtp_seat_sticky` (default `true`): Hold an SMTP seat until a cap, a real transport failure, or batch drain when `smtp_seat_after_batch` is enabled. Read-only commands, such as capacity, ETA, and show views, never rotate a seat. If the holder has no work in a cycle, OAuth accounts use their API bindings and the seat stays put. Only a working account with no API path may borrow the seat for that cycle; the holder is not changed.
-- `dispatch.smtp_seat_max_s` (default `0`, 0–86400): Seconds before a sticky seat rotates; `0` disables the cap.
+- `dispatch.smtp_seat_sticky` (default `true`): Keep one SMTP seat assigned to an account that can use it. A new owner is chosen from accounts with work, a healthy SMTP binding, and allowance left. Selection is weighted by the live transport list: one usable transport is favoured over two, and so on. Read-only commands never change the owner. The owner is released on quota exhaustion, health or send failure, a configured cap, or when its work is finished.
+- `dispatch.smtp_seat_max_s` (default `0`, 0–86400): Seconds before a sticky seat rotates; `0` disables the cap. This is a hard cap, used only if you want one.
 - `dispatch.smtp_seat_max_sends` (default `0`, 0–1000000): Successful SMTP sends before a sticky seat rotates; `0` disables the cap. Planning calls do not count as sends.
-- `dispatch.smtp_seat_after_batch` (default `false`): When true, rotate the sticky seat after the batch that first held it has no queued, sending, `retry_wait`, or awaiting-approval jobs. When false, batch drain does not release the seat.
+- `dispatch.smtp_seat_after_batch` (default `true`): Release the seat when the holder has no work left. With this disabled, the holder keeps the seat across gaps in its work.
 - `dispatch.network_cooldown_after` (default `2`, 1–20): Consecutive network failures before a binding cools down.
 - `dispatch.network_cooldown_s` (default `60`, 1–86400): Base cool-down in seconds after a network failure.
 - `dispatch.quota_cooldown_s` (default `300`, 1–86400): Cool-down in seconds when a provider reports quota limits.

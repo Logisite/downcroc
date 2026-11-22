@@ -25,7 +25,6 @@ class SeatDecision:
 
     held: tuple[str, ...]
     release: str | None = None
-    borrow: frozenset[str] | None = None
 
 
 class SlotResolver:
@@ -61,6 +60,8 @@ class SlotResolver:
         self._held_since = 0.0
         self._held_sends = 0
         self._held_batches: frozenset[str] = frozenset()
+        self._last_used = 0.0
+        self._reason = "boot"
 
     def pick(
         self,
@@ -105,17 +106,21 @@ class SlotResolver:
                     has_smtp=has_smtp,
                     has_api=has_api,
                     smtp_ready=has_smtp,
+                    transport_count=len(bindings),
                 )
             )
         decision = self._decide(entries, advance, work, active_batches)
         planning = entries
-        if decision.borrow is not None:
-            working = [
-                entry for entry in entries if entry.account_id in decision.borrow
-            ]
+        if advance and work:
+            working = [entry for entry in entries if entry.account_id in work]
             if working:
                 planning = working
-        plan = choose_slots(planning, self._dispatch.smtp_seats, held=decision.held)
+        plan = choose_slots(
+            planning,
+            self._dispatch.smtp_seats,
+            held=decision.held,
+            rng=rng,
+        )
         if advance:
             self._commit(plan, decision, batch_ids, source)
         return plan
@@ -132,17 +137,13 @@ class SlotResolver:
         if not self._dispatch.smtp_seat_sticky or not self._held:
             reason = "rotation" if self._held else "boot"
             return SeatDecision((), reason)
-        ready = {
-            entry.account_id
-            for entry in entries
-            if entry.has_smtp and entry.smtp_ready and entry.remaining > 0
-        }
-        if any(item not in ready for item in self._held):
+        held_entries = [entry for entry in entries if entry.account_id in self._held]
+        if not held_entries:
             return SeatDecision((), "failover")
-        if work and not (set(self._held) & work):
-            working = [entry for entry in entries if entry.account_id in work]
-            if not any(entry.has_api for entry in working):
-                return SeatDecision((), borrow=frozenset(work))
+        if any(entry.remaining <= 0 for entry in held_entries):
+            return SeatDecision((), "allowance")
+        if any(not entry.smtp_ready for entry in held_entries):
+            return SeatDecision((), "failover")
         if self._dispatch.smtp_seat_max_s and (
             time.monotonic() - self._held_since >= self._dispatch.smtp_seat_max_s
         ):
@@ -151,6 +152,10 @@ class SlotResolver:
             self._held_sends >= self._dispatch.smtp_seat_max_sends
         ):
             return SeatDecision((), "max_sends")
+        if work is not None and not (set(self._held) & work):
+            if self._dispatch.smtp_seat_after_batch:
+                return SeatDecision((), "batch_drain")
+            return SeatDecision(self._held)
         if (
             self._dispatch.smtp_seat_after_batch
             and active_batches is not None
@@ -169,8 +174,6 @@ class SlotResolver:
     ) -> None:
         active = tuple(plan.active)
         release = decision.release
-        if decision.borrow is not None:
-            return
         if active == self._held and release in {None, "boot", "rotation"}:
             if not self._held_batches and batch_ids:
                 self._held_batches = frozenset(batch_ids)
@@ -181,13 +184,15 @@ class SlotResolver:
         self._held = active
         self._held_since = time.monotonic()
         self._held_sends = 0
+        self._last_used = self._held_since
         self._held_batches = frozenset(batch_ids) if active else frozenset()
+        self._reason = release or ("rotation" if previous else "boot")
         self._log.info(
             "dispatch.smtp_seat",
             account=active[0] if active else None,
             released=previous[0] if previous else None,
             binding=None,
-            reason=release or ("rotation" if previous else "boot"),
+            reason=self._reason,
             held_for_s=held_for,
             sends=sends,
             source=source,
@@ -199,6 +204,15 @@ class SlotResolver:
             return
         if account_id in self._held:
             self._held_sends += 1
+            self._last_used = time.monotonic()
+
+    @property
+    def owner(self) -> str | None:
+        return self._held[0] if self._held else None
+
+    @property
+    def reason(self) -> str:
+        return self._reason
 
     def allowed_kinds(
         self,

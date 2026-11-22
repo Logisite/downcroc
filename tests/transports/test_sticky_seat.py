@@ -104,7 +104,7 @@ def _connect_gmail(stack, gmail: FakeGmail, address: str) -> str:
     return account["id"]
 
 
-def test_oauth_accounts_use_api_when_the_holder_has_no_work(stack_factory) -> None:
+def test_seat_moves_when_the_owner_has_no_work_left(stack_factory) -> None:
     gmail = FakeGmail().start()
     try:
         stack = stack_factory(
@@ -148,20 +148,22 @@ def test_oauth_accounts_use_api_when_the_holder_has_no_work(stack_factory) -> No
         stack.api.post("/api/service/resume", {})
         until(lambda: stack.api.get(f"/api/batches/{batch['id']}")["state"] == "done")
 
-        assert stack.api.get("/api/doctor/capacity")["smtp_active"][0] == holder
+        assert stack.api.get("/api/doctor/capacity")["smtp_active"][0] == worker
         seats = [
             item
             for item in events(stack).get("dispatch.smtp_seat", [])
             if item.get("source") == "dispatch"
         ]
-        assert len(seats) == before
+        assert len(seats) == before + 1
+        assert seats[-1]["reason"] == "batch_drain"
+        assert seats[-1]["released"] == holder
         sent = [
             item
             for item in events(stack).get("job.sent", [])
             if item.get("job") == batch["recipients"][0]["id"]
         ]
         assert len(sent) == 1
-        assert sent[0]["transport"] == "gmail_api"
+        assert sent[0]["transport"] == "smtp"
     finally:
         gmail.stop()
 

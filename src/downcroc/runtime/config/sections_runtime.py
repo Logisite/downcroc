@@ -231,7 +231,7 @@ class DispatchSettings(BaseModel):
         description="Sends before a sticky seat rotates; 0 disables the cap.",
     )
     smtp_seat_after_batch: bool = Field(
-        default=False,
+        default=True,
         description="Rotate the sticky seat after the current batch drains.",
     )
     network_cooldown_after: int = Field(
