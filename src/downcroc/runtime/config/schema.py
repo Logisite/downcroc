@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from downcroc.core.connectivity.settings import ConnectivitySettings
+from downcroc.extensions.config import ExtensionSettings
 from downcroc.runtime.config.sections_mail import (
     ConfigSettings,
     ConnectSettings,
@@ -32,6 +33,7 @@ __all__ = [
     "DaemonSettings",
     "DispatchSettings",
     "EventsSettings",
+    "ExtensionSettings",
     "FollowUpSettings",
     "InboundSettings",
     "IntakeSettings",
@@ -110,4 +112,8 @@ class Settings(BaseModel):
     backfill: BackfillSettings = Field(
         default_factory=BackfillSettings,
         description="Gmail provider thread id backfill worker settings.",
+    )
+    extensions: ExtensionSettings = Field(
+        default_factory=ExtensionSettings,
+        description="Extension host and capability broker settings.",
     )

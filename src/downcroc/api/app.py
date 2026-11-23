@@ -34,6 +34,7 @@ from downcroc.api.routes import (
     vault,
 )
 from downcroc.core.bootstrap import build
+from downcroc.extensions.api import router as extension_router
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
@@ -75,7 +76,14 @@ def create_app(
             raise
         app.state.services = services
         app.state.config = services.config
-        services.bus.start(asyncio.get_running_loop())
+        loop = asyncio.get_running_loop()
+        services.bus.start(loop)
+        host = services.extensions
+        pump: asyncio.Task[None] | None = None
+        if host is not None:
+            host.broker.loop = loop
+            host.start()
+            pump = asyncio.create_task(host.pump())
         services.dispatcher.start()
         services.retention.start()
         services.config.start()
@@ -88,6 +96,10 @@ def create_app(
         try:
             yield
         finally:
+            if pump is not None:
+                pump.cancel()
+            if host is not None:
+                host.stop()
             await services.config.stop()
             await services.retention.stop()
             await services.dispatcher.stop()
@@ -146,4 +158,5 @@ def create_app(
     app.include_router(stats.router)
     app.include_router(backups.router)
     app.include_router(events.router)
+    app.include_router(extension_router)
     return app

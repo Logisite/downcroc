@@ -34,6 +34,7 @@ Credential-like fields (passwords, tokens, secrets, authorization material) are 
 - [policy-config.md](policy-config.md) — send policy and configuration changes.
 - [system.md](system.md) — backup/restore, API/SSE, quota, snapshots, and other operational events.
 - [backfill.md](backfill.md) — Gmail thread id backfill lifecycle, lookups, and retries.
+- [extensions.md](extensions.md) — extension lifecycle, capability calls, denials, and restarts.
 
 ## Notes
 

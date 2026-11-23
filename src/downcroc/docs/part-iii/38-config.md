@@ -225,6 +225,17 @@ thread ids on older Gmail messages so threads can be grouped correctly.
 - `backfill.startup_delay_s` (default `30.0`, 0–3600): Daemon-start stagger before the first hole count.
 - `backfill.pass_cooldown_s` (default `300.0`, 0–86400): Wait after a drain turn that filled no holes.
 
+## extensions
+
+- `extensions.enabled` (default `true`): Start the extension host with the daemon.
+- `extensions.dir` (default `extensions`): Directory under the config home holding extension manifests.
+- `extensions.max_restarts` (default `3`, 0–100): Restart ceiling for a crashed extension.
+- `extensions.call_timeout_s` (default `30.0`, >0, ≤600): Seconds an extension may take to answer one event.
+- `extensions.max_calls_per_min` (default `120`, 1–100000): Per-extension capability call limit.
+- `extensions.max_sends_per_hour` (default `200`, 1–100000): Per-extension mail action limit.
+
+Each enabled extension also has a `[extensions.<id>]` table with `enabled`, `trust`, `allow`, and `settings`. See [the extension command](../part-ii/28-extension/extension.md).
+
 ## See also
 
 - [../part-ii/17-config/config.md](../part-ii/17-config/config.md) — view and set configuration from the CLI

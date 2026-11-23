@@ -38,3 +38,4 @@
 25-uninstall/uninstall.md
 26-repair/repair.md
 27-backfill/backfill.md
+28-extension/extension.md

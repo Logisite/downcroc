@@ -37,6 +37,7 @@ HANDLERS: dict[str, str] = {
     "update": "downcroc.cli.commands.update:run",
     "repair": "downcroc.cli.commands.repair:run",
     "uninstall": "downcroc.cli.commands.uninstall:run",
+    "extension": "downcroc.extensions.cli:run",
 }
 
 

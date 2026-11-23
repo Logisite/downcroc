@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 
 from downcroc.cli.parser import account, batch, other, provider, vault
-from downcroc.cli.parser.common import Parser, root
+from downcroc.cli.parser.common import Parser, common, root
+from downcroc.extensions.manifest import load_manifests
+from downcroc.extensions.parser import add_extensions
+from downcroc.runtime.paths import resolve
 
 
 class VersionAction(argparse.Action):
@@ -52,4 +55,25 @@ def build_parser() -> argparse.ArgumentParser:
     other.mail(commands)
     other.logs(commands)
     other.files(commands)
+    add_extensions(commands)
+    _add_extension_commands(commands)
     return parser
+
+
+def _add_extension_commands(commands: argparse._SubParsersAction) -> None:
+    paths = resolve()
+    manifests = load_manifests(paths.config / "extensions")
+    for manifest in manifests:
+        for command in manifest.commands:
+            name = command.name
+            if name in commands._name_parser_map:
+                continue
+            parser = commands.add_parser(name, help=command.help)
+            parser.set_defaults(
+                action="run",
+                extension_id=manifest.id,
+                extension_command=name,
+            )
+            for arg in command.args:
+                parser.add_argument(f"--{arg}")
+            common(parser)

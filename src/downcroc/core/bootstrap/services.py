@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from downcroc.core.capacity import CapacityService
     from downcroc.core.config_service import ConfigService
     from downcroc.core.connectivity import ConnectivityMonitor, ConnectivityState
+    from downcroc.core.credentials import CredentialResolver
     from downcroc.core.dispatch import Dispatcher, FailureService
     from downcroc.core.doctor import DoctorService
     from downcroc.core.events import EventBus
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from downcroc.core.vault import VaultService
     from downcroc.core.vault.credentials import CredentialPresence
     from downcroc.core.vault.prune import VaultMaintenance
+    from downcroc.extensions.host import ExtensionHost
     from downcroc.providers.registry import ProviderRegistry
     from downcroc.store.content import ContentStore
     from downcroc.store.repositories.events import EventRepo
@@ -50,6 +52,7 @@ class Services:
     bus: EventBus
     accounts: AccountsService
     vault: VaultService
+    credentials: CredentialResolver
     vault_maintenance: VaultMaintenance
     presence: CredentialPresence
     auth_preflight: AuthPreflight
@@ -82,6 +85,7 @@ class Services:
     config: ConfigService
     connectivity_state: ConnectivityState
     connectivity: ConnectivityMonitor
+    extensions: ExtensionHost | None = None
 
     def close(self) -> None:
         self.connectivity.stop()

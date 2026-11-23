@@ -19,6 +19,7 @@ from downcroc.core.bootstrap.support import build_support
 from downcroc.core.bootstrap.transports import build_transports
 from downcroc.core.delivered_id import DeliveredIdResolver
 from downcroc.core.outbound.backfill import ThreadBackfillWorker
+from downcroc.extensions.build import build_host
 from downcroc.runtime.config.schema import Settings
 from downcroc.runtime.logging.setup import EventLogger
 from downcroc.runtime.paths import Paths
@@ -76,13 +77,14 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         foundation.log,
         delivered_ids,
     )
-    return Services(
+    services = Services(
         engine=foundation.engine,
         sessions=foundation.sessions,
         events=foundation.events,
         bus=foundation.bus,
         accounts=accounts,
         vault=foundation.vault,
+        credentials=credentials,
         vault_maintenance=vault_maintenance,
         presence=foundation.presence,
         auth_preflight=auth_preflight,
@@ -120,3 +122,5 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         connectivity_state=foundation.connectivity_state,
         connectivity=support.connectivity,
     )
+    build_host(services, paths, settings.extensions, foundation.log)
+    return services

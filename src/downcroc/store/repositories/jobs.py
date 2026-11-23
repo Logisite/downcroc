@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -219,6 +221,27 @@ class JobRepo(JobSenderRepo, JobStateRepo):
                 select(JobRow.batch_id).where(JobRow.state.in_(_ACTIVE))
             )
             return {str(row) for row in rows}
+
+    def set_thread(
+        self,
+        job_id: str,
+        *,
+        parent_job_id: str | None,
+        thread_root_job_id: str | None,
+    ) -> None:
+        with self._sessions.begin() as session:
+            row = session.get(JobRow, job_id)
+            if row is not None:
+                row.parent_job_id = parent_job_id
+                row.thread_root_job_id = thread_root_job_id
+
+    def set_extension(self, job_id: str, extension: str) -> None:
+        with self._sessions.begin() as session:
+            row = session.get(JobRow, job_id)
+            if row is not None:
+                values = json.loads(row.vars_json) if row.vars_json else {}
+                values["extension"] = extension
+                row.vars_json = json.dumps(values)
 
     def counts(self, batch_id: str) -> dict[str, int]:
         with self._sessions() as session:

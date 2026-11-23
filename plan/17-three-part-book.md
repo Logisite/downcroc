@@ -62,6 +62,7 @@ part-ii/
   23-openapi/   openapi.md
   24-update/    update.md
   25-uninstall/ uninstall.md
+  28-extension/ extension.md
 ```
 
 `status` is its own chapter (a read of the whole system) separate from
