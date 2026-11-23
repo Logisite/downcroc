@@ -35,6 +35,9 @@ downcroc extension
 ├── add       PATH
 ├── build     DIR [--output PATH]
 ├── verify    EXTENSION
+├── approval  EXTENSION
+├── approve   EXTENSION [--password PASSWORD]
+├── revoke    EXTENSION
 ├── enable    EXTENSION
 ├── disable   EXTENSION
 ├── reload
@@ -280,6 +283,12 @@ events while you try it.
 
 ## See also
 
+- [Writing an extension](authoring.md) — build one from an empty directory
+- [Wire protocol](protocol.md) — exact frames and shapes
+- [Capabilities](capabilities.md) — every call with examples
+- [Elevated extensions](elevated.md) — tiers and approval
+- [Artifacts](artifacts.md) — build, verify, and replace a `.pyz`
+- [Troubleshooting](troubleshooting.md) — common failures
 - [Extension log events](events.md) — what the host records
 - [../../part-iii/38-config.md](../../part-iii/38-config.md) — extension host settings
 - [../17-config/config.md](../17-config/config.md) — viewing and setting config

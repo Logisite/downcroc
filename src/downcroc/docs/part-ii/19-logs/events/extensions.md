@@ -45,6 +45,17 @@ there is nothing to log by accident.
   - `error`: error class.
   - `detail`: short detail. The same restart ceiling applies.
 
+## Approval
+
+- `extension.approved` (**info**) — an elevated extension was approved with the
+  vault password.
+  - `extension`: extension id.
+  - `tier`: `elevated`.
+  - `manifest_digest`: short prefix of the approved manifest digest.
+
+- `extension.revoked` (**info**) — elevated approval was removed.
+  - `extension`: extension id.
+
 ## Artifact verification
 
 - `extension.artifact_invalid` (**error**) — a packaged extension artifact was

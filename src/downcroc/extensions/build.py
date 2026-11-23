@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from downcroc.extensions.approval import ApprovalService
 from downcroc.extensions.broker import Broker
 from downcroc.extensions.host import ExtensionHost
 from downcroc.extensions.manifest import load_manifests
@@ -26,6 +27,7 @@ def build_host(
     from downcroc.extensions.capabilities import register_capabilities
 
     register_capabilities(broker)
+    approvals = ApprovalService(store, services.vault, log)
     host = ExtensionHost(
         paths,
         settings,
@@ -34,6 +36,7 @@ def build_host(
         store,
         log,
         services.bus,
+        approvals,
     )
     services.extensions = host
     return host

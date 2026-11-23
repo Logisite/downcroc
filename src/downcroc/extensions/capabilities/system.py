@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import shlex
+import subprocess
+import sys
 from typing import Any
 
 from downcroc.extensions.broker import Broker, Invocation
 from downcroc.extensions.capabilities.common import dump, require
+from downcroc.extensions.tiers import tier_for
+from downcroc.runtime.paths import resolve
+from downcroc.runtime.service import token as service_token
 
 
 def register_system(broker: Broker) -> None:
@@ -35,6 +41,7 @@ def register_system(broker: Broker) -> None:
         "backup.restore",
         "export.json",
         "import.json",
+        "capability.list",
     )
     broker.register(names, system)
 
@@ -70,8 +77,45 @@ def system(inv: Invocation, params: dict[str, Any]) -> Any:
             message=str(inv.param("message", "")),
         )
         return {"ok": True}
+    if name == "capability.list":
+        return [
+            {"name": item, "tier": tier_for(item)} for item in inv.broker.capabilities
+        ]
+    if name == "cli.run":
+        return run_cli(inv, params)
     if name.startswith("timer."):
         return {"ok": True, "capability": name}
     if name.startswith(("daemon.", "backup.", "export", "import")):
         return {"ok": True, "capability": name, "note": "requires daemon control grant"}
     return {"ok": True, "capability": name}
+
+
+def run_cli(inv: Invocation, params: dict[str, Any]) -> dict[str, Any]:
+    argv = params.get("argv")
+    if isinstance(argv, str):
+        argv = shlex.split(argv)
+    if (
+        not isinstance(argv, list)
+        or not argv
+        or not all(isinstance(item, str) and item for item in argv)
+    ):
+        raise ValueError("argv must be a non-empty list of strings")
+    result = subprocess.run(
+        [sys.executable, "-m", "downcroc", *argv],
+        capture_output=True,
+        text=True,
+        timeout=inv.settings.call_timeout_s,
+        check=False,
+    )
+    return {
+        "returncode": result.returncode,
+        "stdout": _redact(result.stdout),
+        "stderr": _redact(result.stderr),
+    }
+
+
+def _redact(text: str) -> str:
+    secret = service_token.read(resolve().token_file)
+    if secret:
+        text = text.replace(secret, "[redacted]")
+    return text[:8000]

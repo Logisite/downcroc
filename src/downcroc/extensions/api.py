@@ -24,6 +24,22 @@ def capabilities(request: Request) -> dict[str, Any]:
     return {"capabilities": list(_host(request).broker.capabilities)}
 
 
+@router.get("/{extension}/approval")
+def approval_status(extension: str, request: Request) -> dict[str, Any]:
+    return _host(request).approval_status(extension)
+
+
+@router.post("/{extension}/approve")
+def approve_extension(extension: str, body: dict[str, Any], request: Request) -> Any:
+    return _host(request).approve(extension, str(body.get("password", "")))
+
+
+@router.post("/{extension}/revoke")
+def revoke_extension(extension: str, request: Request) -> dict[str, Any]:
+    _host(request).revoke(extension)
+    return {"ok": True}
+
+
 @router.post("/reload")
 def reload_extensions(request: Request) -> dict[str, Any]:
     _host(request).reload()

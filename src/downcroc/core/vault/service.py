@@ -120,6 +120,31 @@ class VaultService:
             self._publish("vault.unlocked", {"state": "unlocked"})
             return self.status()
 
+    def verify(self, password: str) -> bool:
+        with self._lock:
+            remaining = self._next_attempt - time.monotonic()
+            if remaining > 0:
+                seconds = max(0.1, round(remaining, 1))
+                raise VaultThrottled(
+                    f"too many failed attempts, try again in {seconds} seconds",
+                    hint=f"retry after {seconds} seconds",
+                    details=[{"retry_after_s": seconds}],
+                )
+            if not self._path.exists():
+                raise VaultLocked(
+                    "the vault does not exist",
+                    hint="run downcroc vault init first",
+                )
+            try:
+                _header, key, _payload = self._file.open(password)
+            except VaultBadPassword:
+                self._record_failure()
+                return False
+            del key
+            self._failures = 0
+            self._next_attempt = 0.0
+            return True
+
     def lock(self, reason: str) -> VaultStatus:
         with self._lock:
             if self._key is None:

@@ -8,8 +8,14 @@ from downcroc.cli.ui import prompts
 from downcroc.cli.ui.session import Ui, build
 
 
-def _pending(client) -> list[dict]:
-    return get(client, "/api/batches", state="awaiting_approval", limit=100)
+def _pending(client, ui: Ui) -> list[dict]:
+    return get(
+        client,
+        "/api/batches",
+        state="awaiting_approval",
+        limit=100,
+        newest_first=ui.newest_first,
+    )
 
 
 def _list(rows: list[dict], ui: Ui) -> None:
@@ -134,7 +140,7 @@ def run(args: object) -> int:
                 _detail(batch)
                 return 0
             return _action(client, batch, args, ui)
-        rows = _pending(client)
+        rows = _pending(client, ui)
         if ui.json_mode:
             json_out(rows)
             return 0

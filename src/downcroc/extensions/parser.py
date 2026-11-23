@@ -37,6 +37,22 @@ def add_extensions(commands: argparse._SubParsersAction) -> None:
     common(verify)
     verify.set_defaults(action="verify")
 
+    approval = actions.add_parser("approval", help="show approval status")
+    approval.add_argument("extension")
+    common(approval)
+    approval.set_defaults(action="approval")
+
+    approve = actions.add_parser("approve", help="approve elevated capabilities")
+    approve.add_argument("extension")
+    approve.add_argument("--password", help="vault password, prompts if omitted")
+    common(approve)
+    approve.set_defaults(action="approve")
+
+    revoke = actions.add_parser("revoke", help="revoke elevated capabilities")
+    revoke.add_argument("extension")
+    common(revoke)
+    revoke.set_defaults(action="revoke")
+
     enable = actions.add_parser("enable", help="enable an extension")
     enable.add_argument("extension")
     enable.set_defaults(action="enable")

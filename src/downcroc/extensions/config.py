@@ -16,10 +16,30 @@ class ExtensionSettings(BaseModel):
         default="extensions",
         description="Directory under the config home holding extension manifests.",
     )
-    max_restarts: int = Field(default=3, ge=0, le=100)
-    call_timeout_s: float = Field(default=30.0, gt=0, le=600)
-    max_calls_per_min: int = Field(default=120, ge=1, le=100_000)
-    max_sends_per_hour: int = Field(default=200, ge=1, le=100_000)
+    max_restarts: int = Field(
+        default=3,
+        ge=0,
+        le=100,
+        description="Restart ceiling for a crashed extension.",
+    )
+    call_timeout_s: float = Field(
+        default=30.0,
+        gt=0,
+        le=600,
+        description="Seconds an extension may take to answer one event.",
+    )
+    max_calls_per_min: int = Field(
+        default=120,
+        ge=1,
+        le=100_000,
+        description="Per-extension capability call limit per minute.",
+    )
+    max_sends_per_hour: int = Field(
+        default=200,
+        ge=1,
+        le=100_000,
+        description="Per-extension mail action limit per hour.",
+    )
 
 
 class ExtensionConfig(BaseModel):

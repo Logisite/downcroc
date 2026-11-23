@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from downcroc.extensions.errors import ManifestError
+from downcroc.extensions.tiers import tier_for
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
@@ -30,6 +31,7 @@ class Manifest:
     kind: str = "local"
     artifact: str = ""
     artifact_sha256: str = ""
+    tier: str = "standard"
 
     @property
     def config_key(self) -> str:
@@ -69,18 +71,29 @@ def parse_manifest_data(
     run = _run(data.get("run"), name, required=kind != "pyz")
     if require_artifact and kind == "pyz" and (not artifact or not checksum):
         raise ManifestError(f"{name}: pyz extension needs artifact and artifact_sha256")
+    tier = str(data.get("tier") or "standard")
+    if tier not in {"standard", "elevated"}:
+        raise ManifestError(f"{name}: tier must be standard or elevated")
+    capabilities = _strings(data.get("capabilities"), name)
+    if tier == "standard":
+        for capability in capabilities:
+            if tier_for(capability) == "elevated":
+                raise ManifestError(
+                    f"{name}: capability {capability} needs tier = 'elevated'"
+                )
     return Manifest(
         id=identifier,
         run=run,
         name=str(data.get("name") or identifier),
         version=str(data.get("version") or ""),
         events=_strings(data.get("events"), name),
-        capabilities=_strings(data.get("capabilities"), name),
+        capabilities=capabilities,
         commands=_commands(data.get("commands"), name),
         source=source,
         kind=kind,
         artifact=artifact,
         artifact_sha256=checksum,
+        tier=tier,
     )
 
 

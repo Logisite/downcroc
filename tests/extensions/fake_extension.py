@@ -16,6 +16,21 @@ def main() -> None:
         payload = message.get("payload") or {}
         leaked = [key for key in os.environ if key.startswith("DOWNCROC_")]
         detail = "ENVLEAK" if leaked else "clean"
+        if payload.get("reason") == "cli":
+            print(
+                json.dumps(
+                    {
+                        "actions": [
+                            {
+                                "capability": "cli.run",
+                                "argv": ["--version"],
+                            }
+                        ]
+                    }
+                ),
+                flush=True,
+            )
+            continue
         if payload.get("reason") == "reply":
             print(
                 json.dumps(

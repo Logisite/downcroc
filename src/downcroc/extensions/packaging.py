@@ -83,6 +83,7 @@ def install(path: Path, config_dir: Path) -> Manifest:
         kind="pyz",
         artifact=str(target.relative_to(config_dir)),
         artifact_sha256=checksum,
+        tier=artifact.tier,
     )
     installed.source.write_text(render_manifest(installed), encoding="utf-8")
     return installed
@@ -109,6 +110,7 @@ def render_manifest(manifest: Manifest) -> str:
         f"id = {_text(manifest.id)}",
         f"name = {_text(manifest.name)}",
         f"version = {_text(manifest.version)}",
+        f"tier = {_text(manifest.tier)}",
         'kind = "pyz"',
         f"artifact = {_text(manifest.artifact)}",
         f"artifact_sha256 = {_text(manifest.artifact_sha256)}",

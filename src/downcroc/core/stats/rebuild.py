@@ -73,11 +73,13 @@ class RebuildService:
         if covered is None:
             activity_rows = 0
         else:
+            stored_limits = self._activity.limits(covered, end_day)
             hourly, daily = _build_activity(
                 job_rows,
                 message_rows,
                 covered,
                 allowances,
+                stored_limits,
                 self._send_attempts.attribution(),
             )
             _merge_suppressed(
@@ -85,6 +87,7 @@ class RebuildService:
                 daily,
                 self._activity.suppressed(covered),
                 allowances,
+                stored_limits,
             )
             activity_rows = self._activity.replace(covered, hourly, daily)
 
@@ -126,6 +129,7 @@ def _build_activity(
     message_rows: list[tuple[str, str, bool, str, str | None]],
     since_day: str | None,
     allowances: dict[str, int],
+    stored_limits: dict[tuple[str, str], int],
     attribution: dict[str, str],
 ) -> tuple[
     dict[tuple[str, str], dict[str, int]], dict[tuple[str, str], dict[str, int]]
@@ -138,14 +142,39 @@ def _build_activity(
         if account_id is None:
             continue
         if state in SENT_STATES and sent_at:
-            _bump(hourly, daily, account_id, sent_at, "sent", since_day, allowances)
+            _bump(
+                hourly,
+                daily,
+                account_id,
+                sent_at,
+                "sent",
+                since_day,
+                allowances,
+                stored_limits,
+            )
         if state == "failed" and updated_at:
             _bump(
-                hourly, daily, account_id, updated_at, "failed", since_day, allowances
+                hourly,
+                daily,
+                account_id,
+                updated_at,
+                "failed",
+                since_day,
+                allowances,
+                stored_limits,
             )
 
     for account_id, ingested_at, is_dsn, reply_state, job_id in message_rows:
-        _bump(hourly, daily, account_id, ingested_at, "received", since_day, allowances)
+        _bump(
+            hourly,
+            daily,
+            account_id,
+            ingested_at,
+            "received",
+            since_day,
+            allowances,
+            stored_limits,
+        )
         if reply_state == "confirmed":
             _bump(
                 hourly,
@@ -155,6 +184,7 @@ def _build_activity(
                 "replies",
                 since_day,
                 allowances,
+                stored_limits,
             )
         if is_dsn and job_id is not None:
             _bump(
@@ -165,6 +195,7 @@ def _build_activity(
                 "bounces",
                 since_day,
                 allowances,
+                stored_limits,
             )
     return hourly, daily
 
@@ -177,6 +208,7 @@ def _bump(
     field: str,
     since_day: str | None,
     allowances: dict[str, int],
+    stored_limits: dict[tuple[str, str], int],
 ) -> None:
     try:
         moment = parse_utc(stamp)
@@ -189,7 +221,8 @@ def _bump(
     hkey = (account_id, hour)
     dkey = (account_id, day)
     hourly.setdefault(hkey, _blank())
-    daily.setdefault(dkey, {**_blank(), "quota_limit": allowances.get(account_id, 0)})
+    limit = stored_limits.get(dkey) or allowances.get(account_id, 0)
+    daily.setdefault(dkey, {**_blank(), "quota_limit": limit})
     hourly[hkey][field] += 1
     daily[dkey][field] += 1
 
@@ -199,12 +232,13 @@ def _merge_suppressed(
     daily: dict[tuple[str, str], dict[str, int]],
     suppressed: tuple[dict[tuple[str, str], int], dict[tuple[str, str], int]],
     allowances: dict[str, int],
+    stored_limits: dict[tuple[str, str], int],
 ) -> None:
     hourly_suppressed, daily_suppressed = suppressed
     for key, value in hourly_suppressed.items():
         hourly.setdefault(key, _blank())["suppressed"] = value
     for key, value in daily_suppressed.items():
-        extras = {"quota_limit": allowances.get(key[0], 0)}
+        extras = {"quota_limit": stored_limits.get(key) or allowances.get(key[0], 0)}
         daily.setdefault(key, {**_blank(), **extras})["suppressed"] = value
 
 

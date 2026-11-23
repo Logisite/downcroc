@@ -18,13 +18,14 @@ from tests.harness.seed import until
 SCRIPT = Path(__file__).parent / "fake_extension.py"
 
 
-def _write_manifest(stack, capabilities: str = '"log"') -> None:
+def _write_manifest(stack, capabilities: str = '"log"', tier: str = "standard") -> None:
     directory = stack.daemon.config / "extensions"
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "fake.toml").write_text(
         "\n".join(
             [
                 'id = "fake"',
+                f'tier = "{tier}"',
                 'name = "Fake extension"',
                 'version = "1.0.0"',
                 f"run = [{json.dumps(sys.executable)}, {json.dumps(str(SCRIPT))}]",
@@ -75,6 +76,66 @@ def test_extension_denies_ungranted_capability(stack_factory) -> None:
 
     denied = events(stack).get("extension.denied", [])
     assert any(item.get("capability") == "mail.send" for item in denied)
+
+
+def test_elevated_capability_needs_approval_and_revoke_denies_again(
+    stack_factory,
+) -> None:
+    stack = stack_factory(accounts=[])
+    _write_manifest(stack, '"log", "cli.run"', tier="elevated")
+    stack.api.post("/api/extensions/reload")
+    stack.api.post("/api/extensions/fake/enable")
+
+    payload = {"event": "reply.attributed", "reason": "cli"}
+    result = stack.api.post("/api/extensions/fake/test", payload)
+    assert result[0]["error"] == "CapabilityDenied"
+    assert "approved" in result[0]["detail"]
+
+    status = stack.api.get("/api/extensions/fake/approval")
+    assert status["approved"] is False
+
+    status, _body = stack.api.raw(
+        "POST",
+        "/api/extensions/fake/approve",
+        {"password": "wrong-password"},
+    )
+    assert status == 500
+
+    approved = stack.api.post(
+        "/api/extensions/fake/approve", {"password": "test-password"}
+    )
+    assert approved["tier"] == "elevated"
+    result = stack.api.post("/api/extensions/fake/test", payload)
+    assert result[0]["returncode"] == 0
+
+    stack.api.post("/api/extensions/fake/revoke")
+    result = stack.api.post("/api/extensions/fake/test", payload)
+    assert result[0]["error"] == "CapabilityDenied"
+
+
+def test_cli_run_is_real_and_redacts_the_token(stack_factory) -> None:
+    stack = stack_factory(accounts=[])
+    _write_manifest(stack, '"log", "cli.run"', tier="elevated")
+    stack.api.post("/api/extensions/reload")
+    stack.api.post("/api/extensions/fake/approve", {"password": "test-password"})
+    stack.api.post("/api/extensions/fake/enable")
+
+    result = stack.api.post(
+        "/api/extensions/fake/test",
+        {"event": "reply.attributed", "reason": "cli"},
+    )
+    assert len(result) == 1
+    payload = result[0]
+    assert payload["returncode"] == 0
+    assert "downcroc" in payload["stdout"]
+
+    token = (
+        (stack.daemon.state_home / "downcroc" / "daemon.token")
+        .read_text(encoding="utf-8")
+        .strip()
+    )
+    assert token not in payload["stdout"]
+    assert token not in payload["stderr"]
 
 
 def test_extension_can_reply_to_a_confirmed_reply(stack_factory) -> None:

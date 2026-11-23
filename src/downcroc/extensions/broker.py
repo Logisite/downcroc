@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from downcroc.extensions.config import parse_grant
 from downcroc.extensions.errors import CapabilityDenied
 from downcroc.extensions.events import call_event
+from downcroc.extensions.tiers import tier_for
 
 if TYPE_CHECKING:
     from downcroc.core.bootstrap.services import Services
@@ -33,6 +34,7 @@ class Invocation:
     grants: frozenset[str]
     settings_values: dict[str, Any]
     origin: str = "event"
+    approved: bool = False
 
     def granted(self, capability: str) -> bool:
         if capability in self.grants:
@@ -78,6 +80,7 @@ class Broker:
         settings: dict[str, Any],
         *,
         origin: str = "event",
+        approved: bool = False,
     ) -> Any:
         started = time.monotonic()
         invocation = Invocation(
@@ -92,6 +95,7 @@ class Broker:
             grants,
             settings,
             origin,
+            approved,
         )
         try:
             self._authorize(invocation)
@@ -117,6 +121,10 @@ class Broker:
             raise
 
     def _authorize(self, invocation: Invocation) -> None:
+        if tier_for(invocation.capability) == "elevated" and not invocation.approved:
+            raise CapabilityDenied(
+                f"capability {invocation.capability} needs an approved extension"
+            )
         name, qualifier = parse_grant(invocation.capability)
         scoped = any(grant.partition(":")[0] == name for grant in invocation.grants)
         if (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from downcroc.extensions.broker import Broker
+from downcroc.extensions.tiers import tier_for
 
 
 def register_capabilities(broker: Broker) -> None:
@@ -26,3 +27,5 @@ def register_capabilities(broker: Broker) -> None:
         register_network,
     ):
         register(broker)
+    for name in broker.capabilities:
+        tier_for(name)

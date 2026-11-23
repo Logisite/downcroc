@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -91,7 +91,10 @@ class ActivityRepo:
                 if values[field]
             }
             if quota_limit is not None:
-                updated["quota_limit"] = quota_limit
+                updated["quota_limit"] = case(
+                    (ActivityDailyRow.quota_limit > 0, ActivityDailyRow.quota_limit),
+                    else_=quota_limit,
+                )
             daily = daily.on_conflict_do_update(
                 index_elements=[ActivityDailyRow.account_id, ActivityDailyRow.day],
                 set_=updated,
@@ -203,6 +206,20 @@ class ActivityRepo:
                 )
                 for row in rows
             )
+
+    def limits(self, start_day: str, end_day: str) -> dict[tuple[str, str], int]:
+        with self._sessions() as session:
+            rows = session.execute(
+                select(
+                    ActivityDailyRow.account_id,
+                    ActivityDailyRow.day,
+                    ActivityDailyRow.quota_limit,
+                ).where(
+                    ActivityDailyRow.day >= start_day,
+                    ActivityDailyRow.day <= end_day,
+                )
+            )
+            return {(row[0], row[1]): int(row[2] or 0) for row in rows}
 
     def stored_sent(self, start_day: str, end_day: str) -> int:
         with self._sessions() as session:

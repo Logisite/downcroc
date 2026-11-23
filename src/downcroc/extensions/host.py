@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from downcroc.extensions import packaging
+from downcroc.extensions.approval import ApprovalService
 from downcroc.extensions.broker import Broker
 from downcroc.extensions.config import ExtensionConfig, ExtensionSettings
 from downcroc.extensions.errors import (
@@ -95,7 +96,9 @@ class ExtensionHost:
         store: ExtensionStore,
         log: EventLogger,
         bus: Any,
+        approvals: ApprovalService,
     ) -> None:
+        self.approvals = approvals
         self.bus = bus
         self.paths = paths
         self.settings = settings
@@ -304,6 +307,19 @@ class ExtensionHost:
             for item in self.registered.values()
         ]
 
+    def approve(self, extension: str, password: str) -> dict[str, str]:
+        return self.approvals.approve(self._get(extension).manifest, password)
+
+    def revoke(self, extension: str) -> None:
+        self.approvals.revoke(extension)
+        item = self._get(extension)
+        if item.process is not None:
+            item.process.stop()
+            item.process = None
+
+    def approval_status(self, extension: str) -> dict[str, object]:
+        return self.approvals.status(self._get(extension).manifest)
+
     def verify(self, extension: str) -> dict[str, Any]:
         item = self._get(extension)
         if item.manifest.kind != "pyz":
@@ -362,6 +378,8 @@ class ExtensionHost:
                         params,
                         frozenset(item.config.allow or item.manifest.capabilities),
                         item.config.settings,
+                        approved=item.manifest.tier == "elevated"
+                        and self.approvals.is_approved(item.manifest),
                     )
                 )
             except (

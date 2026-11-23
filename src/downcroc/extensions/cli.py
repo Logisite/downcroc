@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import json
 import shutil
 from pathlib import Path
@@ -28,6 +29,12 @@ def run(args: object) -> int:
             return _add(paths, str(args.path), client)
         if action == "verify":
             return _verify(client, str(args.extension), ui.json_mode)
+        if action == "approval":
+            return _show_approval(client, str(args.extension), ui.json_mode)
+        if action == "approve":
+            return _approve(client, args)
+        if action == "revoke":
+            return _revoke(client, str(args.extension))
         if action == "enable":
             post(client, f"/api/extensions/{args.extension}/enable")
             return 0
@@ -165,6 +172,32 @@ def _verify(client: Any, extension: str, json_mode: bool) -> int:
         ["field", "value"],
         [[key, str(value)] for key, value in result.items()],
     )
+    return 0
+
+
+def _show_approval(client: Any, extension: str, json_mode: bool) -> int:
+    result = get(client, f"/api/extensions/{extension}/approval")
+    if json_mode:
+        json_out(result)
+        return 0
+    table(["field", "value"], [[key, str(value)] for key, value in result.items()])
+    return 0
+
+
+def _approve(client: Any, args: object) -> int:
+    password = getattr(args, "password", None) or getpass.getpass("Vault password: ")
+    result = post(
+        client,
+        f"/api/extensions/{args.extension}/approve",
+        {"password": password},
+    )
+    json_out(result)
+    return 0
+
+
+def _revoke(client: Any, extension: str) -> int:
+    post(client, f"/api/extensions/{extension}/revoke")
+    json_out({"ok": True, "extension": extension})
     return 0
 
 
