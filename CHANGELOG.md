@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.6.post1
+
+Extensions install as one verified `.pyz` artifact.
+
+See [`release-notes/v1.3.6.post1.md`](release-notes/v1.3.6.post1.md).
+
 ## 1.3.6
 
 Adds a capability-based extension system for third-party and agent behavior.
