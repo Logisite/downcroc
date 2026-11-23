@@ -29,3 +29,27 @@ events and the config's `allow` list before reading anything else.
 
 No event in this family contains a credential. That is the boundary the whole
 extension system is built around, and the log is where you can confirm it held.
+
+## Log events versus bus events
+
+The JSONL log and the event bus are two different streams. A log event is what
+`downcroc logs` reads. A bus event is what the `/api/events` stream delivers.
+The same name can exist in both, but the extension host does not publish its
+own lifecycle events to the bus.
+
+Every `extension.*` event is **log only**: `extension.started`,
+`extension.stopped`, `extension.crashed`, `extension.timeout`,
+`extension.artifact_invalid`, `extension.call`, `extension.call_failed`,
+`extension.denied`, `extension.approved`, `extension.revoked`, and
+`extension.notify`. To see them, read the log or use `downcroc extension logs`.
+Do not subscribe to them as daemon events and expect delivery.
+
+Some daemon events are published to both streams, including `quota.committed`,
+`policy.changed`, `vault.unlocked`, `vault.locked`, `batch.approved`, and
+`job.sent`. Those are the events an extension can subscribe to by name. The
+field sets in the bus event and the log line are not always identical, so only
+rely on the fields documented in [Wire protocol](protocol.md).
+
+An extension can publish its own bus event with the elevated `event.publish`
+capability. That is an explicit action, not an automatic side effect of writing
+a log line. See [Capabilities](capabilities.md) for the call shape.

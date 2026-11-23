@@ -337,6 +337,8 @@ LOG_EVENT_CALL = re.compile(
     r'\.(?:debug|info|warning|warn|error|critical)\(\s*"([a-zA-Z0-9_.-]+)"'
 )
 DOC_EVENT_ITEM = re.compile(r"^- `([a-z0-9_.-]+)` \(\*\*", re.MULTILINE)
+CAPABILITY_HEADING = re.compile(r"^###\s+(.+)$", re.MULTILINE)
+CAPABILITY_DOC = DOCS_ROOT / "part-ii/28-extension/capabilities.md"
 
 
 def _read_event_list(path: Path) -> set[str]:
@@ -431,6 +433,33 @@ def check_config_reference() -> list[str]:
     return errors
 
 
+def check_extension_capabilities() -> list[str]:
+    if not CAPABILITY_DOC.is_file():
+        return ["missing capability reference: part-ii/28-extension/capabilities.md"]
+    text = CAPABILITY_DOC.read_text(encoding="utf-8")
+    from downcroc.extensions.broker import Broker
+    from downcroc.extensions.capabilities import register_capabilities
+
+    broker = Broker(None, None, None, None)
+    register_capabilities(broker)
+    registered = set(broker.capabilities)
+    documented: set[str] = set()
+    for match in CAPABILITY_HEADING.finditer(text):
+        for piece in re.split(r",|\band\b", match.group(1)):
+            token = piece.strip().strip("`")
+            if token in registered:
+                documented.add(token)
+    errors = [
+        f"undocumented extension capability in part-ii/28-extension/capabilities.md: {name}"
+        for name in sorted(registered - documented)
+    ]
+    errors.extend(
+        f"stale extension capability in part-ii/28-extension/capabilities.md: {name}"
+        for name in sorted(documented - registered)
+    )
+    return errors
+
+
 def holder_pages(pages: list[Page]) -> list[Page]:
     return [page for page in pages if page.is_holder]
 
@@ -471,6 +500,7 @@ def run_check() -> int:
     for item in log_warnings:
         print(item, file=sys.stderr)
     problems.extend(check_config_reference())
+    problems.extend(check_extension_capabilities())
     # also run glossary self-check (drift + see_also + term refs)
     try:
         import importlib.util

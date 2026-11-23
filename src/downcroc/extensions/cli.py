@@ -203,11 +203,14 @@ def _revoke(client: Any, extension: str) -> int:
 
 def _capabilities(client: Any, json_mode: bool) -> int:
     result = get(client, "/api/extensions/capabilities")
-    names = result.get("capabilities", [])
+    rows = result.get("capabilities", [])
     if json_mode:
-        json_out(names)
+        json_out(rows)
         return 0
-    table(["capability"], [[name] for name in names])
+    if rows and isinstance(rows[0], dict):
+        table(["capability", "tier"], [[row["name"], row["tier"]] for row in rows])
+        return 0
+    table(["capability"], [[name] for name in rows])
     return 0
 
 

@@ -38,6 +38,16 @@ def _write_manifest(stack, capabilities: str = '"log"', tier: str = "standard") 
     )
 
 
+def test_capabilities_endpoint_reports_tiers(stack_factory) -> None:
+    stack = stack_factory(accounts=[])
+    result = stack.api.get("/api/extensions/capabilities")
+    rows = result["capabilities"]
+    by_name = {row["name"]: row["tier"] for row in rows}
+    assert by_name["log"] == "standard"
+    assert by_name["cli.run"] == "elevated"
+    assert by_name["http.request"] == "elevated"
+
+
 def test_extension_runs_and_logs_without_credentials(stack_factory) -> None:
     stack = stack_factory(accounts=[])
     _write_manifest(stack)

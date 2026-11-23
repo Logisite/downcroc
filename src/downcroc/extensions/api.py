@@ -4,6 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
+from downcroc.extensions.tiers import tier_for
+
 router = APIRouter(prefix="/api/extensions", tags=["extensions"])
 
 
@@ -21,7 +23,12 @@ def list_extensions(request: Request) -> list[dict[str, Any]]:
 
 @router.get("/capabilities")
 def capabilities(request: Request) -> dict[str, Any]:
-    return {"capabilities": list(_host(request).broker.capabilities)}
+    return {
+        "capabilities": [
+            {"name": name, "tier": tier_for(name)}
+            for name in _host(request).broker.capabilities
+        ]
+    }
 
 
 @router.get("/{extension}/approval")

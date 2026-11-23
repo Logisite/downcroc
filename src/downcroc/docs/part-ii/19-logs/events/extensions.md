@@ -45,6 +45,22 @@ there is nothing to log by accident.
   - `error`: error class.
   - `detail`: short detail. The same restart ceiling applies.
 
+## Log events and bus events
+
+This whole family is log only. An `extension.*` event is written to the JSONL
+log and is readable with `downcroc logs --event extension.` or
+`downcroc extension logs ID`. It is not published to the daemon event bus, so it
+does not appear in the `/api/events` stream unless an extension explicitly
+calls the elevated `event.publish` capability with that name.
+
+That distinction matters for other families too. `quota.committed` is written
+to the log **and** published to the bus, along with events such as
+`policy.changed`, `vault.unlocked`, `vault.locked`, `batch.approved`, and
+`job.sent`. Most other log lines are diagnostics only. When an extension needs
+an event, subscribe by the daemon event name, not by the log line name. The
+payload fields an extension receives are documented in
+[Wire protocol](../../28-extension/protocol.md).
+
 ## Approval
 
 - `extension.approved` (**info**) — an elevated extension was approved with the

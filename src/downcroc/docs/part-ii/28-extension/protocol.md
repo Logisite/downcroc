@@ -60,14 +60,26 @@ The same loop is used by `extension test`, with one event and then shutdown.
 }
 ```
 
-The payload is sanitized. It contains ids and safe fields only. It never
-contains a password, token, vault path, or raw credential. The `event` key is
-always present inside `payload` as well as in the frame.
+The payload is sanitized with an allowlist. A field survives only if it is in
+this exact list:
 
-Common fields you can rely on when present are `message`, `account`, `job`,
-`batch`, `thread`, `reply_state`, `subject`, `from`, `state`, `created_at`,
-`sent_at`, and `reason`. A field is omitted when the event does not carry it.
-Always check before using it.
+`event`, `id`, `account`, `account_id`, `message`, `message_id`, `job`,
+`job_id`, `batch`, `batch_id`, `thread`, `thread_id`, `reply_state`, `subject`,
+`from`, `transport`, `state`, `created_at`, `sent_at`, `received_at`, `reason`.
+
+The `event` key is always present inside `payload`, even if the source event had
+no other fields. Every other field is omitted when the source event does not
+carry it. Always check before using it.
+
+Quota and counter fields are **not** in event payloads. `used`, `reserved`,
+`remaining`, `available`, `quota_limit`, and similar values never reach an
+extension through an event. If you need them, call `quota.get` for a single
+account or `stats.query` with `kind = "accounts"` for per-account used,
+reserved, and available counts. Both are standard capabilities.
+
+No password, token, vault path, raw credential, body text, or header value is
+included in an event payload. An extension that needs message content calls
+`message.get`, which returns the sanitized message record.
 
 ## actions
 

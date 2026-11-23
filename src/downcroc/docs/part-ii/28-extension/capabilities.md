@@ -185,6 +185,20 @@ Tier: standard. These are read-only views of dispatch and service state.
 {"capability": "doctor.capacity", "params": {}}
 ```
 
+### quota.get
+
+Tier: standard. Returns the current quota day, daily limit, and remaining
+allowance for an account. It takes `account`.
+
+```json
+{"capability": "quota.get", "params": {"account": "acct_1"}}
+```
+
+The result contains `account`, `day`, and `limit`. It does not contain an
+extension credential. For actual used and reserved counts, call
+`stats.query` with `kind = "accounts"`; those counts are returned there as
+`used`, `reserved`, and `available`.
+
 ### followup.status, followup.outlook, followup.due
 
 Tier: standard. `followup.status` takes `batch`. The other two accept `due`.
@@ -303,6 +317,250 @@ Tier: standard. These take no required parameters.
 
 ```json
 {"capability": "followup.plan_due", "params": {}}
+```
+
+## Complete capability index
+
+The sections above give full examples for the capabilities you will use most.
+This index documents every registered capability so you can check grants, tiers,
+and call shapes without reading source. The `downcroc extension capabilities
+--json` command returns the same names with their tiers.
+
+### account.create, account.connect, account.disconnect
+
+Tier: standard. `account.create` takes `provider`, `address`, and optional
+`label`. `account.connect` takes `account` and starts a connection attempt.
+`account.disconnect` takes `account` and refreshes its state.
+
+```json
+{"capability": "account.connect", "params": {"account": "acct_1"}}
+```
+
+### account.pause, account.resume
+
+Tier: standard. Take `account` and an optional `reason`. Pausing holds sending
+for that account; resuming releases the hold.
+
+```json
+{"capability": "account.pause", "params": {"account": "acct_1", "reason": "maintenance"}}
+```
+
+### account.archive, account.unarchive, account.reassign
+
+Tier: standard. All take `account`. `account.reassign` also takes `to` and
+optional `job_ids`. Archiving hides the account from normal lists; unarchiving
+restores it.
+
+```json
+{"capability": "account.archive", "params": {"account": "acct_1"}}
+```
+
+### account.delete, account.rename, account.set_credentials
+
+Tier: elevated. All take `account`. Deletion is a destructive operation.
+Renaming changes the label. Setting credentials writes through the vault and
+never returns the credential. These require approval.
+
+```json
+{"capability": "account.rename", "params": {"account": "acct_1", "name": "Work mail"}}
+```
+
+### backfill.status, backfill.start, backfill.stop, backfill.scan, backfill.resolve
+
+Tier: standard for `backfill.status`, elevated for the other four. Status is a
+read-only view. Start and stop control the worker. Scan and resolve trigger a
+thread-id lookup. No credential is returned.
+
+```json
+{"capability": "backfill.status", "params": {}}
+```
+
+### backup.create, backup.list, backup.restore, export.json, import.json
+
+Tier: elevated. These manage portability artifacts. `backup.create` takes an
+optional `include_logs`. `backup.restore` takes `bundle`. Import and export
+take a `path`. They require approval.
+
+```json
+{"capability": "backup.list", "params": {}}
+```
+
+### batch.thread, batch.reassign
+
+Tier: standard for `batch.thread`, elevated for `batch.reassign`. The thread
+call takes `batch`; reassign takes `batch` and `to`.
+
+```json
+{"capability": "batch.thread", "params": {"batch": "bat_1"}}
+```
+
+### events.query, event.publish
+
+Tier: standard for `events.query`, elevated for `event.publish`. Query accepts
+`prefix` and `limit`. Publish takes `event` and `payload`. A published event
+goes to the daemon event bus; it does not write a log line by itself.
+
+```json
+{"capability": "events.query", "params": {"prefix": "reply.", "limit": 50}}
+```
+
+### failed.list, failed.get
+
+Tier: standard. `failed.list` accepts `limit` and `offset`. `failed.get` takes
+`failure`. No retry action is exposed here; use `job.retry` with the job id.
+
+```json
+{"capability": "failed.list", "params": {"limit": 20}}
+```
+
+### holds.list, hold.set, hold.clear, quota.reserve, quota.release, quota.set
+
+Tier: standard for `holds.list`, elevated for the rest. `holds.list` is a
+read-only view. The others take `target`, which is `service`, `account`,
+`batch`, or `job`, plus the matching id and optional `reason`. Quota calls take
+`account`, `day`, and a count or limit. They require approval.
+
+```json
+{"capability": "holds.list", "params": {}}
+```
+
+### job.artifacts, job.claim, job.release, job.pause, job.resume, job.reassign, job.unpin
+
+Tier: standard for `job.artifacts`, `job.pause`, `job.resume`, and `job.unpin`;
+elevated for `job.claim`, `job.release`, and `job.reassign`. The single-job
+calls take `job`. Reassign also takes `to`. Claim and release are runtime
+operations and require approval.
+
+```json
+{"capability": "job.pause", "params": {"job": "job_1", "reason": "review"}}
+```
+
+### mail.fetch, mail.mark_read, mail.mark_unread, mail.flag, mail.move, mail.delete, mail.classify, mail.attribute_reply
+
+Tier: standard. These are registered and validated, and their calls are logged,
+but their current handlers do not change remote mailbox state. Do not rely on
+their side effects. Use `mail.reply` and `mail.send` for real sends.
+
+```json
+{"capability": "mail.mark_read", "params": {"message": "msg_1"}}
+```
+
+### policy.get, policy.effective, policy.set, policy.clear
+
+Tier: standard for the two read calls, elevated for the two writes. Read calls
+take `account`. Writes take `account` or no account for global scope, plus a
+`values` object. Writes require approval.
+
+```json
+{"capability": "policy.get", "params": {"account": "acct_1"}}
+```
+
+### provider.install_declaration, provider.set_override, provider.call
+
+Tier: elevated. These change provider declarations or call a provider-specific
+operation. They take `provider` and optional `values` or call arguments. They
+require approval.
+
+```json
+{"capability": "provider.call", "params": {"provider": "gmail", "operation": "list"}}
+```
+
+### secret.list, secret.exists, secret.put, secret.delete, key.rotate, vault.lock, vault.unlock, vault.status
+
+Tier: standard for `secret.list`, `secret.exists`, and `vault.status`; elevated
+for the rest. Secret calls take `key`, and `secret.put` also takes `value`. No
+call returns a secret value. `vault.unlock` takes `password`, which is redacted
+from every log and event. Key rotation and vault control require approval.
+
+```json
+{"capability": "secret.exists", "params": {"key": "acct_1:refresh_token"}}
+```
+
+### service.pause, service.resume, daemon.restart, daemon.stop
+
+Tier: elevated. These control the daemon and require approval. Pause and resume
+take an optional `reason`. Restart and stop are registered control points.
+
+```json
+{"capability": "service.pause", "params": {"reason": "maintenance"}}
+```
+
+### stats.rebuild, stats.prune, db.vacuum, db.integrity_check
+
+Tier: elevated. These are maintenance operations. `stats.rebuild` takes an
+optional `since`. They require approval.
+
+```json
+{"capability": "stats.rebuild", "params": {"since": "7d"}}
+```
+
+### suppression.add, suppression.remove, suppression.clear
+
+Tier: standard. Add and remove take `account` and `address`. Clear takes
+`account`. These change which addresses are skipped by follow-ups.
+
+```json
+{"capability": "suppression.add", "params": {"account": "acct_1", "address": "person@example.com"}}
+```
+
+### thread.timeline
+
+Tier: standard. Takes `thread` and returns the ordered messages and sends in
+that thread.
+
+```json
+{"capability": "thread.timeline", "params": {"thread": "thr_1"}}
+```
+
+### timer.schedule, timer.cancel, command.register, cli.run, notify
+
+Tier: elevated. These extend runtime behavior and require approval.
+`timer.schedule` takes `name` and `after_s`; `timer.cancel` takes `name`.
+`command.register` takes a command descriptor. `cli.run` takes `argv`, a list
+of CLI arguments. `notify` takes `message` and records a notification event.
+
+```json
+{"capability": "cli.run", "params": {"argv": ["status", "--json"]}}
+```
+
+### config.set, update.check, update.install, update.status
+
+Tier: elevated for `config.set` and `update.install`, standard for
+`update.check` and `update.status`. `config.set` takes a `patch` object.
+Update calls take no required parameters.
+
+```json
+{"capability": "update.check", "params": {}}
+```
+
+### transport.add, transport.update, transport.remove, transport.enable, transport.disable, transport.test, transport.set_priority, transport.clear_cooldown, transport.forget_health
+
+Tier: elevated. All take `account` and `transport` except `transport.add`,
+which also takes `kind`. These change transport state and require approval.
+No credential is returned.
+
+```json
+{"capability": "transport.set_priority", "params": {"account": "acct_1", "transport": "trn_1", "priority": 10}}
+```
+
+### dispatch.pause, dispatch.resume
+
+Tier: elevated. These pause or resume the dispatcher and take an optional
+`reason`. They require approval.
+
+```json
+{"capability": "dispatch.pause", "params": {"reason": "maintenance"}}
+```
+
+### http.request, socket.connect
+
+Tier: elevated. `http.request` takes `url`, optional `method`, `headers`,
+`body`, and `credential`. The host must be granted or wildcarded.
+`socket.connect` is registered but is not available in this release; it is
+denied before any connection is made. Both require approval.
+
+```json
+{"capability": "http.request", "params": {"url": "https://api.example.com/me", "credential": "account:acct_1"}}
 ```
 
 ## Elevated capabilities
