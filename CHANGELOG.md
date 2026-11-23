@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.6.post2
+
+Adds extension privilege tiers, password approval, and a full authoring guide.
+
+See [`release-notes/v1.3.6.post2.md`](release-notes/v1.3.6.post2.md).
+
 ## 1.3.6.post1
 
 Extensions install as one verified `.pyz` artifact.
