@@ -27,6 +27,9 @@ class Manifest:
     capabilities: tuple[str, ...] = ()
     commands: tuple[CommandSpec, ...] = ()
     source: Path = Path()
+    kind: str = "local"
+    artifact: str = ""
+    artifact_sha256: str = ""
 
     @property
     def config_key(self) -> str:
@@ -48,29 +51,49 @@ def parse_manifest(path: Path) -> Manifest:
             data = tomllib.load(handle)
     except (OSError, ValueError) as error:
         raise ManifestError(f"cannot read {path.name}: {error}") from error
+    return parse_manifest_data(data, path)
+
+
+def parse_manifest_data(
+    data: object, source: Path, *, require_artifact: bool = True
+) -> Manifest:
+    name = source.name
     if not isinstance(data, dict):
-        raise ManifestError(f"{path.name}: manifest must be a table")
-    identifier = str(data.get("id") or path.stem)
+        raise ManifestError(f"{name}: manifest must be a table")
+    identifier = str(data.get("id") or source.stem)
     if not _ID.fullmatch(identifier):
-        raise ManifestError(f"{path.name}: invalid extension id {identifier}")
-    run = data.get("run")
-    if (
-        not isinstance(run, list)
-        or not run
-        or not all(isinstance(item, str) for item in run)
-    ):
-        raise ManifestError(f"{path.name}: run must be a non-empty string list")
-    commands = _commands(data.get("commands"), path.name)
+        raise ManifestError(f"{name}: invalid extension id {identifier}")
+    kind = str(data.get("kind") or "local")
+    artifact = str(data.get("artifact") or "")
+    checksum = str(data.get("artifact_sha256") or "")
+    run = _run(data.get("run"), name, required=kind != "pyz")
+    if require_artifact and kind == "pyz" and (not artifact or not checksum):
+        raise ManifestError(f"{name}: pyz extension needs artifact and artifact_sha256")
     return Manifest(
         id=identifier,
-        run=tuple(str(item) for item in run),
+        run=run,
         name=str(data.get("name") or identifier),
         version=str(data.get("version") or ""),
-        events=_strings(data.get("events"), path.name),
-        capabilities=_strings(data.get("capabilities"), path.name),
-        commands=commands,
-        source=path,
+        events=_strings(data.get("events"), name),
+        capabilities=_strings(data.get("capabilities"), name),
+        commands=_commands(data.get("commands"), name),
+        source=source,
+        kind=kind,
+        artifact=artifact,
+        artifact_sha256=checksum,
     )
+
+
+def _run(value: object, source: str, *, required: bool) -> tuple[str, ...]:
+    if value is None and not required:
+        return ()
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) for item in value)
+    ):
+        raise ManifestError(f"{source}: run must be a non-empty string list")
+    return tuple(value)
 
 
 def _commands(value: object, source: str) -> tuple[CommandSpec, ...]:

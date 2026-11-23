@@ -42,6 +42,11 @@ def disable_extension(extension: str, request: Request) -> dict[str, Any]:
     return {"ok": True}
 
 
+@router.get("/{extension}/verify")
+def verify_extension(extension: str, request: Request) -> dict[str, Any]:
+    return _host(request).verify(extension)
+
+
 @router.post("/{extension}/test")
 def test_extension(extension: str, body: dict[str, Any], request: Request) -> Any:
     return _host(request).run_once(extension, body)

@@ -9,19 +9,25 @@ from downcroc.cli.client import api, get, post
 from downcroc.cli.context import load
 from downcroc.cli.output import json_out, table
 from downcroc.cli.ui.session import build
+from downcroc.extensions import packaging
+from downcroc.extensions.errors import ManifestError
 
 
 def run(args: object) -> int:
     ui = build(args)
     action = getattr(args, "action", None) or "list"
     paths, _, _ = load()
+    if action == "build":
+        return _build(args)
     with api(paths, timeout=getattr(args, "timeout", None)) as client:
         if action == "list":
             return _list(client, ui.json_mode)
         if action == "show":
             return _show(client, str(args.extension), ui.json_mode)
         if action == "add":
-            return _add(paths, str(args.path))
+            return _add(paths, str(args.path), client)
+        if action == "verify":
+            return _verify(client, str(args.extension), ui.json_mode)
         if action == "enable":
             post(client, f"/api/extensions/{args.extension}/enable")
             return 0
@@ -108,16 +114,57 @@ def _show(client: Any, extension: str, json_mode: bool) -> int:
     return 0
 
 
-def _add(paths: Any, source: str) -> int:
+def _add(paths: Any, source: str, client: Any) -> int:
     origin = Path(source)
     if not origin.is_file():
         json_out({"error": "manifest_not_found", "path": source})
         return 1
+    if origin.suffix == ".pyz":
+        try:
+            manifest = packaging.install(origin, paths.config / "extensions")
+        except (ManifestError, ValueError, OSError) as error:
+            json_out({"error": "extension_artifact_invalid", "detail": str(error)})
+            return 1
+        post(client, "/api/extensions/reload")
+        json_out(
+            {
+                "ok": True,
+                "id": manifest.id,
+                "artifact": manifest.artifact,
+                "sha256": manifest.artifact_sha256,
+            }
+        )
+        return 0
     target_dir = paths.config / "extensions"
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / origin.name
     shutil.copyfile(origin, target)
     json_out({"ok": True, "path": str(target)})
+    return 0
+
+
+def _build(args: object) -> int:
+    try:
+        target, checksum = packaging.build(
+            Path(str(args.directory)),
+            Path(str(args.output)) if getattr(args, "output", None) else None,
+        )
+    except ValueError as error:
+        json_out({"error": "extension_artifact_invalid", "detail": str(error)})
+        return 1
+    json_out({"path": str(target), "sha256": checksum})
+    return 0
+
+
+def _verify(client: Any, extension: str, json_mode: bool) -> int:
+    result = get(client, f"/api/extensions/{extension}/verify")
+    if json_mode:
+        json_out(result)
+        return 0
+    table(
+        ["field", "value"],
+        [[key, str(value)] for key, value in result.items()],
+    )
     return 0
 
 

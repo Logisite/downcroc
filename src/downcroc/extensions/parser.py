@@ -21,9 +21,21 @@ def add_extensions(commands: argparse._SubParsersAction) -> None:
     common(show)
     show.set_defaults(action="show")
 
-    add = actions.add_parser("add", help="install a manifest")
+    add = actions.add_parser("add", help="install a manifest or artifact")
     add.add_argument("path")
+    common(add)
     add.set_defaults(action="add")
+
+    build = actions.add_parser("build", help="build a single-file artifact")
+    build.add_argument("directory")
+    build.add_argument("--output")
+    common(build)
+    build.set_defaults(action="build")
+
+    verify = actions.add_parser("verify", help="verify an installed artifact")
+    verify.add_argument("extension")
+    common(verify)
+    verify.set_defaults(action="verify")
 
     enable = actions.add_parser("enable", help="enable an extension")
     enable.add_argument("extension")

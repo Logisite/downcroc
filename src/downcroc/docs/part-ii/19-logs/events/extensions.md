@@ -45,6 +45,13 @@ there is nothing to log by accident.
   - `error`: error class.
   - `detail`: short detail. The same restart ceiling applies.
 
+## Artifact verification
+
+- `extension.artifact_invalid` (**error**) — a packaged extension artifact was
+  missing or its checksum did not match.
+  - `extension`: extension id.
+  - `detail`: short reason. No extension code is run after this event.
+
 ## Capability calls
 
 - `extension.call` (**info**) — a capability call completed successfully.

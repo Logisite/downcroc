@@ -4,11 +4,13 @@ import asyncio
 import importlib
 import threading
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
+from downcroc.extensions import packaging
 from downcroc.extensions.broker import Broker
 from downcroc.extensions.config import ExtensionConfig, ExtensionSettings
 from downcroc.extensions.errors import (
@@ -147,16 +149,33 @@ class ExtensionHost:
         finally:
             self.bus.unsubscribe(subscription)
 
+    def _artifact_manifest(self, item: Registered) -> Manifest | None:
+        if item.manifest.kind != "pyz":
+            return item.manifest
+        if not packaging.verify(item.manifest, self._config_dir()):
+            self.log.error(
+                "extension.artifact_invalid",
+                extension=item.manifest.id,
+                detail="artifact missing or checksum mismatch",
+            )
+            return None
+        command = packaging.command(item.manifest, self._config_dir())
+        return replace(item.manifest, run=command)
+
     def _launch(self, item: Registered) -> None:
+        manifest = self._artifact_manifest(item)
+        if manifest is None:
+            item.restarts += 1
+            return
         grants = frozenset(item.config.allow or item.manifest.capabilities)
         try:
             if item.config.trust:
                 process: ExtensionProcess | InProcessExtension = InProcessExtension(
-                    item.manifest, self.broker, grants
+                    manifest, self.broker, grants
                 )
             else:
                 process = ExtensionProcess(
-                    item.manifest,
+                    manifest,
                     grants,
                     item.config.settings,
                     self.settings.call_timeout_s,
@@ -209,9 +228,12 @@ class ExtensionHost:
 
     def run_once(self, extension: str, payload: dict[str, Any]) -> Any:
         item = self._get(extension)
+        manifest = self._artifact_manifest(item)
+        if manifest is None:
+            raise ExtensionError("extension artifact is missing or changed")
         grants = frozenset(item.config.allow or item.manifest.capabilities)
         process = ExtensionProcess(
-            item.manifest, grants, item.config.settings, self.settings.call_timeout_s
+            manifest, grants, item.config.settings, self.settings.call_timeout_s
         )
         process.start()
         try:
@@ -271,15 +293,36 @@ class ExtensionHost:
                 "running": item.process is not None and item.process.alive(),
                 "events": list(item.manifest.events),
                 "commands": [command.name for command in item.manifest.commands],
+                "kind": item.manifest.kind,
+                "artifact": item.manifest.artifact,
+                "artifact_verified": (
+                    packaging.verify(item.manifest, self._config_dir())
+                    if item.manifest.kind == "pyz"
+                    else None
+                ),
             }
             for item in self.registered.values()
         ]
+
+    def verify(self, extension: str) -> dict[str, Any]:
+        item = self._get(extension)
+        if item.manifest.kind != "pyz":
+            return {
+                "extension": extension,
+                "kind": item.manifest.kind,
+                "verified": None,
+            }
+        verified = packaging.verify(item.manifest, self._config_dir())
+        return {"extension": extension, "kind": "pyz", "verified": verified}
 
     def stop(self) -> None:
         for item in self.registered.values():
             if item.process is not None:
                 item.process.stop()
                 item.process = None
+
+    def _config_dir(self) -> Path:
+        return self.paths.config / self.settings.dir
 
     def _get(self, extension: str) -> Registered:
         item = self.registered.get(extension)

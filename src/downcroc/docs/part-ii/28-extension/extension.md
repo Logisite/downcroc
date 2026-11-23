@@ -33,6 +33,8 @@ downcroc extension
 ├── list
 ├── show      EXTENSION
 ├── add       PATH
+├── build     DIR [--output PATH]
+├── verify    EXTENSION
 ├── enable    EXTENSION
 ├── disable   EXTENSION
 ├── reload
@@ -104,6 +106,44 @@ extension config, and starts the ones that are enabled. Reach for it after you
 add, edit, or remove a manifest. A broken manifest is refused with
 `extension_manifest_invalid`, but the other extensions still load, so one bad
 file does not take the whole host down.
+
+## Installing a single-file artifact
+
+A `.pyz` artifact is one file containing the extension code and its manifest. It
+is the closest thing downcroc has to a VSIX package, without a marketplace. It
+is useful when someone sends you an extension and you want one file to check,
+copy, and install.
+
+Build one from a directory containing `__main__.py` and
+`downcroc-extension.toml`:
+
+```text
+downcroc extension build DIR [--output PATH]
+```
+
+The command prints the output path and its SHA-256. The checksum is not a
+signature. It does not tell you the author is trustworthy. It tells you the file
+you install is the same file you checked.
+
+Install the artifact with the same `add` command you use for manifests:
+
+```text
+downcroc extension add reply-bot.pyz
+```
+
+The installer reads the manifest from the archive, copies the artifact under
+your config directory, records the checksum, writes a derived manifest, and
+reloads the host. The extension is installed but not enabled. Enable it
+separately when you are ready.
+
+`downcroc extension verify ID` recomputes the checksum and reports whether the
+artifact still matches. The host also verifies it before every launch. A missing
+file or a changed file stops the extension and writes
+`extension.artifact_invalid` to the log. No extension code runs in that case.
+
+Checksums protect against accidental or later changes to the file. They do not
+sandbox the code, and they do not replace capability grants. The extension still
+runs as a child process with only the capabilities you granted.
 
 ## Turning an extension on and off
 
