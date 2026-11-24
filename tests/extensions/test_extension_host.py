@@ -18,24 +18,119 @@ from tests.harness.seed import until
 SCRIPT = Path(__file__).parent / "fake_extension.py"
 
 
-def _write_manifest(stack, capabilities: str = '"log"', tier: str = "standard") -> None:
+def _write_manifest(
+    stack,
+    capabilities: str = '"log"',
+    tier: str = "standard",
+    extension: str = "fake",
+    events: str = '"reply.attributed"',
+) -> None:
     directory = stack.daemon.config / "extensions"
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "fake.toml").write_text(
+    (directory / f"{extension}.toml").write_text(
         "\n".join(
             [
-                'id = "fake"',
+                f'id = "{extension}"',
                 f'tier = "{tier}"',
-                'name = "Fake extension"',
+                f'name = "{extension}"',
                 'version = "1.0.0"',
                 f"run = [{json.dumps(sys.executable)}, {json.dumps(str(SCRIPT))}]",
-                'events = ["reply.attributed"]',
+                f"events = [{events}]",
                 f"capabilities = [{capabilities}]",
                 "",
             ]
         ),
         encoding="utf-8",
     )
+
+
+def test_multi_round_test_completes(stack_factory) -> None:
+    stack = stack_factory(accounts=[])
+    _write_manifest(stack, '"log", "kv.get", "kv.set"')
+    stack.api.post("/api/extensions/reload")
+    stack.api.post("/api/extensions/fake/enable")
+
+    result = stack.api.post(
+        "/api/extensions/fake/test?rounds=3",
+        {"event": "reply.attributed", "reason": "rounds"},
+    )
+    assert result[0]["ok"] is True
+    logged = events(stack).get("extension.call", [])
+    assert any(
+        item.get("extension") == "fake" and item.get("capability") == "log"
+        for item in logged
+    )
+
+
+def test_event_publish_reaches_running_subscriber(stack_factory) -> None:
+    stack = stack_factory(accounts=[])
+    _write_manifest(
+        stack,
+        '"log"',
+        extension="watcher",
+        events='"quota.committed"',
+    )
+    _write_manifest(
+        stack,
+        '"log", "event.publish"',
+        tier="elevated",
+        extension="publisher",
+    )
+    stack.api.post("/api/extensions/reload")
+    stack.api.post("/api/extensions/publisher/approve", {"password": "test-password"})
+    stack.api.post("/api/extensions/watcher/enable")
+
+    def watcher_calls() -> int:
+        return len(
+            [
+                item
+                for item in events(stack).get("extension.call", [])
+                if item.get("extension") == "watcher"
+            ]
+        )
+
+    before = watcher_calls()
+    stack.api.post(
+        "/api/extensions/publisher/test",
+        {"event": "reply.attributed", "reason": "publish"},
+    )
+    until(lambda: watcher_calls() > before)
+
+
+def test_enable_survives_reload(stack_factory) -> None:
+    stack = stack_factory(accounts=[])
+    _write_manifest(stack)
+    stack.api.post("/api/extensions/reload")
+    stack.api.post("/api/extensions/fake/enable")
+
+    before = next(
+        row for row in stack.api.get("/api/extensions") if row["id"] == "fake"
+    )
+    assert before["enabled"] is True
+    assert before["running"] is True
+    assert before["reason"] == "running"
+
+    stack.api.post("/api/extensions/reload")
+    after = next(row for row in stack.api.get("/api/extensions") if row["id"] == "fake")
+    assert after["enabled"] is True
+    assert after["running"] is True
+    assert after["reason"] == "running"
+
+
+def test_quota_capability_reports_counters(stack_factory) -> None:
+    stack = stack_factory(accounts=["alice@local.test"])
+    _write_manifest(stack, '"quota.get"')
+    stack.api.post("/api/extensions/reload")
+    stack.api.post("/api/extensions/fake/enable")
+
+    result = stack.api.post(
+        "/api/extensions/fake/test",
+        {"event": "reply.attributed", "reason": "quota", "account": stack.accounts[0]},
+    )
+    assert len(result) == 1
+    value = result[0]
+    assert {"used", "reserved", "remaining", "limit", "day"} <= set(value)
+    assert value["remaining"] == value["limit"] - value["used"] - value["reserved"]
 
 
 def test_capabilities_endpoint_reports_tiers(stack_factory) -> None:

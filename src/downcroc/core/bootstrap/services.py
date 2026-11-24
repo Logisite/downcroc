@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from downcroc.store.repositories.events import EventRepo
     from downcroc.store.repositories.jobs import JobRepo
     from downcroc.store.repositories.messages import MessageRepo
+    from downcroc.store.repositories.quota import QuotaRepo
     from downcroc.store.repositories.send_attempts import SendAttemptRepo
     from downcroc.store.repositories.thread_backfill import ThreadBackfillRepo
 
@@ -61,6 +62,7 @@ class Services:
     messages: MessageRepo
     content: ContentStore
     policy: PolicyResolver
+    quota: QuotaRepo
     policy_overrides: PolicyService
     inbound: InboundService
     outbound: OutboundService

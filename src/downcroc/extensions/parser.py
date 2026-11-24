@@ -48,6 +48,13 @@ def add_extensions(commands: argparse._SubParsersAction) -> None:
     common(approve)
     approve.set_defaults(action="approve")
 
+    inject = actions.add_parser("inject", help="inject an event for testing")
+    inject.add_argument("extension")
+    inject.add_argument("--event", required=True)
+    inject.add_argument("--payload", default="{}", help="JSON event payload")
+    common(inject)
+    inject.set_defaults(action="inject")
+
     revoke = actions.add_parser("revoke", help="revoke elevated capabilities")
     revoke.add_argument("extension")
     common(revoke)
@@ -76,6 +83,7 @@ def add_extensions(commands: argparse._SubParsersAction) -> None:
     test = actions.add_parser("test", help="run an extension once")
     test.add_argument("extension")
     test.add_argument("--input", required=True, help="JSON event payload")
+    test.add_argument("--rounds", type=int, default=1, help="action rounds to run")
     common(test)
 
     run = actions.add_parser("run", help="run a registered command")

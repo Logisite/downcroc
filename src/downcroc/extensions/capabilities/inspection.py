@@ -248,8 +248,14 @@ def _due_days(inv: Invocation) -> int | None:
 def _quota(inv: Invocation) -> Any:
     account = inv.services.accounts.get(require(inv, "account"))
     policy = inv.services.policy.effective(account)
+    day = inv.services.policy.day()
+    used, reserved = inv.services.quota.status(account.id, day)
+    limit = policy.daily_allowance
     return {
         "account": account.id,
-        "day": inv.services.policy.day(),
-        "limit": policy.daily_allowance,
+        "day": day,
+        "limit": limit,
+        "used": used,
+        "reserved": reserved,
+        "remaining": max(0, limit - used - reserved),
     }

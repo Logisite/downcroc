@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from downcroc.extensions.tiers import tier_for
 
@@ -47,6 +47,15 @@ def revoke_extension(extension: str, request: Request) -> dict[str, Any]:
     return {"ok": True}
 
 
+@router.post("/inject")
+def inject_event(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    return _host(request).inject(
+        str(body.get("extension", "")),
+        str(body.get("event", "")),
+        dict(body.get("payload") or {}),
+    )
+
+
 @router.post("/reload")
 def reload_extensions(request: Request) -> dict[str, Any]:
     _host(request).reload()
@@ -71,8 +80,13 @@ def verify_extension(extension: str, request: Request) -> dict[str, Any]:
 
 
 @router.post("/{extension}/test")
-def test_extension(extension: str, body: dict[str, Any], request: Request) -> Any:
-    return _host(request).run_once(extension, body)
+def test_extension(
+    extension: str,
+    body: dict[str, Any],
+    request: Request,
+    rounds: int = Query(default=1, ge=1, le=64),
+) -> Any:
+    return _host(request).run_once(extension, body, rounds)
 
 
 @router.post("/{extension}/command/{command}")

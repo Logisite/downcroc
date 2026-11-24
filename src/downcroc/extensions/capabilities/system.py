@@ -23,6 +23,7 @@ def register_system(broker: Broker) -> None:
         "update.check",
         "update.install",
         "notify",
+        "notify.system",
         "timer.schedule",
         "timer.cancel",
         "command.register",
@@ -77,6 +78,8 @@ def system(inv: Invocation, params: dict[str, Any]) -> Any:
             message=str(inv.param("message", "")),
         )
         return {"ok": True}
+    if name == "notify.system":
+        return notify_system(inv, params)
     if name == "capability.list":
         return [
             {"name": item, "tier": tier_for(item)} for item in inv.broker.capabilities
@@ -111,6 +114,27 @@ def run_cli(inv: Invocation, params: dict[str, Any]) -> dict[str, Any]:
         "returncode": result.returncode,
         "stdout": _redact(result.stdout),
         "stderr": _redact(result.stderr),
+    }
+
+
+def notify_system(inv: Invocation, params: dict[str, Any]) -> dict[str, Any]:
+    command = list(inv.settings.notifier)
+    if not command:
+        return {"ok": False, "error": "notify_unavailable"}
+    title = str(params.get("title", "downcroc"))
+    message = str(params.get("message", ""))
+    result = subprocess.run(
+        [*command, title, message],
+        capture_output=True,
+        text=True,
+        timeout=inv.settings.call_timeout_s,
+        check=False,
+    )
+    return {
+        "ok": result.returncode == 0,
+        "returncode": result.returncode,
+        "stdout": result.stdout[:2000],
+        "stderr": result.stderr[:2000],
     }
 
 

@@ -22,10 +22,14 @@ extension look broken.
 2. downcroc sends an `event` frame for each subscribed event.
 3. The extension sends an `actions` frame with zero or more capability calls.
 4. downcroc executes the actions in order and sends one `result` frame.
-5. Steps 2 to 4 repeat.
-6. downcroc closes stdin when the extension is disabled or the daemon stops.
+5. Steps 3 and 4 repeat while the extension sends more actions. An empty
+   `actions` list ends the event.
+6. Steps 2 to 5 repeat for later events.
+7. downcroc closes stdin when the extension is disabled or the daemon stops.
 
-The same loop is used by `extension test`, with one event and then shutdown.
+The round loop is bounded by `extensions.max_protocol_rounds`, default 8.
+`extension test` uses the same loop. Pass `--rounds N` to allow N rounds; the
+default is 1.
 
 ## hello
 
@@ -65,15 +69,20 @@ this exact list:
 
 `event`, `id`, `account`, `account_id`, `message`, `message_id`, `job`,
 `job_id`, `batch`, `batch_id`, `thread`, `thread_id`, `reply_state`, `subject`,
-`from`, `transport`, `state`, `created_at`, `sent_at`, `received_at`, `reason`.
+`from`, `transport`, `state`, `created_at`, `sent_at`, `received_at`, `reason`,
+`used`, `reserved`, `remaining`, `limit`, `day`.
 
 The `event` key is always present inside `payload`, even if the source event had
 no other fields. Every other field is omitted when the source event does not
 carry it. Always check before using it.
 
-Quota and counter fields are **not** in event payloads. `used`, `reserved`,
-`remaining`, `available`, `quota_limit`, and similar values never reach an
-extension through an event. If you need them, call `quota.get` for a single
+Quota counters do survive sanitization when the source event carries them:
+`used`, `reserved`, `remaining`, `limit`, and `day` are in the allowlist. A
+`quota.committed` bus event therefore tells an extension that an allowance is
+exhausted without a log read.
+
+The alias `available` and the stats field `quota_limit` are not event fields.
+For a current snapshot rather than an event value, call `quota.get` for one
 account or `stats.query` with `kind = "accounts"` for per-account used,
 reserved, and available counts. Both are standard capabilities.
 

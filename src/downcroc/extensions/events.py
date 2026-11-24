@@ -24,6 +24,11 @@ SAFE_FIELDS = (
     "sent_at",
     "received_at",
     "reason",
+    "used",
+    "reserved",
+    "remaining",
+    "limit",
+    "day",
 )
 
 

@@ -62,9 +62,12 @@ class ExtensionProcess:
         for line in process.stdout:
             self.inbox.put(line)
 
-    def exchange(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def send(self, message: dict[str, Any]) -> None:
         with self.lock:
-            self._send({"type": "event", "payload": payload})
+            self._send(message)
+
+    def read(self) -> dict[str, Any]:
+        with self.lock:
             try:
                 line = self.inbox.get(timeout=self.timeout)
             except queue.Empty as error:
@@ -77,8 +80,12 @@ class ExtensionProcess:
                 raise ExtensionCrashed("extension exited")
             return message
 
+    def exchange(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.send({"type": "event", "payload": payload})
+        return self.read()
+
     def respond(self, results: list[Any]) -> None:
-        self._send({"type": "result", "results": results})
+        self.send({"type": "result", "results": results})
 
     def _send(self, message: dict[str, Any]) -> None:
         if self.process is None or self.process.stdin is None:

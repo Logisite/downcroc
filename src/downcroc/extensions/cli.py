@@ -29,6 +29,8 @@ def run(args: object) -> int:
             return _add(paths, str(args.path), client)
         if action == "verify":
             return _verify(client, str(args.extension), ui.json_mode)
+        if action == "inject":
+            return _inject(client, args)
         if action == "approval":
             return _show_approval(client, str(args.extension), ui.json_mode)
         if action == "approve":
@@ -51,6 +53,7 @@ def run(args: object) -> int:
                 client,
                 f"/api/extensions/{args.extension}/test",
                 json.loads(str(args.input)),
+                rounds=int(getattr(args, "rounds", 1)),
             )
             json_out(result)
             return 0
@@ -172,6 +175,28 @@ def _verify(client: Any, extension: str, json_mode: bool) -> int:
         ["field", "value"],
         [[key, str(value)] for key, value in result.items()],
     )
+    return 0
+
+
+def _inject(client: Any, args: object) -> int:
+    try:
+        payload = json.loads(str(getattr(args, "payload", "{}")))
+    except ValueError as error:
+        json_out({"error": "invalid_payload", "detail": str(error)})
+        return 1
+    if not isinstance(payload, dict):
+        json_out({"error": "invalid_payload", "detail": "payload must be an object"})
+        return 1
+    result = post(
+        client,
+        "/api/extensions/inject",
+        {
+            "extension": str(args.extension),
+            "event": str(args.event),
+            "payload": payload,
+        },
+    )
+    json_out(result)
     return 0
 
 

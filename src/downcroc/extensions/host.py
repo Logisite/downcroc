@@ -118,9 +118,14 @@ class ExtensionHost:
         if not isinstance(section, dict):
             section = {}
         try:
-            return ExtensionConfig(**section)
+            config = ExtensionConfig(**section)
         except ValidationError:
-            return ExtensionConfig()
+            config = ExtensionConfig()
+        if config.enabled is None:
+            state = self.store.state(manifest.id)
+            enabled = bool(state.get("enabled")) if state is not None else False
+            config = config.model_copy(update={"enabled": enabled})
+        return config
 
     def load_config(self) -> None:
         try:
@@ -229,7 +234,7 @@ class ExtensionHost:
         )
         return self._dispatch(item, payload["event"], payload)
 
-    def run_once(self, extension: str, payload: dict[str, Any]) -> Any:
+    def run_once(self, extension: str, payload: dict[str, Any], rounds: int = 1) -> Any:
         item = self._get(extension)
         manifest = self._artifact_manifest(item)
         if manifest is None:
@@ -240,8 +245,9 @@ class ExtensionHost:
         )
         process.start()
         try:
-            response = process.exchange(sanitize(payload))
-            return self._execute(item, response)[0]
+            clean = sanitize(payload)
+            process.send({"type": "event", "payload": clean})
+            return self._rounds(item, process, rounds)
         finally:
             process.stop()
 
@@ -298,6 +304,7 @@ class ExtensionHost:
                 "commands": [command.name for command in item.manifest.commands],
                 "kind": item.manifest.kind,
                 "artifact": item.manifest.artifact,
+                "reason": self._status_reason(item),
                 "artifact_verified": (
                     packaging.verify(item.manifest, self._config_dir())
                     if item.manifest.kind == "pyz"
@@ -306,6 +313,33 @@ class ExtensionHost:
             }
             for item in self.registered.values()
         ]
+
+    def _status_reason(self, item: Registered) -> str:
+        running = item.process is not None and item.process.alive()
+        if running:
+            return "running"
+        if not item.config.enabled:
+            return "disabled"
+        if item.manifest.kind == "pyz" and not packaging.verify(
+            item.manifest, self._config_dir()
+        ):
+            return "artifact_invalid"
+        if item.manifest.tier == "elevated" and not self.approvals.is_approved(
+            item.manifest
+        ):
+            return "approval_required"
+        if item.process is not None:
+            return "crashed"
+        return "not_started"
+
+    def inject(
+        self, extension: str, event: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        self._get(extension)
+        if not event:
+            raise ValueError("event is required")
+        self.publish(event, {"event": event, **payload})
+        return {"ok": True, "extension": extension, "event": event}
 
     def approve(self, extension: str, password: str) -> dict[str, str]:
         return self.approvals.approve(self._get(extension).manifest, password)
@@ -349,14 +383,30 @@ class ExtensionHost:
     def _dispatch(self, item: Registered, event: str, payload: dict[str, Any]) -> Any:
         if item.process is None:
             return None
+        frame = {"type": "event", "payload": {"event": event, **payload}}
         try:
-            response = item.process.exchange({"event": event, **payload})
-            result = self._execute(item, response)
-            item.process.respond(result[1])
-            return result[0]
+            if isinstance(item.process, ExtensionProcess):
+                item.process.send(frame)
+                return self._rounds(
+                    item, item.process, self.settings.max_protocol_rounds
+                )
+            response = item.process.exchange(frame["payload"])
+            return self._execute(item, response)[0]
         except (ExtensionTimeout, ExtensionCrashed) as error:
             self._crash(item, error)
             return None
+
+    def _rounds(self, item: Registered, process: ExtensionProcess, rounds: int) -> Any:
+        limit = max(1, min(rounds, self.settings.max_protocol_rounds))
+        last: Any = None
+        for _index in range(limit):
+            frame = process.read()
+            result = self._execute(item, frame)
+            process.respond(result[1])
+            last = result[0]
+            if not (frame.get("actions") or []):
+                break
+        return last
 
     def _execute(
         self, item: Registered, response: dict[str, Any]

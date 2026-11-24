@@ -5,6 +5,20 @@ import os
 import sys
 
 
+def emit(action: dict) -> None:
+    print(json.dumps({"actions": [action]}), flush=True)
+
+
+def read_result() -> None:
+    for line in sys.stdin:
+        try:
+            frame = json.loads(line)
+        except ValueError:
+            continue
+        if frame.get("type") == "result":
+            return
+
+
 def main() -> None:
     for line in sys.stdin:
         try:
@@ -16,6 +30,51 @@ def main() -> None:
         payload = message.get("payload") or {}
         leaked = [key for key in os.environ if key.startswith("DOWNCROC_")]
         detail = "ENVLEAK" if leaked else "clean"
+        if payload.get("reason") == "rounds":
+            emit({"capability": "kv.get", "params": {"key": "rounds"}})
+            read_result()
+            emit({"capability": "log", "params": {"message": "multi-round"}})
+            read_result()
+            emit({"capability": "kv.set", "params": {"key": "rounds", "value": "1"}})
+            read_result()
+            continue
+        if payload.get("reason") == "quota":
+            print(
+                json.dumps(
+                    {
+                        "actions": [
+                            {
+                                "capability": "quota.get",
+                                "params": {"account": payload.get("account", "acct_1")},
+                            }
+                        ]
+                    }
+                ),
+                flush=True,
+            )
+            continue
+        if payload.get("reason") == "publish":
+            print(
+                json.dumps(
+                    {
+                        "actions": [
+                            {
+                                "capability": "event.publish",
+                                "params": {
+                                    "event": "quota.committed",
+                                    "payload": {
+                                        "used": 30,
+                                        "limit": 50,
+                                        "remaining": 20,
+                                    },
+                                },
+                            }
+                        ]
+                    }
+                ),
+                flush=True,
+            )
+            continue
         if payload.get("reason") == "cli":
             print(
                 json.dumps(

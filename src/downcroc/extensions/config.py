@@ -22,6 +22,12 @@ class ExtensionSettings(BaseModel):
         le=100,
         description="Restart ceiling for a crashed extension.",
     )
+    max_protocol_rounds: int = Field(
+        default=8,
+        ge=1,
+        le=64,
+        description="Maximum action rounds for one extension event.",
+    )
     call_timeout_s: float = Field(
         default=30.0,
         gt=0,
@@ -34,6 +40,10 @@ class ExtensionSettings(BaseModel):
         le=100_000,
         description="Per-extension capability call limit per minute.",
     )
+    notifier: list[str] = Field(
+        default_factory=list,
+        description="Command used by notify.system; title and message are appended.",
+    )
     max_sends_per_hour: int = Field(
         default=200,
         ge=1,
@@ -45,7 +55,7 @@ class ExtensionSettings(BaseModel):
 class ExtensionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    enabled: bool = False
+    enabled: bool | None = None
     trust: bool = False
     allow: list[str] = Field(default_factory=list)
     settings: dict[str, Any] = Field(default_factory=dict)

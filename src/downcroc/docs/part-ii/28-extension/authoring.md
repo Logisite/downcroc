@@ -228,6 +228,16 @@ This example is complete. It reads the event, checks its own memory, sends a
 threaded reply, then records that it handled the message. It needs no source
 reading.
 
+The host supports this multi-round loop. Test it with:
+
+```sh
+downcroc extension test reply-bot --rounds 3 \
+  --input '{"event":"reply.attributed","message":"msg_1"}'
+```
+
+Without `--rounds`, a one-shot test allows only one round and the extension
+will time out while waiting for the first result.
+
 ## Reading results
 
 Every action produces one result in the same order. A result is either:

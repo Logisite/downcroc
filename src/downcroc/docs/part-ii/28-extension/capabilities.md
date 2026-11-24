@@ -187,17 +187,18 @@ Tier: standard. These are read-only views of dispatch and service state.
 
 ### quota.get
 
-Tier: standard. Returns the current quota day, daily limit, and remaining
-allowance for an account. It takes `account`.
+Tier: standard. Returns the current quota snapshot for an account. It takes
+`account`.
 
 ```json
 {"capability": "quota.get", "params": {"account": "acct_1"}}
 ```
 
-The result contains `account`, `day`, and `limit`. It does not contain an
-extension credential. For actual used and reserved counts, call
-`stats.query` with `kind = "accounts"`; those counts are returned there as
-`used`, `reserved`, and `available`.
+The result contains `account`, `day`, `limit`, `used`, `reserved`, and
+`remaining`. `remaining` is `max(0, limit - used - reserved)`. No extension
+credential is returned. For a fleet view, call `stats.query` with
+`kind = "accounts"`, which returns `used`, `reserved`, and `available` per
+account.
 
 ### followup.status, followup.outlook, followup.due
 
@@ -512,15 +513,22 @@ that thread.
 {"capability": "thread.timeline", "params": {"thread": "thr_1"}}
 ```
 
-### timer.schedule, timer.cancel, command.register, cli.run, notify
+### timer.schedule, timer.cancel, command.register, cli.run, notify, notify.system
 
 Tier: elevated. These extend runtime behavior and require approval.
 `timer.schedule` takes `name` and `after_s`; `timer.cancel` takes `name`.
 `command.register` takes a command descriptor. `cli.run` takes `argv`, a list
-of CLI arguments. `notify` takes `message` and records a notification event.
+of CLI arguments. `notify` takes `message` and records a log event.
+`notify.system` takes `title` and `message` and calls the configured notifier
+command with those two arguments appended. No shell is used. If no notifier is
+configured, it returns `ok: false` with `error: notify_unavailable`.
 
 ```json
 {"capability": "cli.run", "params": {"argv": ["status", "--json"]}}
+```
+
+```json
+{"capability": "notify.system", "params": {"title": "Quota", "message": "Allowance exhausted"}}
 ```
 
 ### config.set, update.check, update.install, update.status

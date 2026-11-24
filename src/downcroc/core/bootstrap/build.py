@@ -93,6 +93,7 @@ def build(settings: Settings, paths: Paths, log: EventLogger) -> Services:
         messages=foundation.messages,
         content=foundation.content,
         policy=foundation.policy,
+        quota=foundation.quota,
         policy_overrides=foundation.policy_service,
         inbound=inbound,
         outbound=outbound,

@@ -43,7 +43,8 @@ downcroc extension
 ├── reload
 ├── logs      EXTENSION [--follow]
 ├── capabilities
-├── test      EXTENSION --input JSON
+├── test      EXTENSION --input JSON [--rounds N]
+├── inject    EXTENSION --event NAME [--payload JSON]
 └── run       EXTENSION COMMAND [ARGS...]
 ```
 
@@ -196,7 +197,7 @@ real events. It starts a fresh process, sends one event, executes the actions
 that come back, and prints the results.
 
 ```text
-downcroc extension test ID --input JSON
+downcroc extension test ID --input JSON [--rounds N]
 ```
 
 `--input JSON` is required. The JSON object becomes the event payload. Give it
@@ -204,14 +205,42 @@ an `event` field such as `reply.attributed`, and useful ids such as `message`.
 The host always sanitizes the payload, so unknown fields are dropped before
 the extension sees them.
 
-The result is a JSON list with one entry per action. A successful entry is the
-capability result. A refused capability returns `error: CapabilityDenied` and a
-short `detail`. The process is stopped after the test even when an action
-fails. If the extension does not answer within `extensions.call_timeout_s`, the
-result reports a timeout and the host logs `extension.timeout`.
+`--rounds N` allows N action rounds for the one event. The default is 1. Use 2
+or more when testing an extension that reads a result and then emits another
+action, such as the reply bot in [Writing an extension](authoring.md). A round
+ends when the extension sends an empty `actions` list. The host stops at
+`extensions.max_protocol_rounds` even if you pass a larger N.
 
-Use this after changing a manifest or a grant, because it exercises the whole
-path without waiting for real mail.
+The result is a JSON list with one entry per action in the final round. A
+successful entry is the capability result. A refused capability returns
+`error: CapabilityDenied` and a short `detail`. The process is stopped after
+the test even when an action fails. If the extension does not answer within
+`extensions.call_timeout_s`, the result reports a timeout and the host logs
+`extension.timeout`.
+
+## Injecting an event
+
+```text
+downcroc extension inject ID --event NAME [--payload JSON]
+```
+
+`inject` publishes a daemon event through the same bus path the daemon uses.
+The named extension must be running and subscribed to that event. The payload
+is sanitized like any other event payload.
+
+```sh
+downcroc extension inject watcher \
+  --event quota.committed \
+  --payload '{"account":"acct_1","used":30,"limit":50,"remaining":20,"day":"2026-11-24"}'
+```
+
+This is the supported way to test event-driven extensions without waiting for
+real mail or quota activity. It works for `extension test` publishers too: an
+extension that calls `event.publish` reaches running subscribers through the
+same bus.
+
+Use `test` and `inject` after changing a manifest or a grant, because they
+exercise the whole path without waiting for real mail.
 
 ## Running a contributed command
 
