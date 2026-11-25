@@ -136,6 +136,7 @@ def list_batches(
     newest_first: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    include_eta: bool = Query(default=True),
 ) -> list[BatchOut]:
     services = _services(request)
     service = services.batches
@@ -163,14 +164,18 @@ def list_batches(
             BatchOut.of(
                 batch,
                 service.counts(batch.id),
-                capacity.batch_eta(batch),
+                capacity.batch_eta(batch) if include_eta else None,
                 summaries.get(batch.id),
             )
             for batch in page
         ]
     response.headers["X-Total-Count"] = str(service.count(state=state))
     return [
-        BatchOut.of(batch, service.counts(batch.id), capacity.batch_eta(batch))
+        BatchOut.of(
+            batch,
+            service.counts(batch.id),
+            capacity.batch_eta(batch) if include_eta else None,
+        )
         for batch in service.list(
             state=state, limit=limit, offset=offset, newest_first=newest_first
         )

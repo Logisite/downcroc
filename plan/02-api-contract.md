@@ -145,7 +145,7 @@ Connect errors: `oauth_not_configured` and `provider_not_configured` (409),
 | POST | `/api/batches` | submit a file path. Validates, snapshots, routes, creates jobs |
 | POST | `/api/batches/preview` | validate and render one row or message without creating a batch |
 | POST | `/api/batches/{id}/test-send` | send the rendered message for one key or row to an arbitrary address |
-| GET | `/api/batches` | list with counts: sent, failed, inbound, replies |
+| GET | `/api/batches` | list with counts: sent, failed, inbound, replies; `include_eta=false` skips per-batch ETA for fast pickers |
 | GET | `/api/batches/{id}` | detail, including samples, routing, and per-recipient rows |
 | POST | `/api/batches/{id}/approve` | `one` or `all`, per the dry-run flow in `06` |
 | POST | `/api/batches/{id}/cancel` | stop queued jobs, keep sent ones, cancel future steps |

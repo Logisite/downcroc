@@ -9,7 +9,12 @@ from downcroc.runtime.paths import resolve
 @resolver("batch_id", "batch", "batch_ids")
 def batches(ui: Ui, path: tuple[str, ...], state: LeafState) -> list[Named]:
     del path, state
-    rows = fetch(ui, "/api/batches", newest_first=ui.newest_first)
+    rows = fetch(
+        ui,
+        "/api/batches",
+        newest_first=ui.newest_first,
+        include_eta=False,
+    )
     return [
         Named(
             text(row.get("id")),
