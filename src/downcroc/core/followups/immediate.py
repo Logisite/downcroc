@@ -213,9 +213,12 @@ class ImmediateRunner:
 
     def _sync_or_fail(self, anchors: tuple[Anchor, ...]) -> None:
         failed: list[str] = []
-        for account_id in sorted({item.parent.account_id for item in anchors}):
-            if account_id is None:
-                continue
+        account_ids = {
+            item.parent.account_id
+            for item in anchors
+            if item.parent.account_id is not None
+        }
+        for account_id in sorted(account_ids):
             ok, reason = self._inbound.sync_wait(
                 account_id, self._settings.followups.sync_timeout_s
             )

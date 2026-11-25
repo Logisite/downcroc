@@ -9,7 +9,7 @@ from downcroc.runtime.paths import resolve
 @resolver("batch_id", "batch", "batch_ids")
 def batches(ui: Ui, path: tuple[str, ...], state: LeafState) -> list[Named]:
     del path, state
-    rows = fetch(ui, "/api/batches")
+    rows = fetch(ui, "/api/batches", newest_first=ui.newest_first)
     return [
         Named(
             text(row.get("id")),
@@ -35,7 +35,7 @@ def _batch_detail(row: dict) -> str:
 def jobs(ui: Ui, path: tuple[str, ...], state: LeafState) -> list[Named]:
     del state
     if path[:1] == ("failed",):
-        rows = fetch(ui, "/api/failed")
+        rows = fetch(ui, "/api/failed", newest_first=ui.newest_first)
         return [
             Named(
                 text(row.get("job_id")),
@@ -44,7 +44,7 @@ def jobs(ui: Ui, path: tuple[str, ...], state: LeafState) -> list[Named]:
             )
             for row in rows
         ]
-    rows = fetch(ui, "/api/jobs")
+    rows = fetch(ui, "/api/jobs", newest_first=ui.newest_first)
     return [
         Named(
             text(row.get("id")),
