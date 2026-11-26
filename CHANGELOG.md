@@ -3,6 +3,12 @@
 Downcroc follows a release-note file per version under [`release-notes/`](release-notes/). This
 file is a short index. The release note is the canonical description of a release.
 
+## 1.3.6.post4
+
+Fixes unassigned-account follow-ups and speeds up interactive pickers.
+
+See [`release-notes/v1.3.6.post4.md`](release-notes/v1.3.6.post4.md).
+
 ## 1.3.6.post3
 
 Unblocks event-driven extensions with persistent enablement and bus delivery.
